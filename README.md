@@ -84,7 +84,7 @@ graph TD
 
     S -->|Lưu trữ/Truy vấn| DB
     DASH -->|Truy vấn dữ liệu| DB
-    ADMIN -->|HTTP Request\[](http://server-ip:5000)| DASH
+    ADMIN -->|HTTP Request[](http://server-ip:5000)| DASH
 
     style S fill:#D5E8D4,stroke:#82B366,stroke-width:2px
     style DASH fill:#DAE8FC,stroke:#6C8EBF,stroke-width:2px
