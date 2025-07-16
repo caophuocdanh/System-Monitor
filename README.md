@@ -63,15 +63,15 @@ Hệ thống hoạt động theo mô hình Client-Server với một Dashboard g
 ```mermaid
 graph TD
     subgraph "Các máy trạm (Clients)"
-        C1[Client 1]
-        C2[Client 2]
-        C3[Client n]
+        C1[Client 1 <br> Windows]
+        C2[Client 2 <br> Windows]
+        C3[Client ... <br> Windows]
     end
 
     subgraph "Hệ thống trung tâm (Server)"
-        S[System Monitor Server Nhận dữ liệu Lưu vào SQLite Health Check]
+        S[System Monitor Server <br>Nhận dữ liệu <br>Lưu vào SQLite <br>Health Check]
         DB[(SQLite Database)]
-        DASH[System Monitor Dashboard Giao diện Web Flask Cung cấp REST API]
+        DASH[System Monitor Dashboard <br>Giao diện Web Flask <br>Cung cấp REST API]
     end
 
     subgraph "Người quản trị (Admin)"
