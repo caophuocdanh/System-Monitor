@@ -13,7 +13,7 @@
 
 <p align="center">
   <!-- Thêm ảnh chụp màn hình dashboard ở đây để tăng tính trực quan -->
-<img src="images/dashboard.png" alt="Dashboard" width="80%">
+<img src="requirements/dashboard.png" alt="Dashboard" width="80%">
 </p>
 
 ---
@@ -62,35 +62,29 @@ Hệ thống hoạt động theo mô hình Client-Server với một Dashboard g
 
 ```mermaid
 graph TD
-    subgraph "Các máy trạm (Clients)"
-        C1[Client 1<br>(Windows)]
-        C2[Client 2<br>(Windows)]
-        C3[Client ...<br>(Windows)]
+    subgraph "Clients"
+        C1["Client 1 (Windows)"]
+        C2["Client 2 (Windows)"]
+        C3["Client ... (Windows)"]
     end
 
-    subgraph "Hệ thống trung tâm (Server)"
-        S[<br><b>System Monitor Server</b><br>Nhận dữ liệu<br>Lưu vào SQLite<br>Health Check<br>]
-        DB[(<br><b>SQLite Database</b><br>Lưu trữ thông tin<br>)]
-        DASH[<br><b>System Monitor Dashboard</b><br>Giao diện Web (Flask)<br>Cung cấp REST API<br>]
+    subgraph "Central Server"
+        S["System Monitor Server"]
+        DB["SQLite Database"]
+        DASH["System Monitor Dashboard"]
     end
 
-    subgraph "Người quản trị (Admin)"
-        ADMIN[<br><b>Admin's Browser</b><br>Truy cập Dashboard<br>]
+    subgraph "Admin"
+        ADMIN["Admin Browser"]
     end
 
-    C1 -- "Gửi dữ liệu Realtime<br>(WebSocket)" --> S
-    C2 -- "Gửi dữ liệu Realtime<br>(WebSocket)" --> S
-    C3 -- "Gửi dữ liệu Realtime<br>(WebSocket)" --> S
+    C1 --> S
+    C2 --> S
+    C3 --> S
 
-    S -- "Lưu trữ/Truy vấn" --> DB
-    DASH -- "Truy vấn dữ liệu" --> DB
-    ADMIN -- "HTTP Request<br>(http://server-ip:5000)" --> DASH
-
-    style S fill:#D5E8D4,stroke:#82B366,stroke-width:2px
-    style DASH fill:#DAE8FC,stroke:#6C8EBF,stroke-width:2px
-    style C1 fill:#F8CECC,stroke:#B85450,stroke-width:2px
-    style C2 fill:#F8CECC,stroke:#B85450,stroke-width:2px
-    style C3 fill:#F8CECC,stroke:#B85450,stroke-width:2px
+    S --> DB
+    DASH --> DB
+    ADMIN --> DASH
 ```
 
 ## 🧩 Thành phần hệ thống
