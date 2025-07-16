@@ -1,24 +1,17 @@
 # System Monitor
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-v4.0-blue.svg" alt="Version">
-  <img src="https://img.shields.io/badge/platform-Windows-0078D6.svg" alt="Platform">
-  <img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License">
-  <img src="https://img.shields.io/badge/status-active-brightgreen.svg" alt="Status">
-</p>
-
-<p align="center">
   <b><i>Giải pháp giám sát hệ thống Windows từ xa, tập trung, và trực quan theo thời gian thực.</i></b>
 </p>
 
 <p align="center">
   <!-- Thêm ảnh chụp màn hình dashboard ở đây để tăng tính trực quan -->
-<img src="requirements/dashboard.png" alt="Dashboard" width="80%">
+<img src="requirements/dashboard.png" alt="Dashboard" width="100%">
 </p>
 
 ---
 
-**System Monitor** là một hệ thống mạnh mẽ cho phép quản trị viên thu thập, lưu trữ và hiển thị thông tin chi tiết về phần cứng, phần mềm, hiệu năng và các sự kiện bảo mật từ nhiều máy tính Windows một cách tập trung và realtime.
+**System Monitor** là một phần mềm cho phép quản trị viên thu thập, lưu trữ và hiển thị thông tin chi tiết về phần cứng, phần mềm, hiệu năng và các sự kiện bảo mật từ nhiều máy tính Windows một cách tập trung và realtime.
 
 ## 📜 Mục lục
 
@@ -192,10 +185,6 @@ Dự án này được cấp phép theo Giấy phép "Tự tui cấp". Xem file 
 
 ---
 <p align="center">
-<<<<<<< HEAD
   <i>Hệ thống quản lý mục đích cá nhân, không kinh doanh, trao đổi, mua bán.</i>
   <i>Opensource dành cho ai cần. Tự chịu trách nhiệm nếu bị vấn đề gì.</i>
-=======
-  <i>Hệ thống lý tưởng cho quản trị viên IT, phòng lab, trường học, và doanh nghiệp nhỏ.</i>
->>>>>>> f4964a5a5f86667daa60c0ca071c5c733d14d210
 </p>

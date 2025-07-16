@@ -3,7 +3,7 @@ import websockets
 import sqlite3
 import json
 import configparser
-from datetime import datetime
+from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import threading
 import logging
@@ -73,7 +73,8 @@ async def db_upsert_client_static_info(guid, hostname, username, local_ip, wan_i
     )
 
 async def db_add_active_connection(guid, client_address):
-    timestamp = int(datetime.now().timestamp())
+    # Dùng now(timezone.utc) để lấy thời gian UTC hiện tại
+    timestamp = int(datetime.now(timezone.utc).timestamp()) 
     address_str = f"{client_address[0]}:{client_address[1]}"
     query = "INSERT INTO active_connections (guid, connection_start_time, client_address) VALUES (?, ?, ?)"
     await db_write_queue.put((_execute_db_write, (query, (guid, timestamp, address_str))))
@@ -89,7 +90,7 @@ async def db_clear_client_audit_data(guid):
     await db_write_queue.put((_execute_db_write, (query, (guid,))))
 
 async def db_log_metrics(guid, data):
-    timestamp = int(datetime.now().timestamp())
+    timestamp = int(datetime.now(timezone.utc).timestamp())
     query = """
         INSERT INTO metrics_log (
             guid, timestamp, cpu_usage, ram_usage, disk_usage, local_ip, wan_ip,
@@ -109,7 +110,7 @@ async def db_log_metrics(guid, data):
     await db_write_queue.put((_execute_db_write, (query, params)))
 
 async def db_log_audit_data(guid, audit_name, data):
-    timestamp = int(datetime.now().timestamp())
+    timestamp = int(datetime.now(timezone.utc).timestamp())
     data_str = json.dumps(data)
     query = """
         INSERT INTO audit_data (guid, audit_name, timestamp, data_json) VALUES (?, ?, ?, ?)

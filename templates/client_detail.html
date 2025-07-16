@@ -59,6 +59,7 @@
         const CLIENT_GUID = "{{ client.guid }}";
         const SERVER_STATUS_INTERVAL = {{ intervals.server_status }};
         const REALTIME_METRICS_INTERVAL = {{ intervals.client_metrics }};
+        const ITEMS_PER_PAGE = {{ intervals.limit_items_per_page }}; 
     </script>
     <script src="{{ url_for('static', filename='js/detail.js') }}"></script>
 {% endblock %}

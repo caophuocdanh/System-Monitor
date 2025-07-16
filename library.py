@@ -144,7 +144,7 @@ class WindowsAuditor:
                 model_name = disk_name_map.get(standardized_key, "Unknown Model")
                 
                 # --- LOGIC MỚI: TẠO TÊN HIỂN THỊ THEO ĐỊNH DẠNG MỚI ---
-                display_name = f"[{i}] {model_name}"
+                display_name = f"DISK {i}: {model_name}"
 
                 # Tra cứu thông tin I/O từ psutil bằng key không phân biệt chữ hoa/thường
                 physical_name_from_psutil = None
@@ -722,8 +722,14 @@ class WindowsAuditor:
                 "Chrome": os.path.join(os.getenv("LOCALAPPDATA"), "Google", "Chrome", "User Data"),
                 "Edge": os.path.join(os.getenv("LOCALAPPDATA"), "Microsoft", "Edge", "User Data"),
                 "Brave": os.path.join(os.getenv("LOCALAPPDATA"), "BraveSoftware", "Brave-Browser", "User Data"),
-                "Opera": os.path.join(os.getenv("APPDATA"), "Opera Software", "Opera Stable"),
                 "CocCoc": os.path.join(os.getenv("LOCALAPPDATA"), "CocCoc", "Browser", "User Data"),
+                "Vivaldi": os.path.join(os.getenv("LOCALAPPDATA"), "Vivaldi", "User Data"),
+                "YandexBrowser": os.path.join(os.getenv("LOCALAPPDATA"), "Yandex", "YandexBrowser", "User Data"),
+                "Slimjet": os.path.join(os.getenv("LOCALAPPDATA"), "Slimjet", "User Data"),
+                "CentBrowser": os.path.join(os.getenv("LOCALAPPDATA"), "CentBrowser", "User Data"),
+                "Chromium": os.path.join(os.getenv("LOCALAPPDATA"), "Chromium", "User Data"),
+                "Opera": os.path.join(os.getenv("APPDATA"), "Opera Software", "Opera Stable"),
+                "Firefox": os.path.join(os.getenv("APPDATA"), "Mozilla", "Firefox", "Profiles")
             }
             for browser, base_path in paths.items():
                 if not os.path.isdir(base_path): self._details[browser] = {"Info": "Not found"}; continue

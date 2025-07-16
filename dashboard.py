@@ -43,6 +43,7 @@ def check_server_status(host, port, timeout=1):
     except requests.RequestException:
         return False
     
+# --- CÁC HÀM LẤY GIÁ TRỊ TỪ CẤU HÌNH ---
 def get_webserver_intervals():
     """Đọc các giá trị interval từ config để truyền vào template."""
     base_path = get_base_path()
@@ -55,6 +56,7 @@ def get_webserver_intervals():
         'dashboard': config.getint('webserver', 'DASHBOARD_REFRESH_INTERVAL', fallback=5000),
         'server_status': config.getint('webserver', 'SERVER_STATUS_REFRESH_INTERVAL', fallback=100000),
         'client_metrics': config.getint('webserver', 'CLIENT_REALTIME_METRICS_INTERVAL', fallback=2000),
+        'limit_items_per_page': config.getint('webserver', 'LIMIT_ITEMS_PER_PAGE', fallback=15)
     }
     return intervals
 

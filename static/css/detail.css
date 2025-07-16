@@ -175,6 +175,7 @@
 .grid-header, .grid-row { display: contents; }
 .grid-header > .grid-cell { background-color: #f8f9fa; font-weight: 600; color: var(--color-text-muted); padding: 0.75rem; border-bottom: 1px solid #ddd; white-space: nowrap; }
 .grid-row > .grid-cell { padding: 0.75rem; border-bottom: 1px solid #eee; display: flex; align-items: center; word-break: break-word; overflow: hidden; }
+.grid-row > .grid-cell > a{ color: var(--color-level-high); text-decoration: none; transition: color 0.2s ease;}
 .grid-row:hover > .grid-cell { background-color: #f8f9fa; }
 .grid-cell.col-no { text-align: center; justify-content: center; }
 

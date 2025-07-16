@@ -29,29 +29,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let auditData = {};
     const charts = {};
-    // --- Thông tin về Logs ---
-    let allLogs = [];
-    let logCurrentPage = 1;
-    const LOG_ITEMS_PER_PAGE = 10;
-    let logFilterLevel = 'All';
-    // --- Thông tin về dịch vụ ---
-    let allServices = [];
-    let serviceCurrentPage = 1;
-    const SERVICE_ITEMS_PER_PAGE = 10;
-    let serviceFilterState = 'All';
-    // --- Thông tin về tiến trình ---
-    let allProcesses = [];
-    let processCurrentPage = 1;
-    const PROCESS_ITEMS_PER_PAGE = 10;
-    let processFilterStatus = 'All';
-    // --- Thông tin về phần mềm ---
-    let allSoftware = [];
-    let softwareCurrentPage = 1;
-    const SOFTWARE_ITEMS_PER_PAGE = 10;
-    let softwareFilterGroup = 'All';
-    // --- Thông tin về tài khoản ---
-    let allCredentials = [];
-    let credentialFilterGroup = 'All';
+    const tableManagers = {}; // Đối tượng để chứa các trình quản lý bảng
 
     // --- Helper Functions ---
     function getUsageLevelClass(percentage) {
@@ -63,7 +41,6 @@ document.addEventListener('DOMContentLoaded', () => {
     function formatSpeed(mbps, unit = 'Mbps') {
         if (mbps === null || mbps === undefined) return 'N/A';
         if (mbps < 1) {
-            // Nếu nhỏ hơn 1 Mbps/MBps, chuyển sang Kbps/KBps
             const kbps = mbps * 1024;
             const newUnit = unit.replace('M', 'K');
             return `${kbps.toFixed(1)} ${newUnit}`;
@@ -109,25 +86,16 @@ document.addEventListener('DOMContentLoaded', () => {
         if (clockSpeedMhz === null || clockSpeedMhz === undefined || typeof clockSpeedMhz !== 'number') {
             return 'N/A';
         }
-
-        // Mặc định, nếu không có loại bộ nhớ, hiển thị giá trị gốc.
         let effectiveSpeed = clockSpeedMhz;
-        
-        // Nếu là loại DDR, nhân đôi tốc độ xung nhịp để có tốc độ hiệu dụng.
         const typeStr = String(memoryType).toUpperCase();
         if (typeStr.includes('DDR')) {
             effectiveSpeed = clockSpeedMhz * 2;
         }
-
-        // MT/s (MegaTransfers per second) là đơn vị chính xác về mặt kỹ thuật,
-        // nhưng MHz vẫn được sử dụng rộng rãi. Ta có thể chọn 1 trong 2. MT/s tốt hơn.
         return `${effectiveSpeed} MT/s`;
     }
     
     function formatValue(key, value) {
         if (value === null || value === undefined || value === '') return 'N/A';
-        
-        // Xử lý ngày tháng từ WMIC
         if (typeof value === 'string' && /^\d{14}\./.test(value)) {
             try {
                 const year = value.substring(0, 4);
@@ -138,47 +106,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 return value;
             }
         }
-
         const lowerKey = key.toLowerCase();
-
-        // Xử lý kích thước (Bytes, Size, Capacity, Space)
         if (lowerKey.includes('bytes') || lowerKey.includes('size') || lowerKey.includes('capacity') || lowerKey.includes('space')) {
-            return formatBytes(Number(value)); // Đảm bảo value là số
+            return formatBytes(Number(value));
         }
-
-        // *** LOGIC MỚI ĐỂ XỬ LÝ TỐC ĐỘ MẠNG ***
-        // Dữ liệu 'Speed' từ NetworkAudit là bits per second
         if (lowerKey === 'speed' && typeof value === 'number') {
-            if (value >= 1000000000) {
-                // Chuyển sang Gbps
-                return `${(value / 1000000000).toFixed(1)} Gbps`;
-            }
-            if (value >= 1000000) {
-                // Chuyển sang Mbps
-                return `${(value / 1000000).toFixed(0)} Mbps`;
-            }
-            if (value >= 1000) {
-                // Chuyển sang Kbps
-                return `${(value / 1000).toFixed(0)} Kbps`;
-            }
-            if (value > 0) {
-                return `${value} bps`;
-            }
-            // Giữ nguyên các giá trị MHz cho RAM/CPU
+            if (value >= 1000000000) return `${(value / 1000000000).toFixed(1)} Gbps`;
+            if (value >= 1000000) return `${(value / 1000000).toFixed(0)} Mbps`;
+            if (value >= 1000) return `${(value / 1000).toFixed(0)} Kbps`;
+            if (value > 0) return `${value} bps`;
             if (String(value).includes('MHz')) return value;
         }
-        
-        // Giữ lại logic cũ cho tốc độ RAM/CPU (MHz)
         if (lowerKey.includes('speed') && !lowerKey.includes('bps')) {
             return `${value}`;
         }
-
-        // Xử lý giá trị boolean
         if (typeof value === 'boolean') {
             return value ? '<span style="color:var(--color-success); font-weight:bold;">Enabled</span>' : '<span style="color:var(--color-danger); font-weight:bold;">Disabled</span>';
         }
-        
-        // Trả về giá trị gốc nếu không khớp với quy tắc nào
         return value;
     }
     
@@ -187,7 +131,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const formattedKey = formatKey(key);
         let displayValue;
         const highlightClass = isHighlight ? 'highlight-value' : '';
-
         if (Array.isArray(value)) {
             if (value.length === 0) return '<i>(empty)</i>';
             const listItems = value.map(item => {
@@ -205,7 +148,6 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             displayValue = formatValue(key, value);
         }
-        
         return `<div class="key-value ${highlightClass}"><span class="key">${formattedKey}</span><div class="value">${displayValue}</div></div>`;
     }
 
@@ -218,7 +160,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if(tabButton) tabButton.style.display = 'flex';
         const titleHtml = (typeof title === 'string') 
             ? `<h2><i class="fa-solid ${icon}"></i> ${title}</h2>` 
-            : title; // Accept pre-formatted HTML title
+            : title;
         return `
             <div class="info-card ${extraClasses}">
                 ${titleHtml}
@@ -226,21 +168,138 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>`;
     }
 
-    function createGrid(title, dataArray) {
-        if (!Array.isArray(dataArray) || dataArray.length === 0 || (dataArray.length === 1 && dataArray[0].Error)) {
-            return title ? `<h3>${title}</h3><p>No data found.</p>` : '<p>No data found.</p>';
+    class PaginatedTableManager {
+        constructor(config) {
+            this.allData = [];
+            this.currentPage = 1;
+            this.filterValue = 'All';
+            this.itemsPerPage = config.itemsPerPage || 10;
+            
+            this.containerId = config.containerId;
+            this.gridContainerId = config.gridContainerId;
+            this.paginationContainerId = config.paginationContainerId;
+            this.filterSelectId = config.filterSelectId;
+            this.prevBtnId = config.prevBtnId;
+            this.nextBtnId = config.nextBtnId;
+            
+            this.filterKey = config.filterKey;
+            this.filterLabel = config.filterLabel || 'Filter:';
+            this.createGridFn = config.createGridFn;
+            this.cardTitle = config.cardTitle;
         }
-        const headers = Object.keys(dataArray[0]).map(key => ({ originalKey: key, displayName: formatKey(key) }));
-        const headerHtml = `<div class="grid-header"><div class="grid-cell col-no">No.</div>${headers.map(h => `<div class="grid-cell">${h.displayName}</div>`).join('')}</div>`;
-        const bodyHtml = dataArray.map((row, index) => {
-            if (typeof row !== 'object' || row === null) return '';
-            const rowCells = headers.map(header => `<div class="grid-cell">${formatValue(header.originalKey, row[header.originalKey])}</div>`).join('');
-            return `<div class="grid-row"><div class="grid-cell col-no">${index + 1}</div>${rowCells}</div>`;
-        }).join('');
-        const gridTemplateColumns = `50px repeat(${headers.length}, minmax(150px, 1fr))`;
-        return `${title ? `<h3>${title}</h3>` : ''}<div class="table-responsive"><div class="data-grid" style="grid-template-columns: ${gridTemplateColumns};">${headerHtml}${bodyHtml}</div></div>`;
+    
+        loadData(data) {
+            this.allData = data;
+            this.populateFilter();
+            this.addEventListeners();
+            this.updateView();
+        }
+    
+        populateFilter() {
+            const filterSelect = document.getElementById(this.filterSelectId);
+            if (!filterSelect || !this.filterKey) return;
+    
+            const uniqueValues = [...new Set(this.allData.map(item => item[this.filterKey]))];
+            
+            filterSelect.innerHTML = `<option value="All">All</option>`;
+            uniqueValues.sort().forEach(value => {
+                if (value) {
+                    const option = document.createElement('option');
+                    option.value = value;
+                    option.textContent = value;
+                    filterSelect.appendChild(option);
+                }
+            });
+        }
+        
+        addEventListeners() {
+            const filterSelect = document.getElementById(this.filterSelectId);
+            if (filterSelect) {
+                filterSelect.addEventListener('change', e => {
+                    this.filterValue = e.target.value;
+                    this.currentPage = 1;
+                    this.updateView();
+                });
+            }
+            
+            const paginationContainer = document.getElementById(this.paginationContainerId);
+            if (paginationContainer) {
+                paginationContainer.addEventListener('click', e => {
+                    if (e.target.id === this.prevBtnId) {
+                        if (this.currentPage > 1) {
+                            this.currentPage--;
+                            this.updateView();
+                        }
+                    }
+                    if (e.target.id === this.nextBtnId) {
+                        const totalPages = Math.ceil(this.getFilteredData().length / this.itemsPerPage);
+                        if (this.currentPage < totalPages) {
+                            this.currentPage++;
+                            this.updateView();
+                        }
+                    }
+                });
+            }
+        }
+    
+        getFilteredData() {
+            if (this.filterValue === 'All' || !this.filterKey) {
+                return this.allData;
+            }
+            return this.allData.filter(item => item[this.filterKey] === this.filterValue);
+        }
+    
+        updateView() {
+            const filteredData = this.getFilteredData();
+            const totalPages = Math.ceil(filteredData.length / this.itemsPerPage);
+            
+            if (this.currentPage > totalPages) {
+                this.currentPage = totalPages || 1;
+            }
+            
+            const startIndex = (this.currentPage - 1) * this.itemsPerPage;
+            const paginatedData = filteredData.slice(startIndex, startIndex + this.itemsPerPage);
+            
+            const gridContainer = document.getElementById(this.gridContainerId);
+            if (gridContainer) {
+                const title = `${this.cardTitle} (Showing ${filteredData.length} of ${this.allData.length} entries)`;
+                gridContainer.innerHTML = this.createGridFn(title, paginatedData, this.currentPage, this.itemsPerPage);
+            }
+            
+            const paginationContainer = document.getElementById(this.paginationContainerId);
+            if (paginationContainer) {
+                const startItem = startIndex + 1;
+                const endItem = Math.min(startIndex + this.itemsPerPage, filteredData.length);
+                const infoText = filteredData.length > 0 ? `Showing ${startItem}-${endItem} of ${filteredData.length}` : 'No items to display.';
+                
+                paginationContainer.innerHTML = `
+                    <div class="log-pagination-info">Page ${this.currentPage} of ${totalPages || 1} | ${infoText}</div>
+                    <div class="log-pagination-buttons">
+                        <button id="${this.prevBtnId}" ${this.currentPage === 1 ? 'disabled' : ''}>Previous</button>
+                        <button id="${this.nextBtnId}" ${this.currentPage >= totalPages ? 'disabled' : ''}>Next</button>
+                    </div>
+                `;
+            }
+        }
+    
+        static renderLayout(filterLabel, filterSelectId, gridContainerId, paginationContainerId) {
+            const hasFilter = filterLabel && filterSelectId;
+            const filterHtml = hasFilter ? `
+                <div class="log-controls">
+                    <label for="${filterSelectId}">${filterLabel}</label>
+                    <select id="${filterSelectId}"></select>
+                </div>` : '';
+
+            return `
+                ${filterHtml}
+                <div id="${gridContainerId}"></div>
+                <div class="log-pagination" id="${paginationContainerId}"></div>
+            `;
+        }
     }
 
+
+    // --- Server & Metrics Updates ---
     function updateServerStatus() {
         fetch('/api/dashboard_data').then(res => res.json()).then(data => {
             const statusBar = document.getElementById('server-status-bar');
@@ -270,86 +329,54 @@ document.addEventListener('DOMContentLoaded', () => {
                     fill.style.width = `${percentage}%`;
                     text.textContent = `${percentage.toFixed(1)}%`;
                 };
-
-                // --- THAY ĐỔI Ở ĐÂY: Sửa lại hàm updateText ---
-                const updateText = (type, value, unit, isBits = false) => {
+                const updateText = (type, value, isBits = false) => {
                     const textElement = document.getElementById(`realtime-${type}-text`);
                     if (!textElement) return;
-
-                    if (isBits) {
-                        // Sử dụng hàm format từ bits
-                        textElement.textContent = formatSpeedFromBits(value, 2);
-                    } else {
-                        // Sử dụng hàm format từ bytes
-                        textElement.textContent = formatSpeedFromBps(value, 2);
-                    }
+                    textElement.textContent = isBits ? formatSpeedFromBits(value, 2) : formatSpeedFromBps(value, 2);
                 };
                 
                 if (data.status === 'success' && data.metrics) {
                     const metrics = data.metrics;
-                    
-                    // Cập nhật progress bar như cũ
                     updateProgressBar('cpu', metrics.cpu_usage);
                     updateProgressBar('ram', metrics.ram_usage);
                     updateProgressBar('disk', metrics.disk_usage);
                     
-                    // --- LOGIC MỚI: Tính tổng I/O ---
-                    
-                    // 1. Tính tổng Disk I/O (bytes/s)
-                    let totalDiskRead = 0;
-                    let totalDiskWrite = 0;
+                    let totalDiskRead = 0, totalDiskWrite = 0;
                     if (metrics.disk_io) {
                         for (const disk in metrics.disk_io) {
                             totalDiskRead += metrics.disk_io[disk].read_bytes_per_sec || 0;
                             totalDiskWrite += metrics.disk_io[disk].write_bytes_per_sec || 0;
                         }
                     }
-
-                    // 2. Tính tổng Network I/O (bits/s)
-                    let totalNetUpload = 0;
-                    let totalNetDownload = 0;
+                    let totalNetUpload = 0, totalNetDownload = 0;
                     if (metrics.network_io) {
                         for (const nic in metrics.network_io) {
                             totalNetUpload += metrics.network_io[nic].upload_bits_per_sec || 0;
                             totalNetDownload += metrics.network_io[nic].download_bits_per_sec || 0;
                         }
                     }
-
-                    // 3. Cập nhật giao diện với giá trị tổng
-                    updateText('disk_read', totalDiskRead, 'B/s');
-                    updateText('disk_write', totalDiskWrite, 'B/s');
-                    updateText('net_upload', totalNetUpload, 'bps', true); // isBits = true
-                    updateText('net_download', totalNetDownload, 'bps', true); // isBits = true
-
+                    updateText('disk_read', totalDiskRead);
+                    updateText('disk_write', totalDiskWrite);
+                    updateText('net_upload', totalNetUpload, true);
+                    updateText('net_download', totalNetDownload, true);
                 } else {
-                    // Reset tất cả về 0 hoặc N/A
-                    updateProgressBar('cpu', 0);
-                    updateProgressBar('ram', 0);
-                    updateProgressBar('disk', 0);
-                    updateText('disk_read', 0, 'B/s');
-                    updateText('disk_write', 0, 'B/s');
-                    updateText('net_upload', 0, 'bps', true);
-                    updateText('net_download', 0, 'bps', true);
+                    ['cpu', 'ram', 'disk'].forEach(type => updateProgressBar(type, 0));
+                    ['disk_read', 'disk_write'].forEach(type => updateText(type, 0));
+                    ['net_upload', 'net_download'].forEach(type => updateText(type, 0, true));
                 }
             })
             .catch(err => console.error("Failed to fetch realtime metrics:", err));
     }
 
-    // FILE: detail.js
-
+    // --- Charting Functions ---
     function updatePerformanceCharts() {
         const performanceTab = document.getElementById('performance');
-        if (!performanceTab.classList.contains('active') || Object.keys(charts).length === 0) {
-            return;
-        }
+        if (!performanceTab.classList.contains('active') || Object.keys(charts).length === 0) return;
 
         fetch(`/api/client_realtime_metrics/${CLIENT_GUID}`)
             .then(res => res.json())
             .then(data => {
-                if (data.status !== 'success' || !data.metrics) {
-                    return;
-                }
-
+                if (data.status !== 'success' || !data.metrics) return;
                 const newLabel = new Date().toLocaleTimeString('en-GB');
                 const { metrics } = data;
                 const MAX_POINTS = 50;
@@ -358,60 +385,40 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (!chart) return;
                     chart.data.labels.push(label);
                     newPoints.forEach((point, index) => {
-                        if (chart.data.datasets[index]) {
-                            chart.data.datasets[index].data.push(point || 0);
-                        }
+                        if (chart.data.datasets[index]) chart.data.datasets[index].data.push(point || 0);
                     });
                     while (chart.data.labels.length > MAX_POINTS) {
                         chart.data.labels.shift();
-                        chart.data.datasets.forEach(dataset => {
-                            dataset.data.shift();
-                        });
+                        chart.data.datasets.forEach(dataset => dataset.data.shift());
                     }
                     chart.update('none');
                 };
 
-                // Cập nhật từng biểu đồ riêng biệt
                 updateChartData(charts['cpuPerfChart'], newLabel, [metrics.cpu_usage]);
                 updateChartData(charts['ramPerfChart'], newLabel, [metrics.ram_usage]);
-                updateChartData(charts['diskPerfChart'], newLabel, [metrics.disk_usage]);
                 
-                // Cập nhật các biểu đồ I/O (logic giữ nguyên)
                 for (const chartId in charts) {
                     if (chartId.startsWith('diskIoChart-')) {
-                        const originalDiskName = Object.keys(data.disk_io || {}).find(
-                            dName => chartId === `diskIoChart-${dName.replace(/[^a-zA-Z0-9]/g, '')}`
-                        );
-                        let read_mb_per_sec = 0, write_mb_per_sec = 0;
+                        const originalDiskName = Object.keys(data.disk_io || {}).find(dName => chartId === `diskIoChart-${dName.replace(/[^a-zA-Z0-9]/g, '')}`);
+                        let read_mbps = 0, write_mbps = 0;
                         if (originalDiskName && metrics.disk_io[originalDiskName]) {
-                            const diskMetrics = metrics.disk_io[originalDiskName];
-                            read_mb_per_sec = (diskMetrics.read_bytes_per_sec || 0) / (1024 * 1024);
-                            write_mb_per_sec = (diskMetrics.write_bytes_per_sec || 0) / (1024 * 1024);
+                            read_mbps = (metrics.disk_io[originalDiskName].read_bytes_per_sec || 0) / (1024 * 1024);
+                            write_mbps = (metrics.disk_io[originalDiskName].write_bytes_per_sec || 0) / (1024 * 1024);
                         }
-                        updateChartData(charts[chartId], newLabel, [read_mb_per_sec, write_mb_per_sec]);
+                        updateChartData(charts[chartId], newLabel, [read_mbps, write_mbps]);
                     }
                     else if (chartId.startsWith('netIoChart-')) {
-                        const originalNicName = Object.keys(data.network_io || {}).find(
-                            nName => chartId === `netIoChart-${nName.replace(/[^a-zA-Z0-9]/g, '')}`
-                        );
+                        const originalNicName = Object.keys(data.network_io || {}).find(nName => chartId === `netIoChart-${nName.replace(/[^a-zA-Z0-9]/g, '')}`);
                         let upload_mbps = 0, download_mbps = 0;
                         if (originalNicName && metrics.network_io[originalNicName]) {
-                            const netMetrics = metrics.network_io[originalNicName];
-                            upload_mbps = (netMetrics.upload_bits_per_sec || 0) / (1000 * 1000);
-                            download_mbps = (netMetrics.download_bits_per_sec || 0) / (1000 * 1000);
+                            upload_mbps = (metrics.network_io[originalNicName].upload_bits_per_sec || 0) / (1000 * 1000);
+                            download_mbps = (metrics.network_io[originalNicName].download_bits_per_sec || 0) / (1000 * 1000);
                         }
                         updateChartData(charts[chartId], newLabel, [upload_mbps, download_mbps]);
                     }
                 }
             })
             .catch(err => console.error("Failed to update performance charts:", err));
-    }
-
-    function createLineChart(canvasId, label, labels, data, color) {
-        const ctx = document.getElementById(canvasId);
-        if (!ctx) return;
-        if (charts[canvasId]) charts[canvasId].destroy();
-        charts[canvasId] = new Chart(ctx, { type: 'line', data: { labels, datasets: [{ label, data, borderColor: color, backgroundColor: color.replace('0.6', '0.2'), fill: true, tension: 0.3, pointRadius: 2 }] }, options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, max: 100 } }, animation: { duration: 0 } } });
     }
 
     function createPieChart(canvasId, labels, dataPoints) {
@@ -426,71 +433,148 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function createMultiLineChart(canvasId, title, labels, datasets, options = {}) {
-        const container = document.getElementById('performance');
-        if (!document.getElementById(canvasId)) {
-            const chartCardHtml = buildCard('performance', title, 'fa-chart-line', `<div style="height: 300px;"><canvas id="${canvasId}"></canvas></div>`);
-            container.insertAdjacentHTML('beforeend', chartCardHtml);
-        }
-
         const ctx = document.getElementById(canvasId);
         if (!ctx) return; 
-        
-        if (charts[canvasId]) {
-            charts[canvasId].destroy();
-        }
+        if (charts[canvasId]) charts[canvasId].destroy();
 
         const defaultOptions = { isPercentage: false, yAxisMax: undefined };
         const finalOptions = { ...defaultOptions, ...options };
 
         const chartDatasets = datasets.map(ds => ({
-            label: ds.label,
-            data: ds.data,
-            borderColor: ds.color,
-            backgroundColor: ds.color.replace('1)', '0.2)'),
-            fill: true,
-            tension: 0.3,
-            pointRadius: 1,
-            borderWidth: 1.5,
+            label: ds.label, data: ds.data, borderColor: ds.color,
+            backgroundColor: ds.color.replace('1)', '0.2)'), fill: true,
+            tension: 0.3, pointRadius: 1, borderWidth: 1.5,
         }));
-
         charts[canvasId] = new Chart(ctx, { 
-            type: 'line', 
-            data: { 
-                labels: labels, // Tham số labels
-                datasets: chartDatasets // Tham số datasets
-            },
-            options: { 
-                responsive: true, 
-                maintainAspectRatio: false,
-                scales: { 
-                    y: { 
-                        beginAtZero: true,
-                        max: finalOptions.isPercentage ? 100 : finalOptions.yAxisMax 
-                    },
-                    x: { 
-                        ticks: { 
-                            display: true,
-                            autoSkip: true,
-                            maxTicksLimit: 12,
-                            maxRotation: 45,
-                            minRotation: 45
-                        }
-                    }
+            type: 'line', data: { labels, datasets: chartDatasets },
+            options: { responsive: true, maintainAspectRatio: false,
+                scales: { y: { beginAtZero: true, max: finalOptions.isPercentage ? 100 : finalOptions.yAxisMax },
+                    x: { ticks: { display: true, autoSkip: true, maxTicksLimit: 12, maxRotation: 45, minRotation: 45 } }
                 },
-                plugins: {
-                    legend: {
-                        position: 'bottom',
-                        labels: {
-                            boxWidth: 20,
-                            padding: 15
-                        }
-                    }
-                },
+                plugins: { legend: { position: 'bottom', labels: { boxWidth: 20, padding: 15 } } },
                 animation: { duration: 0 }
             }
         });
     }
 
+    // --- Grid Creation Functions ---
+    function createWebHistoryGrid(dataArray) {
+        if (!Array.isArray(dataArray) || dataArray.length === 0) {
+            return '<p>No data found.</p>';
+        }
+        const headers = [
+            { key: 'title',           displayName: 'Title' },
+            { key: 'url',             displayName: 'Url' },
+            { key: 'last_visit_time', displayName: 'Last Visit Time' }
+        ];        
+        const gridTemplateColumns = "10% 20% 50% 20%";        
+        const headerHtml = `
+            <div class="grid-header">
+                <div class="grid-cell col-no">No.</div>
+                ${headers.map(h => `<div class="grid-cell">${h.displayName}</div>`).join('')}
+            </div>
+        `;
+        const bodyHtml = dataArray.map((row, index) => {
+            const rowCells = headers.map(header => {
+                let cellContent;
+                if (header.key === 'url') { const url = row[header.key]; if (url && (url.startsWith('http://') || url.startsWith('https://'))) { cellContent = `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`; } else { cellContent = formatValue(header.key, url); } } else { cellContent = formatValue(header.key, row[header.key]); }
+                return `<div class="grid-cell">${cellContent}</div>`; }).join('');
+            return `<div class="grid-row"><div class="grid-cell col-no">${index + 1}</div>${rowCells}</div>`;
+        }).join('');
+
+        return `
+            <div class="table-responsive">
+                <div class="data-grid" style="grid-template-columns: ${gridTemplateColumns};">
+                    ${headerHtml}${bodyHtml}
+                </div>
+            </div>
+        `;
+    }
+
+    function createEventLogGrid(title, dataArray, currentPage, itemsPerPage) {
+        if (!Array.isArray(dataArray) || dataArray.length === 0) return title ? `<h3>${title}</h3><p>No logs match the current filter.</p>` : '<p>No data found.</p>';
+        const headersToDisplay = [{ key: 'Id', displayName: 'Id' }, { key: 'LevelDisplayName', displayName: 'Level' }, { key: 'ProviderName', displayName: 'Provider Name' }, { key: 'Message', displayName: 'Message' }, { key: 'TimeCreated', displayName: 'Time Created' }];
+        const gridTemplateColumns = "7% 8% 15% 15% 40% 15%";
+        const headerHtml = `<div class="grid-header"><div class="grid-cell col-no">No.</div>${headersToDisplay.map(h => `<div class="grid-cell">${h.displayName}</div>`).join('')}</div>`;
+        const bodyHtml = dataArray.map((row, index) => {
+            const globalIndex = (currentPage - 1) * itemsPerPage + index + 1;
+            const rowCells = headersToDisplay.map(header => `<div class="grid-cell">${formatValue(header.key, row[header.key])}</div>`).join('');
+            return `<div class="grid-row"><div class="grid-cell col-no">${globalIndex}</div>${rowCells}</div>`;
+        }).join('');
+        const titleHtml = title ? `<h3>${title}</h3>` : '';
+        return `
+            ${titleHtml}
+            <div class="table-responsive">
+                <div class="data-grid" style="grid-template-columns: ${gridTemplateColumns};">
+                    ${headerHtml}${bodyHtml}
+                </div>
+            </div>
+        `;
+    }
+
+    function createServiceGrid(title, dataArray, currentPage, itemsPerPage) {
+        if (!Array.isArray(dataArray) || dataArray.length === 0) return title ? `<h3>${title}</h3><p>No services match the current filter.</p>` : '<p>No data found.</p>';
+        const headersToDisplay = [{ key: 'DisplayName', displayName: 'Display Name' }, { key: 'Name', displayName: 'Name' }, { key: 'StartMode', displayName: 'Start Mode' }, { key: 'PathName', displayName: 'Path Name' }, { key: 'State', displayName: 'State' }];
+        const gridTemplateColumns = "8% 22% 15% 10% 35% 10%";
+        const headerHtml = `<div class="grid-header"><div class="grid-cell col-no">No.</div>${headersToDisplay.map(h => `<div class="grid-cell">${h.displayName}</div>`).join('')}</div>`;
+        const bodyHtml = dataArray.map((row, index) => {
+            const globalIndex = (currentPage - 1) * itemsPerPage + index + 1;
+            const rowCells = headersToDisplay.map(header => `<div class="grid-cell">${formatValue(header.key, row[header.key])}</div>`).join('');
+            return `<div class="grid-row"><div class="grid-cell col-no">${globalIndex}</div>${rowCells}</div>`;
+        }).join('');
+        const titleHtml = title ? `<h3>${title}</h3>` : '';
+        return `<div class="table-responsive">${titleHtml}<div class="data-grid" style="grid-template-columns: ${gridTemplateColumns};">${headerHtml}${bodyHtml}</div></div>`;
+    }
+
+    function createProcessGrid(title, dataArray, currentPage, itemsPerPage) {
+        if (!Array.isArray(dataArray) || dataArray.length === 0) return title ? `<h3>${title}</h3><p>No processes match the current filter.</p>` : '<p>No data found.</p>';
+        const headersToDisplay = [{ key: 'PID', displayName: 'PID' }, { key: 'Name', displayName: 'Name' }, { key: 'ExePath', displayName: 'Path' }, { key: 'MemoryRSS', displayName: 'Size' }, { key: 'Username', displayName: 'User' }, { key: 'CreateTime', displayName: 'Create Time' }, { key: 'Status', displayName: 'Status' }];
+        const gridTemplateColumns = "5% 8% 10% 35% 8% 15% 10% 9%";
+        const headerHtml = `<div class="grid-header"><div class="grid-cell col-no">No.</div>${headersToDisplay.map(h => `<div class="grid-cell">${h.displayName}</div>`).join('')}</div>`;
+        const bodyHtml = dataArray.map((row, index) => {
+            const globalIndex = (currentPage - 1) * itemsPerPage + index + 1;
+            const rowCells = headersToDisplay.map(header => `<div class="grid-cell">${header.key === 'MemoryRSS' ? formatBytes(row[header.key]) : formatValue(header.key, row[header.key])}</div>`).join('');
+            return `<div class="grid-row"><div class="grid-cell col-no">${globalIndex}</div>${rowCells}</div>`;
+        }).join('');
+        const titleHtml = title ? `<h3>${title}</h3>` : '';
+        return `<div class="table-responsive">${titleHtml}<div class="data-grid" style="grid-template-columns: ${gridTemplateColumns};">${headerHtml}${bodyHtml}</div></div>`;
+    }
+
+    function createSoftwareGrid(title, dataArray, currentPage, itemsPerPage) {
+        if (!Array.isArray(dataArray) || dataArray.length === 0) return title ? `<h3>${title}</h3><p>No software matches the current filter.</p>` : '<p>No data found.</p>';
+        const headersToDisplay = [{ key: 'Name', displayName: 'Name' }, { key: 'EstimatedSizeByte', displayName: 'Size' }, { key: 'InstallDate', displayName: 'Install Date' }, { key: 'InstallLocation', displayName: 'Install Location' }, { key: 'Publisher', displayName: 'Publisher' }, { key: 'Version', displayName: 'Version' }, { key: 'Group', displayName: 'Group' }];
+        const gridTemplateColumns = "5% 21% 9% 13% 24% 8% 10% 10%";
+        const headerHtml = `<div class="grid-header"><div class="grid-cell col-no">No.</div>${headersToDisplay.map(h => `<div class="grid-cell">${h.displayName}</div>`).join('')}</div>`;
+        const bodyHtml = dataArray.map((row, index) => {
+            const globalIndex = (currentPage - 1) * itemsPerPage + index + 1;
+            const rowCells = headersToDisplay.map(header => `<div class="grid-cell">${header.key === 'EstimatedSizeByte' ? formatBytes(row[header.key]) : formatValue(header.key, row[header.key])}</div>`).join('');
+            return `<div class="grid-row"><div class="grid-cell col-no">${globalIndex}</div>${rowCells}</div>`;
+        }).join('');
+        const titleHtml = title ? `<h3>${title}</h3>` : '';
+        return `<div class="table-responsive">${titleHtml}<div class="data-grid" style="grid-template-columns: ${gridTemplateColumns};">${headerHtml}${bodyHtml}</div></div>`;
+    }
+
+    function createCredentialGrid(title, dataArray) {
+        if (!Array.isArray(dataArray) || dataArray.length === 0) return title ? `<h3>${title}</h3><p>No credentials match the current filter.</p>` : '<p>No data found.</p>';
+        const headersToDisplay = [{ key: 'Target', displayName: 'Target' }, { key: 'Type', displayName: 'Type' }, { key: 'User', displayName: 'User' }, { key: 'Group', displayName: 'Group' }];
+        const gridTemplateColumns = "5% 50% 15% 15% 15%";
+        const headerHtml = `<div class="grid-header"><div class="grid-cell col-no">No.</div>${headersToDisplay.map(h => `<div class="grid-cell">${h.displayName}</div>`).join('')}</div>`;
+        const bodyHtml = dataArray.map((row, index) => `<div class="grid-row"><div class="grid-cell col-no">${index + 1}</div>${headersToDisplay.map(header => `<div class="grid-cell">${formatValue(header.key, row[header.key])}</div>`).join('')}</div>`).join('');
+        const titleHtml = title ? `<h3>${title}</h3>` : '';
+        return `<div class="table-responsive">${titleHtml}<div class="data-grid" style="grid-template-columns: ${gridTemplateColumns};">${headerHtml}${bodyHtml}</div></div>`;
+    }
+    
+    function createUserGrid(title, dataArray) {
+        if (!Array.isArray(dataArray) || dataArray.length === 0) return title ? `<h3>${title}</h3><p>No data found.</p>` : '<p>No data found.</p>';
+        const headersToDisplay = [{ key: 'Name', displayName: 'Name' }, { key: 'FullName', displayName: 'Full Name' }, { key: 'AccountDomain', displayName: 'Account Domain' }, { key: 'SID_Value', displayName: 'SID Value' }, { key: 'Enabled', displayName: 'Enabled' }];
+        const gridTemplateColumns = "10% 15% 15% 25% 25% 10%";
+        const headerHtml = `<div class="grid-header"><div class="grid-cell col-no">No.</div>${headersToDisplay.map(h => `<div class="grid-cell">${h.displayName}</div>`).join('')}</div>`;
+        const bodyHtml = dataArray.map((row, index) => `<div class="grid-row"><div class="grid-cell col-no">${index + 1}</div>${headersToDisplay.map(header => `<div class="grid-cell">${formatValue(header.key, row[header.key])}</div>`).join('')}</div>`).join('');
+        const titleHtml = title ? `<h3>${title}</h3>` : '';
+        return `<div class="table-responsive">${titleHtml}<div class="data-grid" style="grid-template-columns: ${gridTemplateColumns};">${headerHtml}${bodyHtml}</div></div>`;
+    }
+
+    // --- Render Functions ---
     function renderBasicInfo() {
         const os = auditData.os?.data || {};
         const mainboard = auditData.mainboard?.data?.BaseBoard || {};
@@ -499,41 +583,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const disk = auditData.disk?.data?.PhysicalDisks || [];
         const gpu = auditData.gpu?.data || [];
 
-        // Hàm nội bộ để tạo cấu trúc HTML
         const createUsageHTML = (label, type, unit = '%', isProgressBar = false) => {
-            // Nếu là progress bar
-            if (isProgressBar) {
-                return `
-                    <div class="key-value">
-                        <span class="key">${label}</span>
-                        <div class="progress-bar-container">
-                            <div id="realtime-${type}-bar" class="progress-bar">
-                                <div id="realtime-${type}-fill" class="progress-bar-fill"></div>
-                                <span id="realtime-${type}-text" class="progress-bar-text">0.0${unit}</span>
-                            </div>
-                        </div>
-                    </div>`;
-            }
-            // Nếu chỉ là text
-            return `
-                <div class="key-value">
-                    <span class="key">${label}</span>
-                    <div id="realtime-${type}-text" class="realtime-io-text">N/A</div>
-                </div>`;
+            if (isProgressBar) return `<div class="key-value"><span class="key">${label}</span><div class="progress-bar-container"><div id="realtime-${type}-bar" class="progress-bar"><div id="realtime-${type}-fill" class="progress-bar-fill"></div><span id="realtime-${type}-text" class="progress-bar-text">0.0${unit}</span></div></div></div>`;
+            return `<div class="key-value"><span class="key">${label}</span><div id="realtime-${type}-text" class="realtime-io-text">N/A</div></div>`;
         };
         
-        // Xây dựng nội dung cho card Realtime Usage
-        const metricsContent = `
-            ${createUsageHTML('CPU Usage', 'cpu', '%', true)}
-            ${createUsageHTML('RAM Usage', 'ram', '%', true)}
-            ${createUsageHTML('Disk Usage', 'disk', '%', true)}
-            <hr class="item-separator">
-            ${createUsageHTML('Disk Read', 'disk_read', 'MB/s')}
-            ${createUsageHTML('Disk Write', 'disk_write', 'MB/s')}
-            <hr class="item-separator">
-            ${createUsageHTML('Net Upload', 'net_upload', 'Mbps')}
-            ${createUsageHTML('Net Download', 'net_download', 'Mbps')}
-        `;
+        const metricsContent = `${createUsageHTML('CPU Usage', 'cpu', '%', true)}${createUsageHTML('RAM Usage', 'ram', '%', true)}${createUsageHTML('Disk Usage', 'disk', '%', true)}<hr class="item-separator">${createUsageHTML('Disk Read', 'disk_read')}${createUsageHTML('Disk Write', 'disk_write')}<hr class="item-separator">${createUsageHTML('Net Upload', 'net_upload')}${createUsageHTML('Net Download', 'net_download')}`;
         let ramSummary = '', diskSummary = '', gpuSummary = '';
         if (ram.length > 0 && !ram[0].Error) ramSummary = renderKeyValue('Total Memory', `${ram.length} Sticks, ${formatBytes(ram.reduce((acc, r) => acc + (r.Capacity || 0), 0))} Total`);
         if (disk.length > 0 && !disk[0].Error) disk.forEach((d, i) => { diskSummary += renderKeyValue(`Disk ${i}`, `${d.Model || ''} (${formatBytes(d.Size)})`); });
@@ -541,8 +596,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const hardwareContent = `${renderKeyValue('OS', os.Caption)}${renderKeyValue('Mainboard', `${mainboard.Manufacturer||''} ${mainboard.Product||''}`)}${renderKeyValue('Processor', cpu.Brand)}${ramSummary}${diskSummary}${gpuSummary}`;
 
         document.getElementById('basic-info').innerHTML = `<div class="content-grid grid-cols-2">${buildCard('basic-info','Realtime Usage','fa-tachometer-alt',metricsContent)}${buildCard('basic-info','Summary','fa-server',hardwareContent)}</div>`;
-        
-        // Gọi update lần đầu để điền dữ liệu
         updateRealtimeMetrics();
     }
 
@@ -552,71 +605,35 @@ document.addEventListener('DOMContentLoaded', () => {
         const perfGrid = document.getElementById('performance-grid');
 
         fetch(`/api/client_metrics_history/${CLIENT_GUID}`)
-            .then(res => {
-                if (!res.ok) throw new Error(`API call failed with status ${res.status}`);
-                return res.json();
-            })
+            .then(res => { if (!res.ok) throw new Error(`API call failed with status ${res.status}`); return res.json(); })
             .then(data => {
                 if (!data || !data.labels || data.labels.length === 0) {
-                    perfGrid.innerHTML = buildCard('performance', 'Performance History', 'fa-solid fa-microchip', '<p>No performance history data available for this client.</p>');
-                    perfGrid.classList.remove('grid-cols-2');
-                    return;
+                    perfGrid.innerHTML = buildCard('performance', 'Performance History', 'fa-solid fa-microchip', '<p>No performance history data available.</p>');
+                    perfGrid.classList.remove('grid-cols-2'); return;
                 }
-
                 const convertBytesToMB = arr => (arr || []).map(v => (v || 0) / (1024 * 1024));
                 const convertBitsToMb = arr => (arr || []).map(v => (v || 0) / (1000 * 1000));
-
+                
                 const chartsToRender = [
-                    {
-                        id: 'cpuPerfChart',
-                        title: 'CPU Usage (%)',
-                        datasets: [{ label: 'CPU', data: data.cpu, color: 'rgba(253, 126, 20, 1)' }],
-                        options: { isPercentage: true },
-                        icon: {icon: 'fa-solid fa-microchip'}
-                    },
-                    {
-                        id: 'ramPerfChart',
-                        title: 'RAM Usage (%)',
-                        datasets: [{ label: 'RAM', data: data.ram, color: 'rgba(13, 110, 253, 1)' }],
-                        options: { isPercentage: true },
-                        icon: {icon: 'fa-solid fa-memory'}
-                    }
-                    // ,
-                    // {
-                    //     id: 'diskPerfChart',
-                    //     title: 'Disk Usage (%)',
-                    //     datasets: [{ label: 'Disk', data: data.disk, color: 'rgba(111, 66, 193, 1)' }],
-                    //     options: { isPercentage: true },
-                    //     icon: {icon: 'fa-solid fa-hdd'}
-                    // }
+                    { id: 'cpuPerfChart', title: 'CPU Usage (%)', datasets: [{ label: 'CPU', data: data.cpu, color: 'rgba(253, 126, 20, 1)' }], options: { isPercentage: true }, icon: 'fa-solid fa-microchip' },
+                    { id: 'ramPerfChart', title: 'RAM Usage (%)', datasets: [{ label: 'RAM', data: data.ram, color: 'rgba(13, 110, 253, 1)' }], options: { isPercentage: true }, icon: 'fa-solid fa-memory' }
                 ];
-
                 chartsToRender.forEach(chart => {
-                    const chartHtml = buildCard('performance', chart.title, chart.icon.icon, `<div style="height: 300px;"><canvas id="${chart.id}"></canvas></div>`);
-                    perfGrid.insertAdjacentHTML('beforeend', chartHtml);
+                    perfGrid.insertAdjacentHTML('beforeend', buildCard('performance', chart.title, chart.icon, `<div style="height: 300px;"><canvas id="${chart.id}"></canvas></div>`));
                     createMultiLineChart(chart.id, chart.title, data.labels, chart.datasets, chart.options);
                 });
 
                 Object.entries(data.disk_io || {}).forEach(([diskName, diskData]) => {
                     const chartId = `diskIoChart-${diskName.replace(/[^a-zA-Z0-9]/g, '')}`;
                     const title = `${diskName} (MB/s)`;
-                    const chartHtml = buildCard('performance', title, 'fa-solid fa-hdd', `<div style="height: 300px;"><canvas id="${chartId}"></canvas></div>`);
-                    perfGrid.insertAdjacentHTML('beforeend', chartHtml);
-                    createMultiLineChart(chartId, title, data.labels, [
-                        { label: 'Read', data: convertBytesToMB(diskData.read_bytes_per_sec), color: 'rgba(75, 192, 192, 1)' },
-                        { label: 'Write', data: convertBytesToMB(diskData.write_bytes_per_sec), color: 'rgba(255, 99, 132, 1)' }
-                    ]);
+                    perfGrid.insertAdjacentHTML('beforeend', buildCard('performance', title, 'fa-solid fa-hdd', `<div style="height: 300px;"><canvas id="${chartId}"></canvas></div>`));
+                    createMultiLineChart(chartId, title, data.labels, [{ label: 'Read', data: convertBytesToMB(diskData.read_bytes_per_sec), color: 'rgba(75, 192, 192, 1)' }, { label: 'Write', data: convertBytesToMB(diskData.write_bytes_per_sec), color: 'rgba(255, 99, 132, 1)' }]);
                 });
-
                 Object.entries(data.network_io || {}).forEach(([nicName, nicData]) => {
                     const chartId = `netIoChart-${nicName.replace(/[^a-zA-Z0-9]/g, '')}`;
                     const title = `Network: ${nicName} (Mbps)`;
-                    const chartHtml = buildCard('performance', title, 'fa-solid fa-ethernet', `<div style="height: 300px;"><canvas id="${chartId}"></canvas></div>`);
-                    perfGrid.insertAdjacentHTML('beforeend', chartHtml);
-                    createMultiLineChart(chartId, title, data.labels, [
-                        { label: 'Upload', data: convertBitsToMb(nicData.upload_bits_per_sec), color: 'rgba(255, 159, 64, 1)' },
-                        { label: 'Download', data: convertBitsToMb(nicData.download_bits_per_sec), color: 'rgba(54, 162, 235, 1)' }
-                    ]);
+                    perfGrid.insertAdjacentHTML('beforeend', buildCard('performance', title, 'fa-solid fa-ethernet', `<div style="height: 300px;"><canvas id="${chartId}"></canvas></div>`));
+                    createMultiLineChart(chartId, title, data.labels, [{ label: 'Upload', data: convertBitsToMb(nicData.upload_bits_per_sec), color: 'rgba(255, 159, 64, 1)' }, { label: 'Download', data: convertBitsToMb(nicData.download_bits_per_sec), color: 'rgba(54, 162, 235, 1)' }]);
                 });
             })
             .catch(error => {
@@ -626,1344 +643,277 @@ document.addEventListener('DOMContentLoaded', () => {
             });
     }
 
-
-// Thay thế hàm renderHardware cũ trong file detail.js của bạn
-
     function renderHardware() {
-        const osData = auditData.os?.data || {};
-        const processorData = auditData.cpu?.data || {};
-        const gpuData = auditData.gpu?.data || [];
-        const mainboardData = auditData.mainboard?.data || {};
-        const memoryData = auditData.ram?.data || [];
-
-        // --- BƯỚC 1: TẠO HTML HOÀN CHỈNH CHO TỪNG CARD ---
-
-        const osCard = buildCard('hardware', 'Operating System', 'fa-brands fa-windows', 
-            Object.entries(osData).map(([k, v]) => renderKeyValue(k, v)).join('')
-        );
-
-        const desiredProcessorOrder = [
-            'Brand', 'Architecture', 'Bits', 'Logical Cores', 'Physical Cores',
-            'Machine', 'Platform', 'System', 'Version'
-        ];
-
-        const processorCardContent = desiredProcessorOrder
-            .map(key => {
-                // Chỉ render nếu key tồn tại trong dữ liệu
-                if (processorData.hasOwnProperty(key)) {
-                    return renderKeyValue(key, processorData[key]);
-                }
-                return ''; // Bỏ qua nếu key không tồn tại
-            })
-            .join('');
-
+        const osCard = buildCard('hardware', 'Operating System', 'fa-brands fa-windows', Object.entries(auditData.os?.data || {}).map(([k, v]) => renderKeyValue(k, v)).join(''));
+        const desiredProcessorOrder = ['Brand', 'Architecture', 'Bits', 'Logical Cores', 'Physical Cores', 'Machine', 'Platform', 'System', 'Version'];
+        const processorCardContent = desiredProcessorOrder.map(key => auditData.cpu?.data.hasOwnProperty(key) ? renderKeyValue(key, auditData.cpu.data[key]) : '').join('');
         const processorCard = buildCard('hardware', 'Processor', 'fa-microchip', processorCardContent);
         
         let mainboardCardContent = '';
-        if (mainboardData.BaseBoard || mainboardData.BIOS) {
-            const baseboardHtml = mainboardData.BaseBoard ? `<div><h3><i class="fa-solid fa-microchip"></i> BaseBoard</h3>${Object.entries(mainboardData.BaseBoard).map(([k, v]) => renderKeyValue(k, v)).join('')}</div>` : '<div></div>';
-            const biosHtml = mainboardData.BIOS ? `<div><h3><i class="fa-solid fa-bookmark"></i> BIOS</h3>${Object.entries(mainboardData.BIOS).map(([k, v]) => renderKeyValue(k, v)).join('')}</div>` : '<div></div>';
+        if (auditData.mainboard?.data?.BaseBoard || auditData.mainboard?.data?.BIOS) {
+            const baseboardHtml = auditData.mainboard.data.BaseBoard ? `<div><h3><i class="fa-solid fa-microchip"></i> BaseBoard</h3>${Object.entries(auditData.mainboard.data.BaseBoard).map(([k, v]) => renderKeyValue(k, v)).join('')}</div>` : '';
+            const biosHtml = auditData.mainboard.data.BIOS ? `<div><h3><i class="fa-solid fa-bookmark"></i> BIOS</h3>${Object.entries(auditData.mainboard.data.BIOS).map(([k, v]) => renderKeyValue(k, v)).join('')}</div>` : '';
             mainboardCardContent = `<div class="column-layout grid-cols-2">${baseboardHtml}${biosHtml}</div>`;
         } else {
             mainboardCardContent = '<p>No Mainboard or BIOS data available.</p>';
         }
         const mainboardCard = buildCard('hardware', 'Mainboard & BIOS', 'fa-sitemap', mainboardCardContent);
         
-        // --- BẮT ĐẦU KHỐI CODE THAY THẾ ---
-
         let memoryCardContent = '';
+        const memoryData = auditData.ram?.data || [];
         if (memoryData.length > 0 && !memoryData[0].Error) {
             const ramBlocksHtml = memoryData.map(ram => {
-                // --- LOGIC MỚI ĐỂ TẠO TITLE ĐỘNG VÀ SỬA LỖI SPEED ---
-
-                // 1. Lấy các giá trị cần thiết
                 const slotName = ram.Slot || 'RAM Stick';
                 const manufacturer = ram.Manufacturer || '';
                 const memoryType = ram.MemoryType || ram.SMBIOSMemoryType || '';
                 const capacity = formatBytes(ram.Capacity || 0);
-
-                // 2. Tìm và tính toán tốc độ chính xác
                 const speedKeys = ['ConfiguredClockSpeed', 'Speed', 'BusSpeed'];
                 let clockSpeed;
-                for (const key of speedKeys) {
-                    if (ram[key]) {
-                        clockSpeed = Number(ram[key]);
-                        break; // Dừng lại khi tìm thấy key đầu tiên
-                    }
-                }
+                for (const key of speedKeys) { if (ram[key]) { clockSpeed = Number(ram[key]); break; } }
                 const effectiveSpeedMhz = clockSpeed ? (clockSpeed * (String(memoryType).toUpperCase().includes('DDR') ? 2 : 1)) : null;
                 const speedForTitle = effectiveSpeedMhz ? ` bus ${effectiveSpeedMhz} MHz` : 'MHz';
-                
-                // 3. Tạo title động theo yêu cầu
-                // Ví dụ: "DIMM4: Corsair DDR3 4.00 GB 1600 MHz"
                 const title = `${slotName}: ${manufacturer} ${memoryType} ${capacity} ${speedForTitle}`.replace(/\s+/g, ' ').trim();
-
-                // 4. Xử lý các cặp key-value, ngăn `Speed` được render sai
-                // Thêm tất cả các key tốc độ vào danh sách bỏ qua
                 const handledKeys = ['Slot', ...speedKeys];
-
-                // Render tất cả các key khác ngoại trừ những key đã xử lý
-                const detailsHtml = Object.entries(ram)
-                    .filter(([key]) => !handledKeys.includes(key))
-                    .map(([key, value]) => renderKeyValue(key, value))
-                    .join('');
-
-                // Thêm lại dòng 'Speed' đã được định dạng đúng ở cuối
-                const finalDetailsHtml = detailsHtml + (effectiveSpeedMhz ? renderKeyValue('Speed', `${effectiveSpeedMhz}`) : 'MHz');
-
-                // 5. Trả về HTML cho một thanh RAM
+                const detailsHtml = Object.entries(ram).filter(([key]) => !handledKeys.includes(key)).map(([key, value]) => renderKeyValue(key, value)).join('');
+                const finalDetailsHtml = detailsHtml + (effectiveSpeedMhz ? renderKeyValue('Speed', `${effectiveSpeedMhz} MHz`) : '');
                 return `<div><h3><i class="fa-solid fa-memory"></i> ${title}</h3>${finalDetailsHtml}</div>`;
-
             }).join('');
-
             const gridClass = memoryData.length > 1 ? 'grid-cols-2' : 'grid-cols-1';
-            const gridSplit = memoryData.length === 1 ? 'grid-split-1' : 'grid-split-2';
-            memoryCardContent = `<div class="column-layout ${gridClass} ${gridSplit}">${ramBlocksHtml}</div>`;
+            memoryCardContent = `<div class="column-layout ${gridClass}">${ramBlocksHtml}</div>`;
         } else {
             memoryCardContent = '<p>No memory data available.</p>';
         }
         const memoryCard = buildCard('hardware', 'Memory (RAM)', 'fa-memory', memoryCardContent);
-
-        // --- KẾT THÚC KHỐI CODE THAY THẾ ---
-
-
+        
         let gpuCard = '';
+        const gpuData = auditData.gpu?.data || [];
         if (Array.isArray(gpuData) && gpuData.length > 0 && !gpuData[0]?.Error) {
             const gpuBlocksHtml = gpuData.map(gpu => {
                 const gpuDetails = { ...gpu };
                 const title = gpuDetails.Name || 'GPU';
                 delete gpuDetails.Name;
-                return `<div><h3><i class="fa-solid fa-display"></i> ${title}</h3>${
-                    Object.entries(gpuDetails).map(([k, v]) => renderKeyValue(k, v)).join('')
-                }</div>`;
+                return `<div><h3><i class="fa-solid fa-display"></i> ${title}</h3>${Object.entries(gpuDetails).map(([k, v]) => renderKeyValue(k, v)).join('')}</div>`;
             }).join('');
-
             const gridClass = gpuData.length === 1 ? 'grid-cols-1' : 'grid-cols-2';
-            const gridSplit = gpuData.length === 1 ? 'grid-split-1' : 'grid-split-2';
-            const gpuCardContent = `<div class="column-layout ${gridClass} ${gridSplit}">${gpuBlocksHtml}</div>`;
+            const gpuCardContent = `<div class="column-layout ${gridClass}">${gpuBlocksHtml}</div>`;
             gpuCard = buildCard('hardware', 'Graphics (GPU)', 'fa-tv', gpuCardContent);
         } else {
             gpuCard = buildCard('hardware', 'Graphics (GPU)', 'fa-tv', '<p>No GPU data available.</p>');
         }
-
-        
-
-        // --- BƯỚC 2: LOGIC SẮP XẾP VÀ RENDER ĐỘNG ---
-
-        let finalHtml = '';
-
-        // Hàng 1: Luôn là OS và Processor
-        finalHtml += `<div class="content-grid grid-cols-2">${osCard}${processorCard}</div>`;
-        
-        // Hàng 2: Luôn là Mainboard và Memory
-        finalHtml += `<div class="content-grid grid-cols-1">${mainboardCard}</div>`;
-
-
-
-        switch (true) {
-            case (gpuData.length === 1 && memoryData.length === 1):
-                finalHtml += `<div class="content-grid grid-cols-2">${memoryCard}${gpuCard}</div>`;
-                break;
-
-            case (memoryData.length === 1):
-                finalHtml += `<div class="content-grid grid-cols-1">${gpuCard}</div>`;
-                finalHtml += `<div class="content-grid grid-cols-2">${memoryCard}</div>`;
-                break;
-
-            case (gpuData.length === 1):
-                finalHtml += `<div class="content-grid grid-cols-1">${memoryCard}</div>`;
-                finalHtml += `<div class="content-grid grid-cols-2">${gpuCard}</div>`;
-                break;
-
-            default:
-                finalHtml += `<div class="content-grid grid-cols-1">${memoryCard}</div>`;
-                finalHtml += `<div class="content-grid grid-cols-1">${gpuCard}</div>`;
-                break;
-        }
-
-
-        // Gán toàn bộ HTML đã tạo vào tab hardware
-        document.getElementById('hardware').innerHTML = finalHtml;
+        document.getElementById('hardware').innerHTML = `<div class="content-grid grid-cols-2">${osCard}${processorCard}</div><div class="content-grid grid-cols-1">${mainboardCard}</div><div class="content-grid grid-cols-1">${memoryCard}</div><div class="content-grid grid-cols-1">${gpuCard}</div>`;
     }
-
 
     function renderDisk() {
         const diskData = auditData.disk?.data || {};
         const diskTab = document.getElementById('disk');
         let finalHtml = '';
-
-        // --- 1. Xử lý PHYSICAL DISKS với layout đã thống nhất ---
         const physicalDisks = diskData.PhysicalDisks || [];
         if (physicalDisks.length > 0 && !physicalDisks[0].Error) {
             const physicalDisksRows = physicalDisks.map((disk, i) => {
                 const physicalInfo = { ...disk };
-                delete physicalInfo.Partitions;
-                delete physicalInfo.DeviceID;
-                delete physicalInfo.Model;
-                const physicalCardContent = `
-                    <div class="pie-chart-container">
-                        <canvas id="diskPieChart-${i}"></canvas>
-                    </div>
-                    ${Object.entries(physicalInfo).map(([k, v]) => renderKeyValue(k, v)).join('')}
-                `;
+                delete physicalInfo.Partitions; delete physicalInfo.DeviceID; delete physicalInfo.Model;
+                const physicalCardContent = `<div class="pie-chart-container"><canvas id="diskPieChart-${i}"></canvas></div>${Object.entries(physicalInfo).map(([k, v]) => renderKeyValue(k, v)).join('')}`;
                 const physicalCard = buildCard('disk', disk.Model || `Physical Disk ${i}`, 'fa-hard-drive', physicalCardContent);
-
                 const logicalDisks = (disk.Partitions || []).flatMap(p => p.LogicalDisks || []);
-                let logicalCardContent = '';
-                if (logicalDisks.length > 0) {
-                    logicalCardContent = logicalDisks.map(ld => {
-                        const ldInfo = {...ld};
-                        const ldTitle = ldInfo.DeviceID || 'Logical Partition';
-                        delete ldInfo.DeviceID;
-                        return `
-                            <h3><i class="fa-solid fa-folder-open"></i> ${ldTitle} (${ldInfo.VolumeName || 'No Name'})</h3>
-                            ${Object.entries(ldInfo).map(([k,v]) => renderKeyValue(k,v)).join('')}
-                        `;
-                    }).join('<hr class="item-separator">');
-                } else {
-                    logicalCardContent = '<p>No logical partitions found on this drive.</p>';
-                }
-                const logicalCard = `
-                    <div class="info-card scrollable-card">
-                        <div class="card-content">
-                            ${logicalCardContent}
-                        </div>
-                    </div>
-                `;
-
-                return `
-                    <div class="_info-card"> 
-                        <div class="card-content">
-                            <div class="content-grid grid-cols-2">
-                                ${physicalCard}
-                                ${logicalCard}
-                            </div>
-                        </div>
-                    </div>`;
+                let logicalCardContent = logicalDisks.length > 0 ? logicalDisks.map(ld => {
+                    const ldInfo = {...ld}, ldTitle = ldInfo.DeviceID || 'Logical Partition';
+                    delete ldInfo.DeviceID;
+                    return `<h3><i class="fa-solid fa-folder-open"></i> ${ldTitle} (${ldInfo.VolumeName || 'No Name'})</h3>${Object.entries(ldInfo).map(([k,v]) => renderKeyValue(k,v)).join('')}`;
+                }).join('<hr class="item-separator">') : '<p>No logical partitions found.</p>';
+                const logicalCard = `<div class="info-card scrollable-card"><div class="card-content">${logicalCardContent}</div></div>`;
+                return `<div class="_info-card"><div class="card-content"><div class="content-grid grid-cols-2">${physicalCard}${logicalCard}</div></div></div>`;
             }).join('');
             finalHtml += `<div class="content-grid grid-cols-1">${physicalDisksRows}</div>`;
         }
-
-        // --- 2. Xử lý NETWORK DRIVES (giữ nguyên) ---
         const networkDrives = diskData.NetworkDrives || [];
         if (networkDrives.length > 0) {
-            const networkDrivesContent = networkDrives.map((drive, i) => {
-                const driveDetailsHtml = renderKeyValue('Provider Name', drive.ProviderName);
-                const title = drive.DeviceID || `Network Drive ${i}`;
-                return buildCard('disk', title, 'fa-server', driveDetailsHtml);
-            }).join('');
-            
-            finalHtml += `
-                <div class="info-card">
-                     <h2><i class="fa-solid fa-network-wired"></i> Network Drives</h2>
-                     <div class="card-content">
-                        <div class="content-grid grid-cols-2">
-                            ${networkDrivesContent}
-                        </div>
-                    </div>
-                </div>`;
+            const networkDrivesContent = networkDrives.map((drive, i) => buildCard('disk', drive.DeviceID || `Net Drive ${i}`, 'fa-server', renderKeyValue('Provider Name', drive.ProviderName))).join('');
+            finalHtml += `<div class="info-card"><h2><i class="fa-solid fa-network-wired"></i> Network Drives</h2><div class="card-content"><div class="content-grid grid-cols-2">${networkDrivesContent}</div></div></div>`;
         }
-
-        // 3. Render ra DOM
-        if (finalHtml.trim() === '') {
-            diskTab.innerHTML = buildCard('disk', 'Storage Devices', 'fa-hdd', '<p>No disk data available.</p>');
-        } else {
-            diskTab.innerHTML = finalHtml;
-        }
-
-        // --- 4. TẠO BIỂU ĐỒ - LOGIC ĐÃ SỬA LỖI ---
+        diskTab.innerHTML = finalHtml.trim() === '' ? buildCard('disk', 'Storage', 'fa-hdd', '<p>No disk data.</p>') : finalHtml;
         physicalDisks.forEach((disk, i) => {
-            // Lấy danh sách phẳng tất cả các logical disks của ổ đĩa vật lý này
             const logicalDisks = (disk.Partitions || []).flatMap(p => p.LogicalDisks || []);
-            
-            // Nếu không có phân vùng nào thì không vẽ
             if (logicalDisks.length === 0) return;
-
-            const labels = [];
-            const dataPoints = [];
+            const labels = [], dataPoints = [];
             let totalAllocatedSpace = 0;
-
-            // Lặp qua TỪNG phân vùng logic (C:, D:, E:...)
             logicalDisks.forEach(ld => {
-                const size = ld.Size || 0;
-                const free = ld.FreeSpace || 0;
-                const used = size - free;
-
-                // Thêm 2 phần vào biểu đồ cho mỗi phân vùng
-                labels.push(`${ld.DeviceID} Used (${formatBytes(used)})`);
-                dataPoints.push(used);
-                
-                labels.push(`${ld.DeviceID} Free (${formatBytes(free)})`);
-                dataPoints.push(free);
-                
-                // Tính tổng dung lượng đã được cấp phát
+                const size = ld.Size || 0, free = ld.FreeSpace || 0, used = size - free;
+                labels.push(`${ld.DeviceID} Used (${formatBytes(used)})`); dataPoints.push(used);
+                labels.push(`${ld.DeviceID} Free (${formatBytes(free)})`); dataPoints.push(free);
                 totalAllocatedSpace += size;
             });
-            
-            // Tính toán và thêm phần dung lượng chưa cấp phát (unallocated)
-            const totalDiskSize = disk.Size || 0;
-            const unallocatedSpace = totalDiskSize - totalAllocatedSpace;
-            
-            // Chỉ thêm vào biểu đồ nếu lớn hơn 1MB để tránh các sai số nhỏ
-            if (unallocatedSpace > 1024 * 1024) { 
-                labels.push(`Unallocated (${formatBytes(unallocatedSpace)})`); 
-                dataPoints.push(unallocatedSpace); 
-            }
-
-            // Gọi hàm tạo biểu đồ với dữ liệu đã tổng hợp
+            const unallocatedSpace = (disk.Size || 0) - totalAllocatedSpace;
+            if (unallocatedSpace > 1024 * 1024) { labels.push(`Unallocated (${formatBytes(unallocatedSpace)})`); dataPoints.push(unallocatedSpace); }
             createPieChart(`diskPieChart-${i}`, labels, dataPoints);
         });
     }
     
-    // Thay thế hàm renderNetwork cũ trong file detail.js của bạn
-
     function renderNetwork() {
         const networkAdapters = auditData.network?.data || [];
         const networkTab = document.getElementById('network');
-
         if (networkAdapters.length === 0 || (networkAdapters.length > 0 && networkAdapters[0].Error)) {
             networkTab.innerHTML = buildCard('network', 'Network Adapters', 'fa-ethernet', '<p>No network data available.</p>');
             return;
         }
-
         const content = networkAdapters.map(adapter => {
             const adapterDetails = {...adapter};
-
-            // 1. Tạo tiêu đề động
             const name = adapterDetails.NetConnectionID || adapterDetails.Description || 'Network Adapter';
             let titleHtml = `<div class="network-card-title"><span>${name}</span>`;
-
-            // 2. Thêm badge nếu Status là "Connected"
-            if (adapterDetails.Status && adapterDetails.Status.toLowerCase() === 'connected') {
-                titleHtml += `<span class="status-badge connected">Connected</span>`;
-            }
+            if (adapterDetails.Status && adapterDetails.Status.toLowerCase() === 'connected') titleHtml += `<span class="status-badge connected">Connected</span>`;
             titleHtml += `</div>`;
-            
-            // 3. Xóa các trường đã dùng trong tiêu đề để không bị lặp lại
-            delete adapterDetails.NetConnectionID;
-            delete adapterDetails.Description;
-            // Có thể giữ lại Status để xem chi tiết, hoặc xóa đi nếu chỉ cần badge
-            // delete adapterDetails.Status; 
-
+            delete adapterDetails.NetConnectionID; delete adapterDetails.Description;
             const detailsHtml = Object.entries(adapterDetails).map(([k,v]) => renderKeyValue(k,v)).join('');
-            
-            // 4. Gọi buildCard với title là HTML đã được định dạng
             return buildCard('network', titleHtml, 'fa-ethernet', detailsHtml);
         }).join('');
-
         networkTab.innerHTML = `<div class="content-grid grid-cols-2">${content}</div>`;
     }
 
     function renderPeripherals() {
         const printers = auditData.printers?.data || [];
         if (printers.length === 0 || (printers.length > 0 && printers[0].Error)) {
-             document.getElementById('peripherals').innerHTML = buildCard('peripherals', 'Printers & Peripherals', 'fa-print', '<p>No printer data available.</p>');
+             document.getElementById('peripherals').innerHTML = buildCard('peripherals', 'Printers', 'fa-print', '<p>No printer data.</p>');
              return;
         }
         const content = printers.map(p => {
             const printerDetails = {...p};
-            let titleHtml = `<i class="fa-solid fa-print"></i> <span class="printer-name">${printerDetails['Printer Name'] || 'Unknown Printer'}</span>`;
-            if (printerDetails.Default) {
-                titleHtml += `<span class="printer-badge status-badge default">Default</span>`;
-            }
-            if (printerDetails.hasOwnProperty('Attributes Array')) {
-                printerDetails.Attributes = printerDetails['Attributes Array'].join(', ');
-            }
-            delete printerDetails['Attributes Array'];
-            delete printerDetails['Printer Name'];
-            delete printerDetails.Default;
+            let titleHtml = `<i class="fa-solid fa-print"></i> <span class="printer-name">${printerDetails['Printer Name'] || 'Unknown'}</span>`;
+            if (printerDetails.Default) titleHtml += `<span class="printer-badge status-badge default">Default</span>`;
+            if (printerDetails.hasOwnProperty('Attributes Array')) printerDetails.Attributes = printerDetails['Attributes Array'].join(', ');
+            delete printerDetails['Attributes Array']; delete printerDetails['Printer Name']; delete printerDetails.Default;
             const detailsHtml = Object.entries(printerDetails).map(([k,v]) => renderKeyValue(k,v)).join('');
             return buildCard('peripherals', titleHtml, null, detailsHtml);
         }).join('');
         document.getElementById('peripherals').innerHTML = `<div class="content-grid grid-cols-2">${content}</div>`;
     }
 
-    // Hàm tạo bảng hiển thị danh sách thông tin đăng nhập đã lưu
-    function createCredentialGrid(title, dataArray) {
-        if (!Array.isArray(dataArray) || dataArray.length === 0) {
-            return title ? `<h3>${title}</h3><p>No credentials match the current filter.</p>` : '<p>No data found.</p>';
-        }
-
-        // Định nghĩa thứ tự và tên hiển thị
-        const headersToDisplay = [
-            { key: 'Target', displayName: 'Target' },
-            { key: 'Type',   displayName: 'Type' },
-            { key: 'User',   displayName: 'User' },
-            { key: 'Group',  displayName: 'Group' }
-        ];
-        
-        // Định nghĩa kích thước cột
-        const gridTemplateColumns = "15% 45% 10% 15% 15%"; // No, Target, Type, User, Group
-        
-        const headerHtml = `
-            <div class="grid-header">
-                <div class="grid-cell col-no">No.</div>
-                ${headersToDisplay.map(h => `<div class="grid-cell">${h.displayName}</div>`).join('')}
-            </div>
-        `;
-
-        // Tạo HTML cho các dòng dữ liệu
-        const bodyHtml = dataArray.map((row, index) => {
-            const rowCells = headersToDisplay.map(header => 
-                `<div class="grid-cell">${formatValue(header.key, row[header.key])}</div>`
-            ).join('');
-            return `<div class="grid-row"><div class="grid-cell col-no">${index + 1}</div>${rowCells}</div>`;
-        }).join('');
-
-        const titleHtml = title ? `<h3>${title}</h3>` : '';
-        return `
-            ${titleHtml}
-            <div class="table-responsive">
-                <div class="data-grid" style="grid-template-columns: ${gridTemplateColumns};">
-                    ${headerHtml}${bodyHtml}
-                </div>
-            </div>
-        `;
-    }
-
-    function populateCredentialGroupFilter() {
-        const filterSelect = document.getElementById('credential-group-filter');
-        if (!filterSelect) return;
-
-        const groups = [...new Set(allCredentials.map(cred => cred.Group))];
-        
-        filterSelect.innerHTML = '<option value="All">All Groups</option>';
-
-        groups.sort().forEach(group => {
-            if (group) {
-                const option = document.createElement('option');
-                option.value = group;
-                option.textContent = group;
-                filterSelect.appendChild(option);
-            }
-        });
-    }
-
-    function updateCredentialView() {
-        // Lọc dữ liệu
-        const filteredCredentials = credentialFilterGroup === 'All'
-            ? allCredentials
-            : allCredentials.filter(cred => cred.Group === credentialFilterGroup);
-
-        // Render bảng (không phân trang)
-        const gridContainer = document.getElementById('credential-grid-container');
-        if (gridContainer) {
-            const title = `Stored Credentials (Showing ${filteredCredentials.length} of ${allCredentials.length} entries)`;
-            gridContainer.innerHTML = createCredentialGrid(title, filteredCredentials);
-        }
-    }
-
-    // Hàm renderSecurity đã được cập nhật để sử dụng các hàm mới và logic mới
     function renderSecurity() {
         const credentialsData = auditData.credentials?.data || {};
         const securityContainer = document.getElementById('security');
-
         if (Object.keys(credentialsData).length === 0) {
-            securityContainer.innerHTML = buildCard('security', 'Stored Credentials', 'fa-key', '<p>No data available.</p>');
+            securityContainer.innerHTML = buildCard('security', 'Stored Credentials', 'fa-key', '<p>No data.</p>');
             return;
         }
-
-        // Gộp tất cả credentials từ các group và gán 'Group' cho từng mục
-        allCredentials = Object.entries(credentialsData).flatMap(([group, items]) => {
+        const allCredentials = Object.entries(credentialsData).flatMap(([group, items]) => {
             if (!Array.isArray(items)) return [];
             return items.map(item => ({ ...item, Group: group }));
         });
-        
-        // Sắp xếp mặc định theo Target
         allCredentials.sort((a, b) => (a.Target || '').toLowerCase().localeCompare((b.Target || '').toLowerCase()));
-
-        // Tạo HTML cho bộ điều khiển và container
-        const controlsHtml = `
-            <div class="log-controls">
-                <label for="credential-group-filter">Filter by Group:</label>
-                <select id="credential-group-filter"></select>
-            </div>
-            <div id="credential-grid-container"></div>
-        `;
-
-        // Bọc vào một card
-        securityContainer.innerHTML = buildCard(
-            'security', 
-            'Stored Credentials', 
-            'fa-key', 
-            controlsHtml
-        );
-
-        // Đổ dữ liệu vào bộ lọc
-        populateCredentialGroupFilter();
-
-        // Thêm event listener
-        const filterSelect = document.getElementById('credential-group-filter');
-        if (filterSelect) {
-            filterSelect.addEventListener('change', (e) => {
-                credentialFilterGroup = e.target.value;
-                updateCredentialView();
-            });
-        }
-
-        // Gọi render lần đầu
-        updateCredentialView();
-    }
-
-    // Hàm tạo bảng hiển thị danh sách người dùng
-    function createUserGrid(title, dataArray) {
-        if (!Array.isArray(dataArray) || dataArray.length === 0) {
-            return title ? `<h3>${title}</h3><p>No data found.</p>` : '<p>No data found.</p>';
-        }
-
-        // Định nghĩa thứ tự và tên hiển thị các cột
-        const headersToDisplay = [
-            { key: 'Name',          displayName: 'Name' },
-            { key: 'FullName',      displayName: 'Full Name' },
-            { key: 'AccountDomain', displayName: 'Account Domain' },
-            { key: 'SID_Value',     displayName: 'SID Value' },
-            { key: 'Enabled',       displayName: 'Enabled' }
-        ];
         
-        // Định nghĩa kích thước cột theo yêu cầu
-        const gridTemplateColumns = "10% 15% 15% 25% 25% 10%";
-        
-        const headerHtml = `
-            <div class="grid-header">
-                <div class="grid-cell col-no">No.</div>
-                ${headersToDisplay.map(h => `<div class="grid-cell">${h.displayName}</div>`).join('')}
-            </div>
-        `;
+        const layoutHtml = PaginatedTableManager.renderLayout('Filter by Group:', 'credential-group-filter', 'credential-grid-container', 'credential-pagination-container');
+        securityContainer.innerHTML = buildCard('security', 'Stored Credentials', 'fa-key', layoutHtml);
 
-        // Tạo HTML cho các dòng dữ liệu
-        const bodyHtml = dataArray.map((row, index) => {
-            // Lặp qua headersToDisplay để đảm bảo đúng thứ tự
-            const rowCells = headersToDisplay.map(header => 
-                `<div class="grid-cell">${formatValue(header.key, row[header.key])}</div>`
-            ).join('');
-            return `<div class="grid-row"><div class="grid-cell col-no">${index + 1}</div>${rowCells}</div>`;
-        }).join('');
-
-        const titleHtml = title ? `<h3>${title}</h3>` : '';
-        return `
-            ${titleHtml}
-            <div class="table-responsive">
-                <div class="data-grid" style="grid-template-columns: ${gridTemplateColumns};">
-                    ${headerHtml}${bodyHtml}
-                </div>
-            </div>
-        `;
+        tableManagers.credentials = new PaginatedTableManager({
+            itemsPerPage: ITEMS_PER_PAGE, filterKey: 'Group', createGridFn: createCredentialGrid,
+            cardTitle: 'Stored Credentials', filterLabel: 'Filter by Group:',
+            gridContainerId: 'credential-grid-container', paginationContainerId: 'credential-pagination-container',
+            filterSelectId: 'credential-group-filter', prevBtnId: 'credential-prev-btn', nextBtnId: 'credential-next-btn'
+        });
+        tableManagers.credentials.loadData(allCredentials);
     }
-
-    // Hàm renderUsers đã được cập nhật để sử dụng các hàm mới và logic mới
+    
     function renderUsers() {
         const usersData = auditData.users?.data || {};
         let content = '';
-
-        // Hiển thị Current User (nếu có)
-        if (usersData && usersData.CurrentUser) {
-            content += renderKeyValue('Current User', usersData.CurrentUser, true);
-        }
-
-        // Xử lý và hiển thị bảng Local Users
+        if (usersData && usersData.CurrentUser) content += renderKeyValue('Current User', usersData.CurrentUser, true);
         if (usersData && Array.isArray(usersData.LocalUsers)) {
-            // 1. Xử lý dữ liệu để làm phẳng cấu trúc SID
-            const processedUsers = usersData.LocalUsers.map(user => ({
-                Name: user.Name,
-                FullName: user.FullName,
-                AccountDomain: user.SID?.AccountDomainSid, // Dùng optional chaining
-                SID_Value: user.SID?.Value,
-                Enabled: user.Enabled
-            }));
-
-            // 2. Gọi hàm tạo grid tùy chỉnh
+            const processedUsers = usersData.LocalUsers.map(user => ({ Name: user.Name, FullName: user.FullName, AccountDomain: user.SID?.AccountDomainSid, SID_Value: user.SID?.Value, Enabled: user.Enabled }));
             content += createUserGrid('Local Users', processedUsers);
         }
-        
-        // Đưa nội dung vào card
         document.getElementById('users').innerHTML = buildCard('users', 'User Accounts', 'fa-users', content);
     }
 
-    // Hàm tạo bảng hiển thị danh sách phần mềm đã cài đặt
-    function createSoftwareGrid(title, dataArray, currentPage, itemsPerPage) {
-        if (!Array.isArray(dataArray) || dataArray.length === 0) {
-            return title ? `<h3>${title}</h3><p>No software matches the current filter.</p>` : '<p>No data found.</p>';
-        }
-
-        // Định nghĩa thứ tự và tên hiển thị các cột
-        const headersToDisplay = [
-            { key: 'Name',            displayName: 'Name' },
-            { key: 'EstimatedSizeByte', displayName: 'Size' },
-            { key: 'InstallDate',     displayName: 'Install Date' },
-            { key: 'InstallLocation', displayName: 'Install Location' },
-            { key: 'Publisher',       displayName: 'Publisher' },
-            { key: 'Version',         displayName: 'Version' },
-            { key: 'Group',           displayName: 'Group' } // Thêm cột Group
-        ];
-        
-        // Định nghĩa kích thước cột theo yêu cầu
-        const gridTemplateColumns = "5%	26%	9%	13%	15%	12%	10%	10%";
-        
-        const headerHtml = `
-            <div class="grid-header">
-                <div class="grid-cell col-no">No.</div>
-                ${headersToDisplay.map(h => `<div class="grid-cell">${h.displayName}</div>`).join('')}
-            </div>
-        `;
-
-        // Tạo HTML cho các dòng dữ liệu
-        const bodyHtml = dataArray.map((row, index) => {
-            const globalIndex = (currentPage - 1) * itemsPerPage + index + 1;
-            
-            const rowCells = headersToDisplay.map(header => {
-                let cellContent;
-                // Xử lý đặc biệt cho cột Size
-                if (header.key === 'EstimatedSizeByte') {
-                    cellContent = formatBytes(row[header.key]);
-                } else {
-                    cellContent = formatValue(header.key, row[header.key]);
-                }
-                return `<div class="grid-cell">${cellContent}</div>`;
-            }).join('');
-            
-            return `<div class="grid-row"><div class="grid-cell col-no">${globalIndex}</div>${rowCells}</div>`;
-        }).join('');
-
-        const titleHtml = title ? `<h3>${title}</h3>` : '';
-        return `
-            ${titleHtml}
-            <div class="table-responsive">
-                <div class="data-grid" style="grid-template-columns: ${gridTemplateColumns};">
-                    ${headerHtml}${bodyHtml}
-                </div>
-            </div>
-        `;
-    }
-
-    function populateSoftwareGroupFilter() {
-        const filterSelect = document.getElementById('software-group-filter');
-        if (!filterSelect) return;
-
-        // Lấy tất cả các group duy nhất
-        const groups = [...new Set(allSoftware.map(sw => sw.Group))];
-        
-        filterSelect.innerHTML = '<option value="All">All Groups</option>';
-
-        groups.sort().forEach(group => {
-            if (group) {
-                const option = document.createElement('option');
-                option.value = group;
-                option.textContent = group;
-                filterSelect.appendChild(option);
-            }
-        });
-    }
-
-    function updateSoftwareView() {
-        // Lọc dữ liệu
-        const filteredSoftware = softwareFilterGroup === 'All'
-            ? allSoftware
-            : allSoftware.filter(sw => sw.Group === softwareFilterGroup);
-
-        // Phân trang
-        const totalPages = Math.ceil(filteredSoftware.length / SOFTWARE_ITEMS_PER_PAGE);
-        if (softwareCurrentPage > totalPages) {
-            softwareCurrentPage = totalPages || 1;
-        }
-        const startIndex = (softwareCurrentPage - 1) * SOFTWARE_ITEMS_PER_PAGE;
-        const paginatedSoftware = filteredSoftware.slice(startIndex, startIndex + SOFTWARE_ITEMS_PER_PAGE);
-
-        // Render bảng
-        const gridContainer = document.getElementById('software-grid-container');
-        if (gridContainer) {
-            const title = `Installed Software (Showing ${filteredSoftware.length} of ${allSoftware.length} entries)`;
-            gridContainer.innerHTML = createSoftwareGrid(title, paginatedSoftware, softwareCurrentPage, SOFTWARE_ITEMS_PER_PAGE);
-        }
-        
-        // Render phân trang
-        const paginationContainer = document.getElementById('software-pagination-container');
-        if (paginationContainer) {
-            const startItem = startIndex + 1;
-            const endItem = Math.min(startIndex + SOFTWARE_ITEMS_PER_PAGE, filteredSoftware.length);
-            const infoText = filteredSoftware.length > 0 ? `Showing ${startItem}-${endItem} of ${filteredSoftware.length}` : 'No software to display.';
-            
-            paginationContainer.innerHTML = `
-                <div class="log-pagination-info">Page ${softwareCurrentPage} of ${totalPages || 1} | ${infoText}</div>
-                <div class="log-pagination-buttons">
-                    <button id="software-prev-btn" ${softwareCurrentPage === 1 ? 'disabled' : ''}>Previous</button>
-                    <button id="software-next-btn" ${softwareCurrentPage >= totalPages ? 'disabled' : ''}>Next</button>
-                </div>
-            `;
-        }
-    }
-
-    // Hàm tạo bảng hiển thị danh sách phần mềm đã cài đặt
-    function renderSoftware() {
-        const softwareData = auditData.software?.data || {};
-        const softwareContainer = document.getElementById('software');
-
-        if (Object.keys(softwareData).length === 0 || softwareData.Error) {
-            softwareContainer.innerHTML = buildCard('software', 'Software', 'fa-cubes', '<p>No data.</p>');
-            return;
-        }
-
-        // Gộp tất cả phần mềm từ các group và gán 'Group' cho từng phần mềm
-        allSoftware = Object.entries(softwareData).flatMap(([group, items]) => {
-            // Bỏ qua các group không phải là mảng (ví dụ: 'Errors')
-            if (!Array.isArray(items)) return [];
-            return items.map(item => ({ ...item, Group: group }));
-        });
-        
-        // Sắp xếp mặc định theo tên phần mềm
-        allSoftware.sort((a, b) => (a.Name || '').toLowerCase().localeCompare((b.Name || '').toLowerCase()));
-
-        // Tạo HTML cho các bộ điều khiển và container
-        const controlsHtml = `
-            <div class="log-controls">
-                <label for="software-group-filter">Filter by Group:</label>
-                <select id="software-group-filter"></select>
-            </div>
-            <div id="software-grid-container"></div>
-            <div class="log-pagination" id="software-pagination-container"></div>
-        `;
-
-        // Bọc vào một card
-        softwareContainer.innerHTML = buildCard(
-            'software', 
-            'Installed Software', 
-            'fa-cubes', 
-            controlsHtml
-        );
-
-        // Đổ dữ liệu vào bộ lọc
-        populateSoftwareGroupFilter();
-
-        // Thêm event listener
-        const filterSelect = document.getElementById('software-group-filter');
-        if (filterSelect) {
-            filterSelect.addEventListener('change', (e) => {
-                softwareFilterGroup = e.target.value;
-                softwareCurrentPage = 1;
-                updateSoftwareView();
-            });
-        }
-        
-        const paginationContainer = document.getElementById('software-pagination-container');
-        if (paginationContainer) {
-            paginationContainer.addEventListener('click', (e) => {
-                const filteredSoftware = softwareFilterGroup === 'All' ? allSoftware : allSoftware.filter(sw => sw.Group === softwareFilterGroup);
-                const totalPages = Math.ceil(filteredSoftware.length / SOFTWARE_ITEMS_PER_PAGE);
-
-                if (e.target.id === 'software-prev-btn' && softwareCurrentPage > 1) {
-                    softwareCurrentPage--;
-                    updateSoftwareView();
-                }
-                if (e.target.id === 'software-next-btn' && softwareCurrentPage < totalPages) {
-                    softwareCurrentPage++;
-                    updateSoftwareView();
-                }
-            });
-        }
-
-        // Gọi render lần đầu
-        updateSoftwareView();
-    }
-
-    // Hàm tạo bảng hiển thị danh sách tiến trình
-    function createProcessGrid(title, dataArray, currentPage, itemsPerPage) {
-        if (!Array.isArray(dataArray) || dataArray.length === 0) {
-            return title ? `<h3>${title}</h3><p>No processes match the current filter.</p>` : '<p>No data found.</p>';
-        }
-
-        const headersToDisplay = [
-            { key: 'PID',        displayName: 'PID' },
-            { key: 'Name',       displayName: 'Name' },
-            { key: 'ExePath',    displayName: 'Path' },
-            { key: 'MemoryRSS',  displayName: 'Memory' },
-            { key: 'Username',   displayName: 'User' },
-            { key: 'CreateTime', displayName: 'Create Time' },
-            { key: 'Status',     displayName: 'Status' }
-        ];
-        
-        const gridTemplateColumns = "5% 7% 14% 30% 9% 14% 14% 7%";
-        
-        const headerHtml = `
-            <div class="grid-header">
-                <div class="grid-cell col-no">No.</div>
-                ${headersToDisplay.map(h => `<div class="grid-cell">${h.displayName}</div>`).join('')}
-            </div>
-        `;
-
-        // Tạo HTML cho các dòng dữ liệu
-        const bodyHtml = dataArray.map((row, index) => {
-            const globalIndex = (currentPage - 1) * itemsPerPage + index + 1;
-            
-            // --- LOGIC MỚI ĐỂ XỬ LÝ CỘT SIZE ---
-            const rowCells = headersToDisplay.map(header => {
-                let cellContent;
-                
-                // Nếu là cột Size (MemoryRSS), dùng hàm formatBytes
-                if (header.key === 'MemoryRSS') {
-                    cellContent = formatBytes(row[header.key]);
-                } 
-                // Đối với các cột khác, vẫn dùng formatValue như cũ
-                else {
-                    cellContent = formatValue(header.key, row[header.key]);
-                }
-                
-                return `<div class="grid-cell">${cellContent}</div>`;
-            }).join('');
-            // --- KẾT THÚC LOGIC MỚI ---
-            
-            return `<div class="grid-row"><div class="grid-cell col-no">${globalIndex}</div>${rowCells}</div>`;
-        }).join('');
-
-        const titleHtml = title ? `<h3>${title}</h3>` : '';
-        return `
-            ${titleHtml}
-            <div class="table-responsive">
-                <div class="data-grid" style="grid-template-columns: ${gridTemplateColumns};">
-                    ${headerHtml}${bodyHtml}
-                </div>
-            </div>
-        `;
-    }
-
-    function populateProcessStatusFilter() {
-        const filterSelect = document.getElementById('process-status-filter');
-        if (!filterSelect) return;
-
-        // Lấy tất cả các status duy nhất
-        const statuses = [...new Set(allProcesses.map(proc => proc.Status))];
-        
-        filterSelect.innerHTML = '<option value="All">All Statuses</option>';
-
-        statuses.sort().forEach(status => {
-            if (status) {
-                const option = document.createElement('option');
-                option.value = status;
-                option.textContent = status.charAt(0).toUpperCase() + status.slice(1); // Viết hoa chữ cái đầu
-                filterSelect.appendChild(option);
-            }
-        });
-    }
-
-    function updateProcessView() {
-        // Lọc dữ liệu
-        const filteredProcesses = processFilterStatus === 'All'
-            ? allProcesses
-            : allProcesses.filter(proc => proc.Status === processFilterStatus);
-
-        // Phân trang
-        const totalPages = Math.ceil(filteredProcesses.length / PROCESS_ITEMS_PER_PAGE);
-        if (processCurrentPage > totalPages) {
-            processCurrentPage = totalPages || 1;
-        }
-        const startIndex = (processCurrentPage - 1) * PROCESS_ITEMS_PER_PAGE;
-        const paginatedProcesses = filteredProcesses.slice(startIndex, startIndex + PROCESS_ITEMS_PER_PAGE);
-
-        // Render bảng
-        const gridContainer = document.getElementById('process-grid-container');
-        if (gridContainer) {
-            const title = `Processes (Showing ${filteredProcesses.length} of ${allProcesses.length} entries)`;
-            gridContainer.innerHTML = createProcessGrid(title, paginatedProcesses, processCurrentPage, PROCESS_ITEMS_PER_PAGE);
-        }
-        
-        // Render phân trang
-        const paginationContainer = document.getElementById('process-pagination-container');
-        if (paginationContainer) {
-            const startItem = startIndex + 1;
-            const endItem = Math.min(startIndex + PROCESS_ITEMS_PER_PAGE, filteredProcesses.length);
-            const infoText = filteredProcesses.length > 0 ? `Showing ${startItem}-${endItem} of ${filteredProcesses.length}` : 'No processes to display.';
-            
-            paginationContainer.innerHTML = `
-                <div class="log-pagination-info">Page ${processCurrentPage} of ${totalPages || 1} | ${infoText}</div>
-                <div class="log-pagination-buttons">
-                    <button id="process-prev-btn" ${processCurrentPage === 1 ? 'disabled' : ''}>Previous</button>
-                    <button id="process-next-btn" ${processCurrentPage >= totalPages ? 'disabled' : ''}>Next</button>
-                </div>
-            `;
-        }
-    }
-
-    // Hàm chính để render tab tiến trình
-    function renderRuntime() {
-        const processesData = auditData.processes?.data || {};
-        const runtimeContainer = document.getElementById('runtime');
-
-        if (Object.keys(processesData).length === 0 || processesData.Error) {
-            runtimeContainer.innerHTML = buildCard('runtime', 'Processes', 'fa-cogs', '<p>No data.</p>');
-            return;
-        }
-
-        // Gộp tất cả tiến trình từ các user khác nhau và gán 'Username' cho từng tiến trình
-        allProcesses = Object.entries(processesData).flatMap(([user, procs]) => {
-            // Gán thuộc tính 'Username' cho mỗi process object
-            return procs.map(proc => ({ ...proc, Username: user }));
-        });
-        
-        // Sắp xếp mặc định theo tên tiến trình (không phân biệt chữ hoa/thường)
-        allProcesses.sort((a, b) => a.Name.toLowerCase().localeCompare(b.Name.toLowerCase()));
-
-        // Tạo HTML cho các bộ điều khiển và container
-        const controlsHtml = `
-            <div class="log-controls">
-                <label for="process-status-filter">Filter by Status:</label>
-                <select id="process-status-filter"></select>
-            </div>
-            <div id="process-grid-container"></div>
-            <div class="log-pagination" id="process-pagination-container"></div>
-        `;
-
-        // Bọc vào một card
-        runtimeContainer.innerHTML = buildCard(
-            'runtime', 
-            'Processes', 
-            'fa-cogs', 
-            controlsHtml
-        );
-
-        // Đổ dữ liệu vào bộ lọc
-        populateProcessStatusFilter();
-
-        // Thêm event listener
-        const filterSelect = document.getElementById('process-status-filter');
-        if (filterSelect) {
-            filterSelect.addEventListener('change', (e) => {
-                processFilterStatus = e.target.value;
-                processCurrentPage = 1;
-                updateProcessView();
-            });
-        }
-        
-        const paginationContainer = document.getElementById('process-pagination-container');
-        if (paginationContainer) {
-            paginationContainer.addEventListener('click', (e) => {
-                const filteredProcesses = processFilterStatus === 'All' ? allProcesses : allProcesses.filter(p => p.Status === processFilterStatus);
-                const totalPages = Math.ceil(filteredProcesses.length / PROCESS_ITEMS_PER_PAGE);
-
-                if (e.target.id === 'process-prev-btn' && processCurrentPage > 1) {
-                    processCurrentPage--;
-                    updateProcessView();
-                }
-                if (e.target.id === 'process-next-btn' && processCurrentPage < totalPages) {
-                    processCurrentPage++;
-                    updateProcessView();
-                }
-            });
-        }
-
-        // Gọi render lần đầu
-        updateProcessView();
-    }
-
-    // Hàm tạo lưới dịch vụ với tiêu đề, dữ liệu, trang hiện tại và số mục mỗi trang
-    function createServiceGrid(title, dataArray, currentPage, itemsPerPage) {
-        if (!Array.isArray(dataArray) || dataArray.length === 0) {
-            return title ? `<h3>${title}</h3><p>No services match the current filter.</p>` : '<p>No data found.</p>';
-        }
-
-        // Định nghĩa thứ tự và tên hiển thị
-        const headersToDisplay = [
-            { key: 'DisplayName', displayName: 'Display Name' },
-            { key: 'Name',        displayName: 'Name' },
-            { key: 'StartMode',   displayName: 'Start Mode' },
-            { key: 'PathName',    displayName: 'Path Name' },
-            { key: 'State',       displayName: 'State' },
-        ];
-        
-        // Định nghĩa kích thước cột theo yêu cầu
-        const gridTemplateColumns = "8% 12% 10% 10% 50% 10%"; // No, DisplayName, Name, StartMode, PathName, State
-        
-        const headerHtml = `
-            <div class="grid-header">
-                <div class="grid-cell col-no">No.</div>
-                ${headersToDisplay.map(h => `<div class="grid-cell">${h.displayName}</div>`).join('')}
-            </div>
-        `;
-
-        // Tính toán số thứ tự chính xác
-        const bodyHtml = dataArray.map((row, index) => {
-            const globalIndex = (currentPage - 1) * itemsPerPage + index + 1;
-            const rowCells = headersToDisplay.map(header => 
-                `<div class="grid-cell">${formatValue(header.key, row[header.key])}</div>`
-            ).join('');
-            return `<div class="grid-row"><div class="grid-cell col-no">${globalIndex}</div>${rowCells}</div>`;
-        }).join('');
-
-        const titleHtml = title ? `<h3>${title}</h3>` : '';
-        return `
-            ${titleHtml}
-            <div class="table-responsive">
-                <div class="data-grid" style="grid-template-columns: ${gridTemplateColumns};">
-                    ${headerHtml}${bodyHtml}
-                </div>
-            </div>
-        `;
-    }
-
-    function populateServiceStateFilter() {
-        const filterSelect = document.getElementById('service-state-filter');
-        if (!filterSelect) return;
-
-        const states = [...new Set(allServices.map(service => service.State))];
-        
-        filterSelect.innerHTML = '<option value="All">All States</option>';
-
-        states.sort().forEach(state => {
-            if (state) {
-                const option = document.createElement('option');
-                option.value = state;
-                option.textContent = state;
-                filterSelect.appendChild(option);
-            }
-        });
-    }
-
-    function updateServiceView() {
-        // Lọc dữ liệu
-        const filteredServices = serviceFilterState === 'All'
-            ? allServices
-            : allServices.filter(service => service.State === serviceFilterState);
-
-        // Phân trang
-        const totalPages = Math.ceil(filteredServices.length / SERVICE_ITEMS_PER_PAGE);
-        if (serviceCurrentPage > totalPages) {
-            serviceCurrentPage = totalPages || 1;
-        }
-        const startIndex = (serviceCurrentPage - 1) * SERVICE_ITEMS_PER_PAGE;
-        const paginatedServices = filteredServices.slice(startIndex, startIndex + SERVICE_ITEMS_PER_PAGE);
-
-        // Render bảng
-        const gridContainer = document.getElementById('service-grid-container');
-        if (gridContainer) {
-            const title = `Services (Showing ${filteredServices.length} of ${allServices.length} entries)`;
-            gridContainer.innerHTML = createServiceGrid(title, paginatedServices, serviceCurrentPage, SERVICE_ITEMS_PER_PAGE);
-        }
-        
-        // Render phân trang
-        const paginationContainer = document.getElementById('service-pagination-container');
-        if (paginationContainer) {
-            const startItem = startIndex + 1;
-            const endItem = Math.min(startIndex + SERVICE_ITEMS_PER_PAGE, filteredServices.length);
-
-            let infoText = 'No services to display.';
-            if (filteredServices.length > 0) {
-                infoText = `Showing ${startItem}-${endItem} of ${filteredServices.length}`;
-            }
-            
-            paginationContainer.innerHTML = `
-                <div class="log-pagination-info">Page ${serviceCurrentPage} of ${totalPages || 1} | ${infoText}</div>
-                <div class="log-pagination-buttons">
-                    <button id="service-prev-btn" ${serviceCurrentPage === 1 ? 'disabled' : ''}>Previous</button>
-                    <button id="service-next-btn" ${serviceCurrentPage >= totalPages ? 'disabled' : ''}>Next</button>
-                </div>
-            `;
-        }
-    }
-
-    // Hàm render dịch vụ
-    function renderServices() {
-        const servicesData = auditData.services?.data || {};
-        if (Object.keys(servicesData).length === 0 || servicesData.Error) {
-            document.getElementById('services').innerHTML = buildCard('services', 'Services', 'fa-concierge-bell', '<p>No data.</p>');
-            return;
-        }
-
-        // Gộp tất cả dịch vụ từ các state khác nhau vào một mảng duy nhất
-        allServices = Object.values(servicesData).flat();
-        const servicesContainer = document.getElementById('services');
-
-        // Tạo HTML cho các bộ điều khiển và container
-        const controlsHtml = `
-            <div class="log-controls">
-                <label for="service-state-filter">Filter by State:</label>
-                <select id="service-state-filter"></select>
-            </div>
-            <div id="service-grid-container"></div>
-            <div class="log-pagination" id="service-pagination-container"></div>
-        `;
-
-        // Bọc vào một card
-        servicesContainer.innerHTML = buildCard(
-            'services', 
-            'Services', 
-            'fa-concierge-bell', 
-            controlsHtml
-        );
-
-        // Đổ dữ liệu vào bộ lọc
-        populateServiceStateFilter();
-
-        // Thêm event listener
-        const filterSelect = document.getElementById('service-state-filter');
-        if (filterSelect) {
-            filterSelect.addEventListener('change', (e) => {
-                serviceFilterState = e.target.value;
-                serviceCurrentPage = 1;
-                updateServiceView();
-            });
-        }
-        
-        const paginationContainer = document.getElementById('service-pagination-container');
-        if (paginationContainer) {
-            paginationContainer.addEventListener('click', (e) => {
-                const filteredServices = serviceFilterState === 'All' ? allServices : allServices.filter(s => s.State === serviceFilterState);
-                const totalPages = Math.ceil(filteredServices.length / SERVICE_ITEMS_PER_PAGE);
-
-                if (e.target.id === 'service-prev-btn' && serviceCurrentPage > 1) {
-                    serviceCurrentPage--;
-                    updateServiceView();
-                }
-                if (e.target.id === 'service-next-btn' && serviceCurrentPage < totalPages) {
-                    serviceCurrentPage++;
-                    updateServiceView();
-                }
-            });
-        }
-
-        // Gọi render lần đầu
-        updateServiceView();
-    }
-
-    // --- Event Log Rendering ---
-    function createEventLogGrid(title, dataArray, currentPage, itemsPerPage) {
-        if (!Array.isArray(dataArray) || dataArray.length === 0) {
-            return title ? `<h3>${title}</h3><p>No logs match the current filter.</p>` : '<p>No data found.</p>';
-        }
-
-        const headersToDisplay = [
-            { key: 'Id',               displayName: 'Id' },
-            { key: 'LevelDisplayName', displayName: 'Level' },
-            { key: 'ProviderName',     displayName: 'Provider Name' },
-            { key: 'Message',          displayName: 'Message' },
-            { key: 'TimeCreated',      displayName: 'Time Created' },
-        ];
-        
-        const gridTemplateColumns = "7% 8% 10% 15% 45% 15%";
-        
-        const headerHtml = `
-            <div class="grid-header">
-                <div class="grid-cell col-no">No.</div>
-                ${headersToDisplay.map(h => `<div class="grid-cell">${h.displayName}</div>`).join('')}
-            </div>
-        `;
-
-        // Sửa logic tính 'No.'
-        const bodyHtml = dataArray.map((row, index) => {
-            const globalIndex = (currentPage - 1) * itemsPerPage + index + 1;
-            const rowCells = headersToDisplay.map(header => 
-                `<div class="grid-cell">${formatValue(header.key, row[header.key])}</div>`
-            ).join('');
-            return `<div class="grid-row"><div class="grid-cell col-no">${globalIndex}</div>${rowCells}</div>`;
-        }).join('');
-
-        const titleHtml = title ? `<h3>${title}</h3>` : '';
-        return `
-            ${titleHtml}
-            <div class="table-responsive">
-                <div class="data-grid" style="grid-template-columns: ${gridTemplateColumns};">
-                    ${headerHtml}${bodyHtml}
-                </div>
-            </div>
-        `;
-    }
-
-    function populateLogLevelFilter() {
-        const filterSelect = document.getElementById('log-level-filter');
-        if (!filterSelect) return;
-
-        // Lấy tất cả các level duy nhất từ dữ liệu log
-        const levels = [...new Set(allLogs.map(log => log.LevelDisplayName))];
-        
-        // Xóa các option cũ
-        filterSelect.innerHTML = '<option value="All">All Levels</option>';
-
-        // Thêm các option mới
-        levels.sort().forEach(level => {
-            if (level) { // Bỏ qua các giá trị null/undefined
-                const option = document.createElement('option');
-                option.value = level;
-                option.textContent = level;
-                filterSelect.appendChild(option);
-            }
-        });
-    }
-
-    function updateLogView() {
-        // 1. Lọc dữ liệu dựa trên level đã chọn
-        const filteredLogs = logFilterLevel === 'All'
-            ? allLogs
-            : allLogs.filter(log => log.LevelDisplayName === logFilterLevel);
-
-        // 2. Tính toán phân trang
-        const totalPages = Math.ceil(filteredLogs.length / LOG_ITEMS_PER_PAGE);
-        // Đảm bảo trang hiện tại không vượt quá tổng số trang (sau khi lọc)
-        if (logCurrentPage > totalPages) {
-            logCurrentPage = totalPages || 1;
-        }
-        const startIndex = (logCurrentPage - 1) * LOG_ITEMS_PER_PAGE;
-        const paginatedLogs = filteredLogs.slice(startIndex, startIndex + LOG_ITEMS_PER_PAGE);
-
-        // 3. Render bảng với dữ liệu đã được phân trang
-        const gridContainer = document.getElementById('log-grid-container');
-        if (gridContainer) {
-            const title = `System Log (Showing ${filteredLogs.length} of ${allLogs.length} entries)`;
-            gridContainer.innerHTML = createEventLogGrid(title, paginatedLogs, logCurrentPage, LOG_ITEMS_PER_PAGE);
-        }
-        
-        // 4. Render các nút điều khiển phân trang
-        const paginationContainer = document.getElementById('log-pagination-container');
-        if (paginationContainer) {
-            const startItem = startIndex + 1;
-            const endItem = Math.min(startIndex + LOG_ITEMS_PER_PAGE, filteredLogs.length);
-
-            let infoText = 'No logs to display.';
-            if (filteredLogs.length > 0) {
-                infoText = `Showing ${startItem}-${endItem} of ${filteredLogs.length}`;
-            }
-            
-            paginationContainer.innerHTML = `
-                <div class="log-pagination-info">Page ${logCurrentPage} of ${totalPages || 1} | ${infoText}</div>
-                <div class="log-pagination-buttons">
-                    <button id="log-prev-btn" ${logCurrentPage === 1 ? 'disabled' : ''}>Previous</button>
-                    <button id="log-next-btn" ${logCurrentPage >= totalPages ? 'disabled' : ''}>Next</button>
-                </div>
-            `;
-        }
-    }
-
-    function renderLogs() {
-        // Lưu dữ liệu vào biến toàn cục
-        allLogs = auditData.event_log?.data || [];
-        const logsContainer = document.getElementById('logs');
-        
-        // Tạo cấu trúc HTML cho các bộ điều khiển và container
-        const controlsHtml = `
-            <div class="log-controls">
-                <label for="log-level-filter">Filter by Level:</label>
-                <select id="log-level-filter"></select>
-            </div>
-            <div id="log-grid-container"></div>
-            <div class="log-pagination" id="log-pagination-container"></div>
-        `;
-
-        // Bọc tất cả vào trong một info-card
-        logsContainer.innerHTML = buildCard(
-            'logs', 
-            'Event Logs', 
-            'fa-clipboard-list', 
-            controlsHtml
-        );
-
-        // Đổ dữ liệu vào bộ lọc
-        populateLogLevelFilter();
-
-        // Thêm các event listener một lần duy nhất
-        const filterSelect = document.getElementById('log-level-filter');
-        if (filterSelect) {
-            filterSelect.addEventListener('change', (e) => {
-                logFilterLevel = e.target.value;
-                logCurrentPage = 1; // Rất quan trọng: Reset về trang 1 khi lọc
-                updateLogView();
-            });
-        }
-        
-        const paginationContainer = document.getElementById('log-pagination-container');
-        if (paginationContainer) {
-            paginationContainer.addEventListener('click', (e) => {
-                const filteredLogs = logFilterLevel === 'All' ? allLogs : allLogs.filter(log => log.LevelDisplayName === logFilterLevel);
-                const totalPages = Math.ceil(filteredLogs.length / LOG_ITEMS_PER_PAGE);
-
-                if (e.target.id === 'log-prev-btn' && logCurrentPage > 1) {
-                    logCurrentPage--;
-                    updateLogView();
-                }
-                if (e.target.id === 'log-next-btn' && logCurrentPage < totalPages) {
-                    logCurrentPage++;
-                    updateLogView();
-                }
-            });
-        }
-
-        // Gọi render lần đầu tiên
-        updateLogView();
-    }
-
-    // --- Web History Rendering ---
-    function createWebHistoryGrid(dataArray) {
-        // 1. Kiểm tra dữ liệu đầu vào
-        if (!Array.isArray(dataArray) || dataArray.length === 0) {
-            return '<p>No data found.</p>';
-        }
-
-        // 2. Định nghĩa thứ tự và tên hiển thị của các cột
-        const headers = [
-            { key: 'title',           displayName: 'Title' },
-            { key: 'url',             displayName: 'Url' },
-            { key: 'last_visit_time', displayName: 'Last Visit Time' }
-        ];
-
-        // 3. Định nghĩa kích thước các cột theo yêu cầu (No., Title, Url, Time)
-        const gridTemplateColumns = "10% 20% 50% 20%";
-
-        // 4. Tạo HTML cho header
-        const headerHtml = `
-            <div class="grid-header">
-                <div class="grid-cell col-no">No.</div>
-                ${headers.map(h => `<div class="grid-cell">${h.displayName}</div>`).join('')}
-            </div>
-        `;
-
-        // 5. Tạo HTML cho các dòng dữ liệu
-        const bodyHtml = dataArray.map((row, index) => {
-            if (typeof row !== 'object' || row === null) return '';
-            
-            // Lặp qua `headers` đã định nghĩa để đảm bảo đúng thứ tự cột
-            const rowCells = headers.map(header => 
-                `<div class="grid-cell">${formatValue(header.key, row[header.key])}</div>`
-            ).join('');
-
-            return `<div class="grid-row"><div class="grid-cell col-no">${index + 1}</div>${rowCells}</div>`;
-        }).join('');
-
-        // 6. Kết hợp và trả về HTML hoàn chỉnh cho bảng
-        return `
-            <div class="table-responsive">
-                <div class="data-grid" style="grid-template-columns: ${gridTemplateColumns};">
-                    ${headerHtml}${bodyHtml}
-                </div>
-            </div>
-        `;
-    }
-
-    // --- Web History Rendering ---
     function renderHistory() {
         const historyData = auditData.web_history?.data || {};
         const historyContainer = document.getElementById('history');
-
-        const browsersWithData = Object.entries(historyData).filter(([browser, profiles]) => {
-            return !profiles.Info && Object.keys(profiles).length > 0;
-        });
-
+        const browsersWithData = Object.entries(historyData).filter(([_, profiles]) => !profiles.Info && Object.keys(profiles).length > 0);
         if (browsersWithData.length === 0) {
-            historyContainer.innerHTML = buildCard('history', 'Web History', 'fa-globe', '<p>No web history data found for any browser.</p>');
+            historyContainer.innerHTML = buildCard('history', 'Web History', 'fa-globe', '<p>No web history data found.</p>');
             return;
         }
-
         const content = browsersWithData.map(([browser, profiles]) => {
-            // Chỗ này không đổi
-            const profilesHtml = Object.entries(profiles)
-                .map(([profile, items]) => {
-                    // *** THAY ĐỔI DUY NHẤT Ở ĐÂY ***
-                    // Gọi hàm mới 'createWebHistoryGrid' thay vì 'createGrid'
-                    const historyTableHtml = createWebHistoryGrid(items);
-                    
-                    return `<h3 class="toggle-header">${profile}</h3><div class="toggle-content">${historyTableHtml}</div>`;
-                })
-                .join('');
-            
+            const profilesHtml = Object.entries(profiles).map(([profile, items]) => `<h3 class="toggle-header">${profile}</h3><div class="toggle-content">${createWebHistoryGrid(items)}</div>`).join('');
             return buildCard('history', browser, 'fa-globe', profilesHtml);
         }).join('');
-
         historyContainer.innerHTML = `<div class="content-grid grid-cols-1">${content}</div>`;
     }
 
+    // --- Paginated/Filtered Render Functions ---
+    function renderLogs() {
+        const logsContainer = document.getElementById('logs');
+        const layoutHtml = PaginatedTableManager.renderLayout('Filter by Level:', 'log-level-filter', 'log-grid-container', 'log-pagination-container');
+        logsContainer.innerHTML = buildCard('logs', 'Event Logs', 'fa-clipboard-list', layoutHtml);
+    
+        tableManagers.logs = new PaginatedTableManager({
+            itemsPerPage: ITEMS_PER_PAGE, filterKey: 'LevelDisplayName', createGridFn: createEventLogGrid,
+            cardTitle: 'System Log', filterLabel: 'Filter by Level:',
+            gridContainerId: 'log-grid-container', paginationContainerId: 'log-pagination-container',
+            filterSelectId: 'log-level-filter', prevBtnId: 'log-prev-btn', nextBtnId: 'log-next-btn'
+        });
+        tableManagers.logs.loadData(auditData.event_log?.data || []);
+    }
+
+    function renderServices() {
+        const servicesContainer = document.getElementById('services');
+        if (!auditData.services?.data || auditData.services.data.Error) {
+            servicesContainer.innerHTML = buildCard('services', 'Services', 'fa-concierge-bell', '<p>No data.</p>');
+            return;
+        }
+        const layoutHtml = PaginatedTableManager.renderLayout('Filter by State:', 'service-state-filter', 'service-grid-container', 'service-pagination-container');
+        servicesContainer.innerHTML = buildCard('services', 'Services', 'fa-concierge-bell', layoutHtml);
+        
+        tableManagers.services = new PaginatedTableManager({
+            itemsPerPage: ITEMS_PER_PAGE, filterKey: 'State', createGridFn: createServiceGrid,
+            cardTitle: 'Services', filterLabel: 'Filter by State:',
+            gridContainerId: 'service-grid-container', paginationContainerId: 'service-pagination-container',
+            filterSelectId: 'service-state-filter', prevBtnId: 'service-prev-btn', nextBtnId: 'service-next-btn'
+        });
+        const allServicesData = Object.values(auditData.services.data).flat();
+        tableManagers.services.loadData(allServicesData);
+    }
+    
+    function renderRuntime() {
+        const runtimeContainer = document.getElementById('runtime');
+        if (!auditData.processes?.data || auditData.processes.data.Error) {
+            runtimeContainer.innerHTML = buildCard('runtime', 'Processes', 'fa-cogs', '<p>No data.</p>');
+            return;
+        }
+        const layoutHtml = PaginatedTableManager.renderLayout('Filter by Status:', 'process-status-filter', 'process-grid-container', 'process-pagination-container');
+        runtimeContainer.innerHTML = buildCard('runtime', 'Processes', 'fa-cogs', layoutHtml);
+    
+        tableManagers.processes = new PaginatedTableManager({
+            itemsPerPage: ITEMS_PER_PAGE, filterKey: 'Status', createGridFn: createProcessGrid,
+            cardTitle: 'Processes', filterLabel: 'Filter by Status:',
+            gridContainerId: 'process-grid-container', paginationContainerId: 'process-pagination-container',
+            filterSelectId: 'process-status-filter', prevBtnId: 'process-prev-btn', nextBtnId: 'process-next-btn'
+        });
+        const allProcessesData = Object.entries(auditData.processes.data).flatMap(([user, procs]) => procs.map(proc => ({ ...proc, Username: user })));
+        allProcessesData.sort((a, b) => a.Name.toLowerCase().localeCompare(b.Name.toLowerCase()));
+        tableManagers.processes.loadData(allProcessesData);
+    }
+    
+    function renderSoftware() {
+        const softwareContainer = document.getElementById('software');
+        if (!auditData.software?.data || auditData.software.data.Error) {
+            softwareContainer.innerHTML = buildCard('software', 'Software', 'fa-cubes', '<p>No data.</p>');
+            return;
+        }
+        const layoutHtml = PaginatedTableManager.renderLayout('Filter by Group:', 'software-group-filter', 'software-grid-container', 'software-pagination-container');
+        softwareContainer.innerHTML = buildCard('software', 'Installed Software', 'fa-cubes', layoutHtml);
+    
+        tableManagers.software = new PaginatedTableManager({
+            itemsPerPage: ITEMS_PER_PAGE, filterKey: 'Group', createGridFn: createSoftwareGrid,
+            cardTitle: 'Installed Software', filterLabel: 'Filter by Group:',
+            gridContainerId: 'software-grid-container', paginationContainerId: 'software-pagination-container',
+            filterSelectId: 'software-group-filter', prevBtnId: 'software-prev-btn', nextBtnId: 'software-next-btn'
+        });
+        const allSoftwareData = Object.entries(auditData.software.data).flatMap(([group, items]) => {
+            if (!Array.isArray(items)) return [];
+            return items.map(item => ({ ...item, Group: group }));
+        });
+        allSoftwareData.sort((a, b) => (a.Name || '').toLowerCase().localeCompare((b.Name || '').toLowerCase()));
+        tableManagers.software.loadData(allSoftwareData);
+    }
+    
     // --- Main Fetch and Render Call ---
     function fetchDataAndRender() {
         fetch(`/api/client_audit_data/${CLIENT_GUID}`).then(res => res.json()).then(data => {
@@ -1972,7 +922,7 @@ document.addEventListener('DOMContentLoaded', () => {
             renderSecurity(); renderUsers(); renderSoftware(); renderRuntime(); renderServices(); renderLogs(); renderHistory();
         }).catch(err => {
             console.error("Failed to fetch audit data:", err);
-            document.querySelector('.tabs-container').innerHTML = `<p style="color:red;text-align:center;">Error loading client details. The client may be offline or data is not available.</p>`;
+            document.querySelector('.tabs-container').innerHTML = `<p style="color:red;text-align:center;">Error loading client details.</p>`;
         });
     }
 
