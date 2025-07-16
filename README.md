@@ -71,7 +71,7 @@ graph TD
     subgraph "Hệ thống trung tâm (Server)"
         S[System Monitor Server Nhận dữ liệu Lưu vào SQLite Health Check]
         DB[(SQLite Database)]
-        DASH[System Monitor Dashboard Giao diện Web (Flask) Cung cấp REST API]
+        DASH[System Monitor Dashboard Giao diện Web Flask Cung cấp REST API]
     end
 
     subgraph "Người quản trị (Admin)"
