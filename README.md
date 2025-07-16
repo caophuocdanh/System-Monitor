@@ -13,7 +13,7 @@
 
 <p align="center">
   <!-- Thêm ảnh chụp màn hình dashboard ở đây để tăng tính trực quan -->
-<img src="images/dashboard.png" alt="Dashboard" width="80%">
+<img src="requirements/dashboard.png" alt="Dashboard" width="80%">
 </p>
 
 ---
@@ -63,28 +63,28 @@ Hệ thống hoạt động theo mô hình Client-Server với một Dashboard g
 ```mermaid
 graph TD
     subgraph "Các máy trạm (Clients)"
-        C1[Client 1<br>(Windows)]
-        C2[Client 2<br>(Windows)]
-        C3[Client ...<br>(Windows)]
+        C1[Client 1 <br> Windows]
+        C2[Client 2 <br> Windows]
+        C3[Client ... <br> Windows]
     end
 
     subgraph "Hệ thống trung tâm (Server)"
-        S[<br><b>System Monitor Server</b><br>Nhận dữ liệu<br>Lưu vào SQLite<br>Health Check<br>]
-        DB[(<br><b>SQLite Database</b><br>Lưu trữ thông tin<br>)]
-        DASH[<br><b>System Monitor Dashboard</b><br>Giao diện Web (Flask)<br>Cung cấp REST API<br>]
+        S[System Monitor Server <br>Nhận dữ liệu <br>Lưu vào SQLite <br>Health Check]
+        DB[(SQLite Database)]
+        DASH[System Monitor Dashboard <br>Giao diện Web Flask <br>Cung cấp REST API]
     end
 
     subgraph "Người quản trị (Admin)"
-        ADMIN[<br><b>Admin's Browser</b><br>Truy cập Dashboard<br>]
+        ADMIN[Admin's Browser <br> Truy cập Dashboard]
     end
 
-    C1 -- "Gửi dữ liệu Realtime<br>(WebSocket)" --> S
-    C2 -- "Gửi dữ liệu Realtime<br>(WebSocket)" --> S
-    C3 -- "Gửi dữ liệu Realtime<br>(WebSocket)" --> S
+    C1 --> S
+    C2 --> S
+    C3 --> S
 
-    S -- "Lưu trữ/Truy vấn" --> DB
-    DASH -- "Truy vấn dữ liệu" --> DB
-    ADMIN -- "HTTP Request<br>(http://server-ip:5000)" --> DASH
+    S --> DB
+    DASH --> DB
+    ADMIN --> DASH
 
     style S fill:#D5E8D4,stroke:#82B366,stroke-width:2px
     style DASH fill:#DAE8FC,stroke:#6C8EBF,stroke-width:2px
@@ -177,19 +177,21 @@ update_info_interval = 3600
 
 ## 🤝 Đóng góp
 
-Chúng tôi hoan nghênh mọi sự đóng góp để cải thiện dự án! Nếu bạn có ý tưởng hoặc muốn vá lỗi, vui lòng tạo một "Issue" hoặc "Pull Request".
+Chúng tôi *không* hoan nghênh mọi sự đóng góp để cải thiện dự án! Nếu bạn có ý tưởng hoặc muốn vá lỗi, vui lòng tạo một "Issue" hoặc "Pull Request".
 
 ## ✍️ Tác giả
 
--   **Cao Phước Danh** - *Phát triển chính*
+-   **Cao Phước Danh** - *Kịch bản - Biên kịch - Đạo diễn*
+-   **AI studio - Google** - *Diễn viên - Phát triển code*
+-   **ChatGPT** - *Hậu kì - Thằng trên code ngu thì thằng này sửa lại*
 
-Dự án có tham khảo và sử dụng các ý tưởng từ cộng đồng và sự hỗ trợ của công cụ AI.
 
 ## 📄 Giấy phép
 
-Dự án này được cấp phép theo Giấy phép MIT. Xem file `LICENSE.md` để biết chi tiết.
+Dự án này được cấp phép theo Giấy phép "Tự tui cấp". Xem file `LICENSE.md` để biết chi tiết.
 
 ---
 <p align="center">
-  <i>Hệ thống lý tưởng cho quản trị viên IT, phòng lab, trường học, và doanh nghiệp nhỏ.</i>
+  <i>Hệ thống quản lý mục đích cá nhân, không kinh doanh, trao đổi, mua bán.</i>
+  <i>Opensource dành cho ai cần. Tự chịu trách nhiệm nếu bị vấn đề gì.</i>
 </p>
