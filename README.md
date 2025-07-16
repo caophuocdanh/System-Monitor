@@ -78,13 +78,13 @@ graph TD
         ADMIN[Admin's Browser\nTruy cập Dashboard]
     end
 
-    C1 -->|Gửi dữ liệu Realtime\n(WebSocket)| S
-    C2 -->|Gửi dữ liệu Realtime\n(WebSocket)| S
-    C3 -->|Gửi dữ liệu Realtime\n(WebSocket)| S
+    C1 --> S
+    C2 --> S
+    C3 --> S
 
-    S -->|Lưu trữ/Truy vấn| DB
-    DASH -->|Truy vấn dữ liệu| DB
-    ADMIN -->|HTTP Request[](http://server-ip:5000)| DASH
+    S --> DB
+    DASH --> DB
+    ADMIN --> DASH
 
     style S fill:#D5E8D4,stroke:#82B366,stroke-width:2px
     style DASH fill:#DAE8FC,stroke:#6C8EBF,stroke-width:2px
