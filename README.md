@@ -69,9 +69,9 @@ graph TD
     end
 
     subgraph "Hệ thống trung tâm (Server)"
-        S[System Monitor Server\nNhận dữ liệu\nLưu vào SQLite\nHealth Check]
-        DB[(SQLite Database\nLưu trữ thông tin)]
-        DASH[System Monitor Dashboard\nGiao diện Web (Flask)\nCung cấp REST API]
+        S[System Monitor Server Nhận dữ liệu Lưu vào SQLite Health Check]
+        DB[(SQLite Database)]
+        DASH[System Monitor Dashboard Giao diện Web (Flask) Cung cấp REST API]
     end
 
     subgraph "Người quản trị (Admin)"
