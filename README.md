@@ -80,6 +80,7 @@ graph TD
     S --> DB
     DASH --> DB
     ADMIN --> DASH
+    S --> DASH --> S
 
     style S fill:#D5E8D4,stroke:#82B366,stroke-width:2px
     style DASH fill:#DAE8FC,stroke:#6C8EBF,stroke-width:2px
