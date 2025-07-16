@@ -58,7 +58,8 @@ graph TD
     subgraph "Các máy trạm (Clients)"
         C1[Client 1 <br> Windows]
         C2[Client 2 <br> Windows]
-        C3[Client ... <br> Windows]
+        C3[......]
+        C4[Client n <br> Windows]
     end
 
     subgraph "Hệ thống trung tâm (Server)"
@@ -74,10 +75,12 @@ graph TD
     C1 --> S
     C2 --> S
     C3 --> S
+    C4 --> S
 
     S --> DB
     DASH --> DB
     ADMIN --> DASH
+    DASH --> S
 
     style S fill:#D5E8D4,stroke:#82B366,stroke-width:2px
     style DASH fill:#DAE8FC,stroke:#6C8EBF,stroke-width:2px
