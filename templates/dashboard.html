@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - System Monitor{% endblock %}
+
+{% block head_css %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+{% endblock %}
+
+{% block content %}
+    <!-- CẤU TRÚC STATS-GRID MỚI -->
+    <div class="stats-grid">
+        <!-- Card 1: Total Clients -->
+        <div class="stat-card color-purple">
+            <div class="stat-main">
+                <p class="stat-value" id="stat-total-clients">0</p>
+                <h3 class="stat-title">TOTAL CLIENTS</h3>
+            </div>
+            <div class="stat-icon-box color-purple">
+                <i class="fa-solid fa-desktop"></i>
+            </div>
+            <div class="stat-progress-bar">
+                <div class="stat-progress-fill" id="progress-total"></div>
+            </div>
+            <div class="stat-subtext" id="subtext-total">
+                <i class="fa-solid fa-user-plus"></i>
+                <span>0 registered</span>
+            </div>
+        </div>
+
+        <!-- Card 2: Clients Online -->
+        <div class="stat-card color-green">
+            <div class="stat-main">
+                <p class="stat-value" id="stat-clients-online">0</p>
+                <h3 class="stat-title">CLIENTS ONLINE</h3>
+            </div>
+            <div class="stat-icon-box color-green">
+                <i class="fa-solid fa-circle"></i>
+            </div>
+            <div class="stat-progress-bar">
+                <div class="stat-progress-fill" id="progress-online"></div>
+            </div>
+            <div class="stat-subtext" id="subtext-online">
+                <i class="fa-solid fa-circle" style="font-size: 0.7em;"></i>
+                <span>0/0 active</span>
+            </div>
+        </div>
+
+        <!-- Card 3: Metrics Logged -->
+        <div class="stat-card color-blue">
+            <div class="stat-main">
+                <p class="stat-value" id="stat-record-count">0</p>
+                <h3 class="stat-title">TOTAL RECORDS</h3>
+            </div>
+            <div class="stat-icon-box color-blue">
+                <i class="fa-solid fa-database"></i>
+            </div>
+            <div class="stat-progress-bar">
+                <div class="stat-progress-fill" id="progress-records"></div>
+            </div>
+            <div class="stat-subtext" id="subtext-records">
+                <i class="fa-solid fa-chart-line"></i>
+                <span>0 entries</span>
+            </div>
+        </div>
+
+        <!-- Card 4: Database Size -->
+        <div class="stat-card color-orange">
+            <div class="stat-main">
+                <p class="stat-value" id="stat-db-size">0 MB</p>
+                <h3 class="stat-title">DATABASE SIZE</h3>
+            </div>
+            <div class="stat-icon-box color-orange">
+                <i class="fa-solid fa-server"></i>
+            </div>
+            <div class="stat-progress-bar">
+                <div class="stat-progress-fill" id="progress-dbsize"></div>
+            </div>
+            <div class="stat-subtext" id="subtext-dbsize">
+                <i class="fa-solid fa-circle"></i>
+                <span>Optimal</span>
+            </div>
+        </div>
+    </div>
+    
+    <h2>Monitored Clients</h2>
+    <div id="clients-grid" class="clients-grid">
+        <!-- Client cards will be injected here by JS -->
+    </div>
+{% endblock %}
+
+{% block scripts %}
+    <script>
+        // Nhúng các giá trị interval từ backend
+        const DASHBOARD_INTERVAL = {{ intervals.dashboard }};
+    </script>
+    <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+{% endblock %}

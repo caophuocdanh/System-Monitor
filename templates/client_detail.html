@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+
+{% block title %}Details for {{ client.hostname }}{% endblock %}
+
+{% block head_css %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/detail.css') }}">
+{% endblock %}
+
+{% block content %}
+    <div class="detail-header">
+        <h1><i class="icon fa-solid fa-desktop"></i> {{ client.username }}<span class="hostname">({{ client.hostname }})</span></h1>
+        <a href="/" class="back-link"><i class="fa-solid fa-arrow-left"></i> Back to Dashboard</a>
+    </div>
+
+    <!-- Cấu trúc Tab phẳng -->
+    <div class="tabs-container">
+        <nav class="tab-nav">
+            <button class="tab-link" onclick="openTab(event, 'basic-info')"><span class="tab-icon">🖥️</span> Basic Info</button>
+            <button class="tab-link" onclick="openTab(event, 'performance')"><span class="tab-icon">📊</span> Performance</button>
+            <button class="tab-link" onclick="openTab(event, 'hardware')"><span class="tab-icon">⚙️</span> Hardware</button>
+            <button class="tab-link" onclick="openTab(event, 'disk')"><span class="tab-icon">💾</span> Hard Disk</button>
+            <button class="tab-link" onclick="openTab(event, 'network')"><span class="tab-icon">🌐</span> Network</button>
+            <button class="tab-link" onclick="openTab(event, 'peripherals')"><span class="tab-icon">🖨️</span> Peripherals</button>
+            <button class="tab-link" onclick="openTab(event, 'security')"><span class="tab-icon">🔑</span> Security</button>
+            <button class="tab-link" onclick="openTab(event, 'users')"><span class="tab-icon">👤</span> User Accounts</button>
+            <button class="tab-link" onclick="openTab(event, 'software')"><span class="tab-icon">🧩</span> Installed Software</button>
+            <button class="tab-link" onclick="openTab(event, 'runtime')"><span class="tab-icon">🏃</span> Runtime</button>
+            <button class="tab-link" onclick="openTab(event, 'services')"><span class="tab-icon">⚙️</span> Services</button>
+            <button class="tab-link" onclick="openTab(event, 'logs')"><span class="tab-icon">🧾</span> Logs</button>
+            <button class="tab-link" onclick="openTab(event, 'history')"><span class="tab-icon">🌍</span> Web History</button>
+
+        </nav>
+
+        <div class="tab-content-wrapper">
+            <!-- Nội dung các Tab sẽ được JS điền vào đây -->
+            <div id="basic-info" class="tab-content active"></div>
+            <div id="performance" class="tab-content"></div>
+            <div id="hardware" class="tab-content"></div>
+            <div id="disk" class="tab-content"></div>
+            <div id="network" class="tab-content"></div>
+            <div id="peripherals" class="tab-content"></div>
+            <div id="security" class="tab-content"></div>
+            <div id="users" class="tab-content"></div>
+            <div id="software" class="tab-content"></div>
+            <div id="runtime" class="tab-content"></div>
+            <div id="services" class="tab-content"></div>
+            <div id="logs" class="tab-content"></div>
+            <div id="history" class="tab-content"></div>
+        </div>
+    </div>
+{% endblock %}
+
+{% block vendor_scripts %}
+    <script src="{{ url_for('static', filename='vendor/chart.js/chart.umd.js') }}"></script>
+{% endblock %}
+
+{% block scripts %}
+    <script>
+        const CLIENT_GUID = "{{ client.guid }}";
+        const SERVER_STATUS_INTERVAL = {{ intervals.server_status }};
+        const REALTIME_METRICS_INTERVAL = {{ intervals.client_metrics }};
+    </script>
+    <script src="{{ url_for('static', filename='js/detail.js') }}"></script>
+{% endblock %}

@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}System Monitor Dashboard{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/all.min.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" sizes="32x32"/>
+    {% block head_css %}{% endblock %}
+</head>
+<body>
+
+    <!-- ======================= HEADER MỚI ======================= -->
+    <header>
+        <section class="header-wrapper">
+            <div class="header-title">
+                <a href="/" class="logo">
+                    <i class="fa-solid fa-desktop"></i>
+                    <span>System Monitor Dashboard</span>
+                </a>
+                <p class="subtitle">Giám sát hệ thống máy tính từ xa - Cập nhật real-time</p>
+            </div>
+
+            <div class="header-controls">
+                <!-- Contact -->
+                <div class="header-control-item social"><a href="http://danhcp.dssddns.net/" target="_blank" rel="noopener noreferrer"><i class="fa fa-globe"></i></a></div>
+                <div class="header-control-item social"><a href="https://github.com/caophuocdanh/-W-System-Monitor" target="_blank" rel="noopener noreferrer"><i class="fa-brands fa-github"></i></a></div>
+                
+                
+                <!-- Trạng thái Server -->
+                <div id="server-status-bar" class="header-control-item server-status-bar">
+                    <span class="status-indicator"></span>
+                    <span id="server-status-text">Checking...</span>
+                </div>
+                
+                <!-- Bộ chọn Theme -->
+                <div class="header-control-item theme-selector">
+                    <i class="fa-solid fa-palette"></i>
+                    <select id="theme-switcher">
+                        <!-- JS sẽ tự động điền các lựa chọn vào đây -->
+                    </select>
+                </div>
+
+                <!-- Nút hành động -->
+                 <button id="btn-prune-offline" class="header-control-item btn-action btn-header-action" title="Xóa tất cả client offline và dữ liệu của họ">
+                    <i class="fa-solid fa-user-slash"></i>
+                    <span>Prune Offline</span>
+                </button>
+                <button id="btn-clear-records" class="header-control-item btn-action btn-header-action">
+                    <i class="fa-solid fa-eraser"></i>
+                    <span>Clear Records</span>
+                </button>
+            </div>
+        </section>
+    </header>
+
+    <main class="container">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- ======================= FOOTER MỚI (Giữ nguyên) ======================= -->
+    <footer class="site-footer">
+        <div class="footer-credit">
+                <div><i class="fa-solid fa-heart"></i> System Monitor Dashboard © 2025</div>
+                <div><i class="fa-solid fa-code-branch"></i> v2.1.0 by danhcp</div>
+        </div>
+    </footer>
+
+    {% block vendor_scripts %}{% endblock %}
+    <script src="{{ url_for('static', filename='js/common.js') }}"></script>
+    {% block scripts %}{% endblock %}
+
+</body>
+</html>

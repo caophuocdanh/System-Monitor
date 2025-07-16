@@ -1,0 +1,4204 @@
+{
+  "cpu": {
+    "data": {
+      "Architecture": "x86_64",
+      "Bits": 64,
+      "Brand": "Intel(R) Core(TM) i5-4278U CPU @ 2.60GHz",
+      "Logical Cores": 4,
+      "Machine": "AMD64",
+      "Physical Cores": 2,
+      "Platform": "Windows-10-10.0.19045-SP0",
+      "Processor": "Intel64 Family 6 Model 69 Stepping 1, GenuineIntel",
+      "Release": "10",
+      "System": "Windows",
+      "Vendor": "GenuineIntel",
+      "Version": "10.0.19045"
+    },
+    "timestamp": "2025-07-14 00:23:46"
+  },
+  "credentials": {
+    "data": {
+      "Other": [
+        {
+          "Target": "WindowsLive:target=virtualapp/didlogical",
+          "Type": "Generic",
+          "User": "02dryzeopjhzsjmq"
+        }
+      ],
+      "Web": [
+        {
+          "Target": "MicrosoftAccount:target=SSO_POP_Device",
+          "Type": "Generic",
+          "User": "02dryzeopjhzsjmq"
+        },
+        {
+          "Target": "LegacyGeneric:target=GitHub for Visual Studio - https://caophuocdanh@github.com/",
+          "Type": "Generic",
+          "User": "caophuocdanh"
+        },
+        {
+          "Target": "LegacyGeneric:target=git:https://github.com",
+          "Type": "Generic",
+          "User": "caophuocdanh"
+        },
+        {
+          "Target": "LegacyGeneric:target=gh:github.com:",
+          "Type": "Generic"
+        },
+        {
+          "Target": "LegacyGeneric:target=gh:github.com:caophuocdanh",
+          "Type": "Generic",
+          "User": "caophuocdanh"
+        }
+      ],
+      "Windows": [
+        {
+          "Target": "Domain:target=danhcp.dssddns.net",
+          "Type": "Domain Password",
+          "User": "dev"
+        }
+      ]
+    },
+    "timestamp": "2025-07-14 00:23:46"
+  },
+  "disk": {
+      "data": {
+        "NetworkDrives": [
+          {
+            "DeviceID": "Y:",
+            "ProviderName": "\\\\127.0.0.1\\scan"
+          },
+          {
+            "DeviceID": "Z:",
+            "ProviderName": "\\\\danhcp.dssddns.net\\System Monitor Dashboard"
+          }
+        ],
+        "PhysicalDisks": [
+          {
+            "DeviceID": "\\\\.\\PHYSICALDRIVE0",
+            "InterfaceType": "IDE",
+            "MediaType": "Fixed hard disk media",
+            "Model": "Samsung SSD 860 EVO 250GB",
+            "Partitions": [
+              {
+                "DeviceID": "Disk #0, Partition #2",
+                "LogicalDisks": [
+                  {
+                    "DeviceID": "C:",
+                    "FileSystem": "NTFS",
+                    "FreeSpace": 90705534976,
+                    "Size": 154847408128,
+                    "VolumeName": "BOOTCAMP"
+                  }
+                ],
+                "Size": 154847412224,
+                "Type": "GPT: Basic Data"
+              }
+            ],
+            "SerialNumber": "S3Y9NX0K724842F",
+            "Size": 250056737280,
+            "Status": "OK"
+          },
+          {
+          "DeviceID": "\\\\.\\PHYSICALDRIVE1",
+          "InterfaceType": "USB",
+          "MediaType": "Removable media",
+          "Model": "SanDisk Ultra 64GB",
+          "Partitions": [
+            {
+              "DeviceID": "Disk #1, Partition #1",
+              "LogicalDisks": [
+                {
+                  "DeviceID": "D:",
+                  "FileSystem": "exFAT",
+                  "FreeSpace": 21474836480,
+                  "Size": 32011628544,
+                  "VolumeName": "SANDISK-D"
+                },
+                {
+                  "DeviceID": "E:",
+                  "FileSystem": "NTFS",
+                  "FreeSpace": 10737418240,
+                  "Size": 32011628544,
+                  "VolumeName": "SANDISK-E"
+                }
+              ],
+              "Size": 64023257088,
+              "Type": "GPT: Basic Data"
+            }
+          ],
+          "SerialNumber": "4C530001241218108564",
+          "Size": 64023257088,
+          "Status": "OK"
+        }
+    ]
+  },
+  "timestamp": "2025-07-14 20:35:05"
+},
+  "event_log": {
+    "data": [
+      {
+        "Id": 1014,
+        "LevelDisplayName": "Warning",
+        "Message": "Name resolution for the name mobile.events.data.microsoft.com timed out after none of the configured DNS servers responded.",
+        "ProviderName": "Microsoft-Windows-DNS-Client",
+        "TimeCreated": "2025-07-13 23:13:33",
+        "UserSid": "S-1-5-20"
+      },
+      {
+        "Id": 8003,
+        "LevelDisplayName": "Error",
+        "Message": "The master browser has received a server announcement from the computer DESKTOP-09ATOP7 that believes that it is the master browser for the domain on transport NetBT_Tcpip_{04765975-8B5F-4835-A9F5-2A008DD641FC}. The master browser is stopping or an election is being forced.",
+        "ProviderName": "bowser",
+        "TimeCreated": "2025-07-13 21:53:19",
+        "UserSid": null
+      },
+      {
+        "Id": 10016,
+        "LevelDisplayName": "Warning",
+        "Message": "The application-specific permission settings do not grant Local Activation permission for the COM Server application with CLSID  {2593F8B9-4EAF-457C-B68A-50F6B8EA6B54}  and APPID  {15C20B67-12E7-4BB6-92BB-7AFF07997402}  to the user DESKTOP-UVCAHP4\\ADMIN SID (S-1-5-21-2242564787-350535357-3372921323-1001) from address LocalHost (Using LRPC) running in the application container Unavailable SID (Unavailable). This security permission can be modified using the Component Services administrative tool.",
+        "ProviderName": "Microsoft-Windows-DistributedCOM",
+        "TimeCreated": "2025-07-13 21:10:26",
+        "UserSid": "S-1-5-21-2242564787-350535357-3372921323-1001"
+      },
+      {
+        "Id": 7040,
+        "LevelDisplayName": "Information",
+        "Message": "The start type of the Background Intelligent Transfer Service service was changed from auto start to demand start.",
+        "ProviderName": "Service Control Manager",
+        "TimeCreated": "2025-07-13 21:04:20",
+        "UserSid": "S-1-5-18"
+      },
+      {
+        "Id": 7040,
+        "LevelDisplayName": "Information",
+        "Message": "The start type of the Background Intelligent Transfer Service service was changed from demand start to auto start.",
+        "ProviderName": "Service Control Manager",
+        "TimeCreated": "2025-07-13 21:02:14",
+        "UserSid": "S-1-5-18"
+      },
+      {
+        "Id": 19,
+        "LevelDisplayName": "Information",
+        "Message": "Installation Successful: Windows successfully installed the following update: Security Intelligence Update for Microsoft Defender Antivirus - KB2267602 (Version 1.431.594.0) - Current Channel (Broad)",
+        "ProviderName": "Microsoft-Windows-WindowsUpdateClient",
+        "TimeCreated": "2025-07-13 20:59:24",
+        "UserSid": "S-1-5-18"
+      },
+      {
+        "Id": 43,
+        "LevelDisplayName": "Information",
+        "Message": "Installation Started: Windows has started installing the following update: Security Intelligence Update for Microsoft Defender Antivirus - KB2267602 (Version 1.431.594.0) - Current Channel (Broad)",
+        "ProviderName": "Microsoft-Windows-WindowsUpdateClient",
+        "TimeCreated": "2025-07-13 20:59:10",
+        "UserSid": "S-1-5-18"
+      },
+      {
+        "Id": 44,
+        "LevelDisplayName": "Information",
+        "Message": "Windows Update started downloading an update.",
+        "ProviderName": "Microsoft-Windows-WindowsUpdateClient",
+        "TimeCreated": "2025-07-13 20:59:10",
+        "UserSid": "S-1-5-18"
+      },
+      {
+        "Id": 10016,
+        "LevelDisplayName": "Warning",
+        "Message": "The machine-default permission settings do not grant Local Activation permission for the COM Server application with CLSID  {C2F03A33-21F5-47FA-B4BB-156362A2F239}  and APPID  {316CDED5-E4AE-4B15-9113-7055D84DCC97}  to the user DESKTOP-UVCAHP4\\ADMIN SID (S-1-5-21-2242564787-350535357-3372921323-1001) from address LocalHost (Using LRPC) running in the application container Microsoft.Windows.ShellExperienceHost_10.0.19041.5072_neutral_neutral_cw5n1h2txyewy SID (S-1-15-2-155514346-2573954481-755741238-1654018636-1233331829-3075935687-2861478708). This security permission can be modified using the Component Services administrative tool.",
+        "ProviderName": "Microsoft-Windows-DistributedCOM",
+        "TimeCreated": "2025-07-13 20:55:50",
+        "UserSid": "S-1-5-21-2242564787-350535357-3372921323-1001"
+      },
+      {
+        "Id": 10016,
+        "LevelDisplayName": "Warning",
+        "Message": "The machine-default permission settings do not grant Local Activation permission for the COM Server application with CLSID  {C2F03A33-21F5-47FA-B4BB-156362A2F239}  and APPID  {316CDED5-E4AE-4B15-9113-7055D84DCC97}  to the user DESKTOP-UVCAHP4\\ADMIN SID (S-1-5-21-2242564787-350535357-3372921323-1001) from address LocalHost (Using LRPC) running in the application container Microsoft.Windows.ShellExperienceHost_10.0.19041.5072_neutral_neutral_cw5n1h2txyewy SID (S-1-15-2-155514346-2573954481-755741238-1654018636-1233331829-3075935687-2861478708). This security permission can be modified using the Component Services administrative tool.",
+        "ProviderName": "Microsoft-Windows-DistributedCOM",
+        "TimeCreated": "2025-07-13 20:53:10",
+        "UserSid": "S-1-5-21-2242564787-350535357-3372921323-1001"
+      },
+      {
+        "Id": 10016,
+        "LevelDisplayName": "Warning",
+        "Message": "The application-specific permission settings do not grant Local Launch permission for the COM Server application with CLSID  Windows.SecurityCenter.SecurityAppBroker  and APPID  Unavailable  to the user NT AUTHORITY\\SYSTEM SID (S-1-5-18) from address LocalHost (Using LRPC) running in the application container Unavailable SID (Unavailable). This security permission can be modified using the Component Services administrative tool.",
+        "ProviderName": "Microsoft-Windows-DistributedCOM",
+        "TimeCreated": "2025-07-13 20:51:07",
+        "UserSid": "S-1-5-18"
+      },
+      {
+        "Id": 10016,
+        "LevelDisplayName": "Warning",
+        "Message": "The application-specific permission settings do not grant Local Launch permission for the COM Server application with CLSID  Windows.SecurityCenter.WscBrokerManager  and APPID  Unavailable  to the user NT AUTHORITY\\SYSTEM SID (S-1-5-18) from address LocalHost (Using LRPC) running in the application container Unavailable SID (Unavailable). This security permission can be modified using the Component Services administrative tool.",
+        "ProviderName": "Microsoft-Windows-DistributedCOM",
+        "TimeCreated": "2025-07-13 20:51:07",
+        "UserSid": "S-1-5-18"
+      },
+      {
+        "Id": 10016,
+        "LevelDisplayName": "Warning",
+        "Message": "The application-specific permission settings do not grant Local Launch permission for the COM Server application with CLSID  Windows.SecurityCenter.WscDataProtection  and APPID  Unavailable  to the user NT AUTHORITY\\SYSTEM SID (S-1-5-18) from address LocalHost (Using LRPC) running in the application container Unavailable SID (Unavailable). This security permission can be modified using the Component Services administrative tool.",
+        "ProviderName": "Microsoft-Windows-DistributedCOM",
+        "TimeCreated": "2025-07-13 20:51:07",
+        "UserSid": "S-1-5-18"
+      },
+      {
+        "Id": 10016,
+        "LevelDisplayName": "Warning",
+        "Message": "The application-specific permission settings do not grant Local Activation permission for the COM Server application with CLSID  {6B3B8D23-FA8D-40B9-8DBD-B950333E2C52}  and APPID  {4839DDB7-58C2-48F5-8283-E1D1807D0D7D}  to the user NT AUTHORITY\\LOCAL SERVICE SID (S-1-5-19) from address LocalHost (Using LRPC) running in the application container Unavailable SID (Unavailable). This security permission can be modified using the Component Services administrative tool.",
+        "ProviderName": "Microsoft-Windows-DistributedCOM",
+        "TimeCreated": "2025-07-13 20:48:50",
+        "UserSid": "S-1-5-19"
+      },
+      {
+        "Id": 10016,
+        "LevelDisplayName": "Warning",
+        "Message": "The application-specific permission settings do not grant Local Activation permission for the COM Server application with CLSID  {6B3B8D23-FA8D-40B9-8DBD-B950333E2C52}  and APPID  {4839DDB7-58C2-48F5-8283-E1D1807D0D7D}  to the user NT AUTHORITY\\LOCAL SERVICE SID (S-1-5-19) from address LocalHost (Using LRPC) running in the application container Unavailable SID (Unavailable). This security permission can be modified using the Component Services administrative tool.",
+        "ProviderName": "Microsoft-Windows-DistributedCOM",
+        "TimeCreated": "2025-07-13 20:48:50",
+        "UserSid": "S-1-5-19"
+      },
+      {
+        "Id": 7026,
+        "LevelDisplayName": "Information",
+        "Message": "The following boot-start or system-start driver(s) did not load:  dam",
+        "ProviderName": "Service Control Manager",
+        "TimeCreated": "2025-07-13 20:48:46",
+        "UserSid": null
+      },
+      {
+        "Id": 7039,
+        "LevelDisplayName": "Warning",
+        "Message": "A service process other than the one launched by the Service Control Manager connected when starting the ftpserver service.  The Service Control Manager launched process 3744 and process 4152 connected instead.    Note that if this service is configured to start under a debugger, this behavior is expected.",
+        "ProviderName": "Service Control Manager",
+        "TimeCreated": "2025-07-13 20:48:45",
+        "UserSid": null
+      },
+      {
+        "Id": 7001,
+        "LevelDisplayName": "Information",
+        "Message": "User Logon Notification for Customer Experience Improvement Program",
+        "ProviderName": "Microsoft-Windows-Winlogon",
+        "TimeCreated": "2025-07-13 20:48:45",
+        "UserSid": "S-1-5-18"
+      },
+      {
+        "Id": 10001,
+        "LevelDisplayName": "Information",
+        "Message": "WLAN Extensibility Module has successfully started.  Module Path: C:\\Windows\\System32\\bcmihvsrv64.dll",
+        "ProviderName": "Microsoft-Windows-WLAN-AutoConfig",
+        "TimeCreated": "2025-07-13 20:48:44",
+        "UserSid": "S-1-5-18"
+      },
+      {
+        "Id": 4000,
+        "LevelDisplayName": "Information",
+        "Message": "WLAN AutoConfig service has successfully started.",
+        "ProviderName": "Microsoft-Windows-WLAN-AutoConfig",
+        "TimeCreated": "2025-07-13 20:48:44",
+        "UserSid": "S-1-5-18"
+      },
+      {
+        "Id": 4,
+        "LevelDisplayName": "Warning",
+        "Message": "Broadcom NetXtreme Gigabit Ethernet: The network link is down.  Check to make sure the network cable is properly connected.",
+        "ProviderName": "b57nd60a",
+        "TimeCreated": "2025-07-13 20:48:44",
+        "UserSid": null
+      },
+      {
+        "Id": 6,
+        "LevelDisplayName": "Information",
+        "Message": "File System Filter 'bindflt' (10.0, ?2091?-?04?-?16T06:55:03.000000000Z) has successfully loaded and registered with Filter Manager.",
+        "ProviderName": "Microsoft-Windows-FilterManager",
+        "TimeCreated": "2025-07-13 20:48:42",
+        "UserSid": "S-1-5-18"
+      },
+      {
+        "Id": 51046,
+        "LevelDisplayName": "Information",
+        "Message": "DHCPv6 client service is started",
+        "ProviderName": "Microsoft-Windows-DHCPv6-Client",
+        "TimeCreated": "2025-07-13 20:48:42",
+        "UserSid": "S-1-5-19"
+      },
+      {
+        "Id": 6,
+        "LevelDisplayName": "Information",
+        "Message": "File System Filter 'storqosflt' (10.0, ?2038?-?12?-?03T16:18:20.000000000Z) has successfully loaded and registered with Filter Manager.",
+        "ProviderName": "Microsoft-Windows-FilterManager",
+        "TimeCreated": "2025-07-13 20:48:42",
+        "UserSid": "S-1-5-18"
+      },
+      {
+        "Id": 34,
+        "LevelDisplayName": "Warning",
+        "Message": "The local adapter does not support an important Low Energy controller state to support peripheral mode.  The minimum required supported state mask is 0x2491f7fffff, got 0x1fffffff.  Low Energy peripheral role functionality will not be available.",
+        "ProviderName": "BTHUSB",
+        "TimeCreated": "2025-07-13 20:48:42",
+        "UserSid": null
+      }
+    ],
+    "timestamp": "2025-07-14 00:23:46"
+  },
+  "gpu": {
+    "data": [
+      {
+        "DriverDate": "2017-03-08",
+        "DriverVersion": "20.19.15.4624",
+        "Name": "Intel(R) Iris(TM) Graphics 5100",
+        "Status": "OK",
+        "VRAM_Bytes": 1073741824
+      }
+    ],
+    "timestamp": "2025-07-14 00:23:46"
+  },
+  "mainboard": {
+    "data": {
+      "BIOS": {
+        "Manufacturer": "Apple Inc.",
+        "ReleaseDate": "20231007000000.000000+000",
+        "SerialNumber": "C07NL3B8G1HW",
+        "Version": "483.0.0.0.0"
+      },
+      "BaseBoard": {
+        "Manufacturer": "Apple Inc.",
+        "Model": "Mac-35C5E08120C7EEAF",
+        "Product": "Mac-35C5E08120C7EEAF",
+        "SerialNumber": "C07442305TSG0MFAU",
+        "Version": "Macmini7,1"
+      }
+    },
+    "timestamp": "2025-07-14 00:23:46"
+  },
+  "network": {
+    "data": [
+      {
+        "DHCPEnabled": true,
+        "DNSServers": null,
+        "DefaultGateway": null,
+        "Description": "Broadcom NetXtreme Gigabit Ethernet",
+        "IPAddresses": null,
+        "MACAddress": "AC:87:A3:01:8D:EC",
+        "Manufacturer": "Broadcom",
+        "NetConnectionID": "Ethernet",
+        "Speed": 9223372036854775807,
+        "Status": "Media disconnected"
+      },
+      {
+        "DHCPEnabled": true,
+        "DNSServers": null,
+        "DefaultGateway": null,
+        "Description": "Bluetooth Device (Personal Area Network)",
+        "IPAddresses": null,
+        "MACAddress": "6C:40:08:A4:31:6B",
+        "Manufacturer": "Microsoft",
+        "NetConnectionID": "Bluetooth Network Connection",
+        "Speed": 3000000,
+        "Status": "Media disconnected"
+      },
+      {
+        "DHCPEnabled": true,
+        "DNSServers": [
+          "192.168.2.253"
+        ],
+        "DefaultGateway": [
+          "192.168.2.253"
+        ],
+        "Description": "Broadcom 802.11ac Network Adapter",
+        "IPAddresses": [
+          "192.168.2.146",
+          "fe80::7e88:3682:3bb:58d"
+        ],
+        "MACAddress": "6C:40:08:A4:31:6A",
+        "Manufacturer": "Broadcom",
+        "NetConnectionID": "Wi-Fi",
+        "Speed": 825500000,
+        "Status": "Connected"
+      }
+    ],
+    "timestamp": "2025-07-14 00:23:46"
+  },
+  "os": {
+    "data": {
+      "BuildNumber": "19045",
+      "CSName": "DESKTOP-UVCAHP4",
+      "Caption": "Microsoft Windows 10 Pro",
+      "InstallDate": "2025-06-20 06:42:43",
+      "LastBootUpTime": "2025-07-13 20:48:36",
+      "OSArchitecture": "64-bit",
+      "RegisteredUser": "ADMIN",
+      "Version": "10.0.19045"
+    },
+    "timestamp": "2025-07-14 00:23:46"
+  },
+  "printers": {
+    "data": [
+      {
+        "Attributes": 4194368,
+        "Attributes Array": [
+          "Enable Dev Query"
+        ],
+        "Default": false,
+        "Driver Name": "Microsoft Software Printer Driver",
+        "Jobs in Queue": 0,
+        "Online": true,
+        "Port Name": "Microsoft.Office.OneNote_16001.14326.22348.0_x64__8wekyb3d8bbwe_microsoft.onenoteim_S-1-5-21-2242564787-350535357-3372921323-1001",
+        "Printer Name": "OneNote for Windows 10",
+        "Status": "Ready"
+      },
+      {
+        "Attributes": 576,
+        "Attributes Array": [
+          "Enable Dev Query",
+          "Keep Printed Jobs"
+        ],
+        "Default": false,
+        "Driver Name": "Send to Microsoft OneNote 16 Driver",
+        "Jobs in Queue": 0,
+        "Online": true,
+        "Port Name": "nul:",
+        "Printer Name": "OneNote (Desktop)",
+        "Status": "Ready"
+      },
+      {
+        "Attributes": 576,
+        "Attributes Array": [
+          "Enable Dev Query",
+          "Keep Printed Jobs"
+        ],
+        "Default": false,
+        "Driver Name": "Microsoft Print To PDF",
+        "Jobs in Queue": 0,
+        "Online": true,
+        "Port Name": "PORTPROMPT:",
+        "Printer Name": "Microsoft Print to PDF",
+        "Status": "Ready"
+      },
+      {
+        "Attributes": 16448,
+        "Attributes Array": [
+          "Enable Dev Query",
+          "Published"
+        ],
+        "Default": false,
+        "Driver Name": "Microsoft Shared Fax Driver",
+        "Jobs in Queue": 0,
+        "Online": true,
+        "Port Name": "SHRFAX:",
+        "Printer Name": "Fax",
+        "Status": "Ready"
+      },
+      {
+        "Attributes": 576,
+        "Attributes Array": [
+          "Enable Dev Query",
+          "Keep Printed Jobs"
+        ],
+        "Default": true,
+        "Driver Name": "CutePDF Writer v4.0",
+        "Jobs in Queue": 0,
+        "Online": true,
+        "Port Name": "CPW4:",
+        "Printer Name": "CutePDF Writer",
+        "Status": "Ready"
+      }
+    ],
+    "timestamp": "2025-07-14 00:23:46"
+  },
+  "processes": {
+    "data": {
+      "DESKTOP-UVCAHP4\\ADMIN": [
+        {
+          "CreateTime": "2025-07-13 20:51:00",
+          "ExePath": "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\138.0.3351.83\\msedgewebview2.exe",
+          "MemoryRSS": 80121856,
+          "Name": "msedgewebview2.exe",
+          "PID": 792,
+          "Status": "stopped"
+        },
+        {
+          "CreateTime": "2025-07-14 00:21:59",
+          "ExePath": "C:\\Windows\\System32\\conhost.exe",
+          "MemoryRSS": 15781888,
+          "Name": "conhost.exe",
+          "PID": 836,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:49:58",
+          "ExePath": "C:\\Windows\\System32\\RuntimeBroker.exe",
+          "MemoryRSS": 9441280,
+          "Name": "RuntimeBroker.exe",
+          "PID": 1144,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:50:06",
+          "ExePath": "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
+          "MemoryRSS": 47046656,
+          "Name": "msedge.exe",
+          "PID": 1324,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:49:20",
+          "ExePath": "C:\\Program Files\\WindowsApps\\AppleInc.iCloud_15.3.152.0_x64__nzyj5cx40ttqa\\iCloud\\iCloudDrive.exe",
+          "MemoryRSS": 48656384,
+          "Name": "iCloudDrive.exe",
+          "PID": 1792,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:49:14",
+          "ExePath": "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
+          "MemoryRSS": 163520512,
+          "Name": "msedge.exe",
+          "PID": 1904,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:51",
+          "ExePath": "C:\\Users\\ADMIN\\Desktop\\EVKey64.exe",
+          "MemoryRSS": 1245184,
+          "Name": "EVKey64.exe",
+          "PID": 2500,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:51:02",
+          "ExePath": "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\138.0.3351.83\\msedgewebview2.exe",
+          "MemoryRSS": 17059840,
+          "Name": "msedgewebview2.exe",
+          "PID": 2948,
+          "Status": "stopped"
+        },
+        {
+          "CreateTime": "2025-07-14 00:17:20",
+          "ExePath": "C:\\Users\\ADMIN\\AppData\\Local\\Programs\\Python\\Python313\\python.exe",
+          "MemoryRSS": 31182848,
+          "Name": "python.exe",
+          "PID": 2980,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:49:14",
+          "ExePath": "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
+          "MemoryRSS": 47448064,
+          "Name": "msedge.exe",
+          "PID": 3068,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 22:37:50",
+          "ExePath": "C:\\Windows\\System32\\Taskmgr.exe",
+          "MemoryRSS": 39727104,
+          "Name": "Taskmgr.exe",
+          "PID": 3128,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:51:01",
+          "ExePath": "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\138.0.3351.83\\msedgewebview2.exe",
+          "MemoryRSS": 32051200,
+          "Name": "msedgewebview2.exe",
+          "PID": 3492,
+          "Status": "stopped"
+        },
+        {
+          "CreateTime": "2025-07-13 20:49:00",
+          "ExePath": "C:\\Windows\\System32\\RuntimeBroker.exe",
+          "MemoryRSS": 19054592,
+          "Name": "RuntimeBroker.exe",
+          "PID": 4324,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:50:09",
+          "ExePath": "C:\\Windows\\SystemApps\\MicrosoftWindows.Client.CBS_cw5n1h2txyewy\\TextInputHost.exe",
+          "MemoryRSS": 28815360,
+          "Name": "TextInputHost.exe",
+          "PID": 4612,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-14 00:17:20",
+          "ExePath": "C:\\Windows\\System32\\conhost.exe",
+          "MemoryRSS": 15884288,
+          "Name": "conhost.exe",
+          "PID": 4712,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:53:09",
+          "ExePath": "C:\\Windows\\System32\\RuntimeBroker.exe",
+          "MemoryRSS": 21364736,
+          "Name": "RuntimeBroker.exe",
+          "PID": 4908,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-14 00:21:59",
+          "ExePath": "C:\\Windows\\py.exe",
+          "MemoryRSS": 7294976,
+          "Name": "py.exe",
+          "PID": 4988,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:55",
+          "ExePath": "C:\\Windows\\SystemApps\\Microsoft.Windows.Search_cw5n1h2txyewy\\SearchApp.exe",
+          "MemoryRSS": 79327232,
+          "Name": "SearchApp.exe",
+          "PID": 5184,
+          "Status": "stopped"
+        },
+        {
+          "CreateTime": "2025-07-13 22:04:17",
+          "ExePath": "C:\\Windows\\System32\\notepad.exe",
+          "MemoryRSS": 13651968,
+          "Name": "notepad.exe",
+          "PID": 5216,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:49",
+          "ExePath": "C:\\Windows\\System32\\sihost.exe",
+          "MemoryRSS": 26587136,
+          "Name": "sihost.exe",
+          "PID": 5396,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:49",
+          "ExePath": "C:\\Windows\\System32\\svchost.exe",
+          "MemoryRSS": 21159936,
+          "Name": "svchost.exe",
+          "PID": 5460,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:49",
+          "ExePath": "C:\\Windows\\System32\\svchost.exe",
+          "MemoryRSS": 33636352,
+          "Name": "svchost.exe",
+          "PID": 5524,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:52",
+          "ExePath": "C:\\Windows\\explorer.exe",
+          "MemoryRSS": 216752128,
+          "Name": "explorer.exe",
+          "PID": 5596,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:49",
+          "ExePath": "C:\\Windows\\System32\\taskhostw.exe",
+          "MemoryRSS": 10547200,
+          "Name": "taskhostw.exe",
+          "PID": 5620,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:49",
+          "ExePath": "C:\\Windows\\System32\\taskhostw.exe",
+          "MemoryRSS": 29716480,
+          "Name": "taskhostw.exe",
+          "PID": 5632,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:50:10",
+          "ExePath": "C:\\Users\\ADMIN\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe",
+          "MemoryRSS": 97366016,
+          "Name": "Code.exe",
+          "PID": 5680,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 23:27:29",
+          "ExePath": "C:\\Windows\\System32\\conhost.exe",
+          "MemoryRSS": 16920576,
+          "Name": "conhost.exe",
+          "PID": 5964,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:53:13",
+          "ExePath": "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
+          "MemoryRSS": 81776640,
+          "Name": "msedge.exe",
+          "PID": 5996,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-14 00:13:13",
+          "ExePath": "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
+          "MemoryRSS": 30814208,
+          "Name": "msedge.exe",
+          "PID": 6236,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:50:06",
+          "ExePath": "C:\\Users\\ADMIN\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe",
+          "MemoryRSS": 424349696,
+          "Name": "Code.exe",
+          "PID": 6308,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:53",
+          "ExePath": "C:\\Windows\\System32\\igfxEM.exe",
+          "MemoryRSS": 11579392,
+          "Name": "igfxEM.exe",
+          "PID": 6332,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:53",
+          "ExePath": "C:\\Windows\\System32\\igfxHK.exe",
+          "MemoryRSS": 9117696,
+          "Name": "igfxHK.exe",
+          "PID": 6340,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:53",
+          "ExePath": "C:\\Windows\\System32\\igfxTray.exe",
+          "MemoryRSS": 10571776,
+          "Name": "igfxTray.exe",
+          "PID": 6360,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:51:01",
+          "ExePath": "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\138.0.3351.83\\msedgewebview2.exe",
+          "MemoryRSS": 31662080,
+          "Name": "msedgewebview2.exe",
+          "PID": 6480,
+          "Status": "stopped"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:54",
+          "ExePath": "C:\\Windows\\System32\\svchost.exe",
+          "MemoryRSS": 22355968,
+          "Name": "svchost.exe",
+          "PID": 6500,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:55",
+          "ExePath": "C:\\Windows\\SystemApps\\Microsoft.Windows.StartMenuExperienceHost_cw5n1h2txyewy\\StartMenuExperienceHost.exe",
+          "MemoryRSS": 56209408,
+          "Name": "StartMenuExperienceHost.exe",
+          "PID": 6848,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 22:06:24",
+          "ExePath": "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
+          "MemoryRSS": 295985152,
+          "Name": "msedge.exe",
+          "PID": 6920,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:50:58",
+          "ExePath": "C:\\Windows\\SystemApps\\Microsoft.Windows.Search_cw5n1h2txyewy\\SearchApp.exe",
+          "MemoryRSS": 46055424,
+          "Name": "SearchApp.exe",
+          "PID": 6968,
+          "Status": "stopped"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:55",
+          "ExePath": "C:\\Windows\\System32\\RuntimeBroker.exe",
+          "MemoryRSS": 27369472,
+          "Name": "RuntimeBroker.exe",
+          "PID": 7004,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 21:13:32",
+          "ExePath": "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
+          "MemoryRSS": 153673728,
+          "Name": "msedge.exe",
+          "PID": 7196,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:50:47",
+          "ExePath": "C:\\Users\\ADMIN\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe",
+          "MemoryRSS": 1115062272,
+          "Name": "Code.exe",
+          "PID": 7296,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:56",
+          "ExePath": "C:\\Windows\\System32\\svchost.exe",
+          "MemoryRSS": 27017216,
+          "Name": "svchost.exe",
+          "PID": 7328,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:50:33",
+          "ExePath": "C:\\Windows\\System32\\conhost.exe",
+          "MemoryRSS": 5877760,
+          "Name": "conhost.exe",
+          "PID": 7336,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:50:05",
+          "ExePath": "C:\\Users\\ADMIN\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe",
+          "MemoryRSS": 124223488,
+          "Name": "Code.exe",
+          "PID": 7396,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:56",
+          "ExePath": "C:\\Windows\\System32\\RuntimeBroker.exe",
+          "MemoryRSS": 38592512,
+          "Name": "RuntimeBroker.exe",
+          "PID": 7424,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-14 00:21:59",
+          "ExePath": "C:\\Users\\ADMIN\\AppData\\Local\\Programs\\Python\\Python313\\python.exe",
+          "MemoryRSS": 39088128,
+          "Name": "python.exe",
+          "PID": 7472,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:50:05",
+          "ExePath": "C:\\Users\\ADMIN\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe",
+          "MemoryRSS": 44769280,
+          "Name": "Code.exe",
+          "PID": 7496,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-14 00:15:33",
+          "ExePath": "C:\\Users\\ADMIN\\AppData\\Local\\Programs\\Python\\Python313\\python.exe",
+          "MemoryRSS": 44711936,
+          "Name": "python.exe",
+          "PID": 7572,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:50:30",
+          "ExePath": "C:\\Users\\ADMIN\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe",
+          "MemoryRSS": 96759808,
+          "Name": "Code.exe",
+          "PID": 7620,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:52:16",
+          "ExePath": "C:\\Windows\\System32\\oobe\\UserOOBEBroker.exe",
+          "MemoryRSS": 8814592,
+          "Name": "UserOOBEBroker.exe",
+          "PID": 8068,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 21:10:26",
+          "ExePath": "C:\\Windows\\System32\\CompPkgSrv.exe",
+          "MemoryRSS": 8093696,
+          "Name": "CompPkgSrv.exe",
+          "PID": 8332,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:49:13",
+          "ExePath": "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
+          "MemoryRSS": 234164224,
+          "Name": "msedge.exe",
+          "PID": 8388,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:53:29",
+          "ExePath": "C:\\Users\\ADMIN\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe",
+          "MemoryRSS": 91676672,
+          "Name": "Code.exe",
+          "PID": 8464,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:49:13",
+          "ExePath": "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
+          "MemoryRSS": 7847936,
+          "Name": "msedge.exe",
+          "PID": 8480,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:49:08",
+          "ExePath": "C:\\Windows\\System32\\SecurityHealthSystray.exe",
+          "MemoryRSS": 8937472,
+          "Name": "SecurityHealthSystray.exe",
+          "PID": 8628,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:49:09",
+          "ExePath": "C:\\Program Files\\Boot Camp\\Bootcamp.exe",
+          "MemoryRSS": 11673600,
+          "Name": "Bootcamp.exe",
+          "PID": 8740,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:49:09",
+          "ExePath": "C:\\Program Files\\Microsoft OneDrive\\OneDrive.exe",
+          "MemoryRSS": 82583552,
+          "Name": "OneDrive.exe",
+          "PID": 8800,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:52:15",
+          "ExePath": "C:\\Windows\\ImmersiveControlPanel\\SystemSettings.exe",
+          "MemoryRSS": 1445888,
+          "Name": "SystemSettings.exe",
+          "PID": 8844,
+          "Status": "stopped"
+        },
+        {
+          "CreateTime": "2025-07-13 20:50:04",
+          "ExePath": "C:\\Users\\ADMIN\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe",
+          "MemoryRSS": 106024960,
+          "Name": "Code.exe",
+          "PID": 8852,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:49:14",
+          "ExePath": "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
+          "MemoryRSS": 18853888,
+          "Name": "msedge.exe",
+          "PID": 9056,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 21:24:43",
+          "ExePath": "C:\\Windows\\System32\\notepad.exe",
+          "MemoryRSS": 12644352,
+          "Name": "notepad.exe",
+          "PID": 9208,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:55:46",
+          "ExePath": "C:\\Windows\\System32\\svchost.exe",
+          "MemoryRSS": 13156352,
+          "Name": "svchost.exe",
+          "PID": 9268,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-14 00:17:20",
+          "ExePath": "C:\\Windows\\py.exe",
+          "MemoryRSS": 7323648,
+          "Name": "py.exe",
+          "PID": 9428,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:49:15",
+          "ExePath": "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
+          "MemoryRSS": 946839552,
+          "Name": "msedge.exe",
+          "PID": 9560,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:49:17",
+          "ExePath": "C:\\Program Files\\WindowsApps\\AppleInc.iCloud_15.3.152.0_x64__nzyj5cx40ttqa\\iCloud\\iCloudHome.exe",
+          "MemoryRSS": 77242368,
+          "Name": "iCloudHome.exe",
+          "PID": 9648,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:49:18",
+          "ExePath": "C:\\Windows\\System32\\dllhost.exe",
+          "MemoryRSS": 9347072,
+          "Name": "dllhost.exe",
+          "PID": 9868,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:49:18",
+          "ExePath": "C:\\Program Files\\WindowsApps\\AppleInc.iCloud_15.3.152.0_x64__nzyj5cx40ttqa\\iCloud\\iCloudCKKS.exe",
+          "MemoryRSS": 32362496,
+          "Name": "iCloudCKKS.exe",
+          "PID": 9936,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:49:19",
+          "ExePath": "C:\\Program Files\\WindowsApps\\AppleInc.iCloud_15.3.152.0_x64__nzyj5cx40ttqa\\iCloud\\secd.exe",
+          "MemoryRSS": 14229504,
+          "Name": "secd.exe",
+          "PID": 9996,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:49:19",
+          "ExePath": "C:\\Program Files\\WindowsApps\\AppleInc.iCloud_15.3.152.0_x64__nzyj5cx40ttqa\\iCloud\\iCloudOutlookConfig64.exe",
+          "MemoryRSS": 12382208,
+          "Name": "iCloudOutlookConfig64.exe",
+          "PID": 10084,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:49:19",
+          "ExePath": "C:\\Program Files\\WindowsApps\\AppleInc.iCloud_15.3.152.0_x64__nzyj5cx40ttqa\\iCloud\\ApplePhotoStreams.exe",
+          "MemoryRSS": 25800704,
+          "Name": "ApplePhotoStreams.exe",
+          "PID": 10092,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:51:00",
+          "ExePath": "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\138.0.3351.83\\msedgewebview2.exe",
+          "MemoryRSS": 6873088,
+          "Name": "msedgewebview2.exe",
+          "PID": 10120,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:49:20",
+          "ExePath": "C:\\Program Files\\WindowsApps\\AppleInc.iCloud_15.3.152.0_x64__nzyj5cx40ttqa\\iCloud\\APSDaemon.exe",
+          "MemoryRSS": 17367040,
+          "Name": "APSDaemon.exe",
+          "PID": 10172,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:49:19",
+          "ExePath": "C:\\Windows\\System32\\mmgaserver.exe",
+          "MemoryRSS": 39587840,
+          "Name": "mmgaserver.exe",
+          "PID": 10188,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:50:10",
+          "ExePath": "C:\\Users\\ADMIN\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe",
+          "MemoryRSS": 92348416,
+          "Name": "Code.exe",
+          "PID": 10368,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:49:21",
+          "ExePath": "C:\\Program Files (x86)\\AnyDesk\\AnyDesk.exe",
+          "MemoryRSS": 24903680,
+          "Name": "AnyDesk.exe",
+          "PID": 10416,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:50:28",
+          "ExePath": "C:\\Windows\\System32\\conhost.exe",
+          "MemoryRSS": 5545984,
+          "Name": "conhost.exe",
+          "PID": 10472,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:49:34",
+          "ExePath": "C:\\Program Files\\Microsoft OneDrive\\25.115.0615.0002\\FileCoAuth.exe",
+          "MemoryRSS": 20369408,
+          "Name": "FileCoAuth.exe",
+          "PID": 10704,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:50:09",
+          "ExePath": "C:\\Users\\ADMIN\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe",
+          "MemoryRSS": 568426496,
+          "Name": "Code.exe",
+          "PID": 10820,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:52:15",
+          "ExePath": "C:\\Windows\\System32\\ApplicationFrameHost.exe",
+          "MemoryRSS": 19927040,
+          "Name": "ApplicationFrameHost.exe",
+          "PID": 10896,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:51:02",
+          "ExePath": "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\138.0.3351.83\\msedgewebview2.exe",
+          "MemoryRSS": 58961920,
+          "Name": "msedgewebview2.exe",
+          "PID": 10908,
+          "Status": "stopped"
+        },
+        {
+          "CreateTime": "2025-07-14 00:12:29",
+          "ExePath": "C:\\Windows\\System32\\smartscreen.exe",
+          "MemoryRSS": 24076288,
+          "Name": "smartscreen.exe",
+          "PID": 10924,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 23:27:29",
+          "ExePath": "C:\\Windows\\py.exe",
+          "MemoryRSS": 6266880,
+          "Name": "py.exe",
+          "PID": 10956,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:53:09",
+          "ExePath": "C:\\Windows\\SystemApps\\ShellExperienceHost_cw5n1h2txyewy\\ShellExperienceHost.exe",
+          "MemoryRSS": 44408832,
+          "Name": "ShellExperienceHost.exe",
+          "PID": 11060,
+          "Status": "stopped"
+        },
+        {
+          "CreateTime": "2025-07-13 20:50:05",
+          "ExePath": "C:\\Users\\ADMIN\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe",
+          "MemoryRSS": 29548544,
+          "Name": "Code.exe",
+          "PID": 11092,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:49:39",
+          "ExePath": "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
+          "MemoryRSS": 26673152,
+          "Name": "msedge.exe",
+          "PID": 11188,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:49:39",
+          "ExePath": "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
+          "MemoryRSS": 17895424,
+          "Name": "msedge.exe",
+          "PID": 11196,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:50:12",
+          "ExePath": "C:\\Windows\\System32\\dllhost.exe",
+          "MemoryRSS": 11350016,
+          "Name": "dllhost.exe",
+          "PID": 11308,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:50:33",
+          "ExePath": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+          "MemoryRSS": 46194688,
+          "Name": "powershell.exe",
+          "PID": 11480,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:50:14",
+          "ExePath": "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
+          "MemoryRSS": 18505728,
+          "Name": "msedge.exe",
+          "PID": 11548,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:50:14",
+          "ExePath": "C:\\Program Files\\Sublime Text\\sublime_text.exe",
+          "MemoryRSS": 30683136,
+          "Name": "sublime_text.exe",
+          "PID": 11648,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 23:27:30",
+          "ExePath": "C:\\Users\\ADMIN\\AppData\\Local\\Programs\\Python\\Python313\\python.exe",
+          "MemoryRSS": 15630336,
+          "Name": "python.exe",
+          "PID": 11668,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:50:15",
+          "ExePath": "C:\\Program Files\\Sublime Text\\crash_handler.exe",
+          "MemoryRSS": 5836800,
+          "Name": "crash_handler.exe",
+          "PID": 11688,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:50:17",
+          "ExePath": "C:\\Program Files\\Sublime Text\\plugin_host-3.3.exe",
+          "MemoryRSS": 8777728,
+          "Name": "plugin_host-3.3.exe",
+          "PID": 11940,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:50:17",
+          "ExePath": "C:\\Program Files\\Sublime Text\\plugin_host-3.8.exe",
+          "MemoryRSS": 10506240,
+          "Name": "plugin_host-3.8.exe",
+          "PID": 11968,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:50:25",
+          "ExePath": "C:\\Users\\ADMIN\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe",
+          "MemoryRSS": 98902016,
+          "Name": "Code.exe",
+          "PID": 12000,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:50:25",
+          "ExePath": "C:\\Users\\ADMIN\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe",
+          "MemoryRSS": 108400640,
+          "Name": "Code.exe",
+          "PID": 12028,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:50:25",
+          "ExePath": "C:\\Users\\ADMIN\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe",
+          "MemoryRSS": 98025472,
+          "Name": "Code.exe",
+          "PID": 12044,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:50:27",
+          "ExePath": "C:\\Users\\ADMIN\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe",
+          "MemoryRSS": 96206848,
+          "Name": "Code.exe",
+          "PID": 12060,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:50:28",
+          "ExePath": "C:\\Users\\ADMIN\\.vscode\\extensions\\ms-python.python-2025.10.0-win32-x64\\python-env-tools\\bin\\pet.exe",
+          "MemoryRSS": 5877760,
+          "Name": "pet.exe",
+          "PID": 12236,
+          "Status": "running"
+        }
+      ],
+      "N/A": [
+        {
+          "CreateTime": "2025-07-13 20:48:36",
+          "ExePath": "Registry",
+          "MemoryRSS": 67801088,
+          "Name": "Registry",
+          "PID": 100,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:39",
+          "ExePath": "C:\\Windows\\System32\\smss.exe",
+          "MemoryRSS": 1114112,
+          "Name": "smss.exe",
+          "PID": 364,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:42",
+          "ExePath": "C:\\Windows\\System32\\svchost.exe",
+          "MemoryRSS": 17281024,
+          "Name": "svchost.exe",
+          "PID": 400,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:41",
+          "ExePath": "C:\\Windows\\System32\\csrss.exe",
+          "MemoryRSS": 5378048,
+          "Name": "csrss.exe",
+          "PID": 476,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:42",
+          "ExePath": "C:\\Windows\\System32\\svchost.exe",
+          "MemoryRSS": 10153984,
+          "Name": "svchost.exe",
+          "PID": 544,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:41",
+          "ExePath": "C:\\Windows\\System32\\wininit.exe",
+          "MemoryRSS": 6438912,
+          "Name": "wininit.exe",
+          "PID": 616,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:41",
+          "ExePath": "C:\\Windows\\System32\\csrss.exe",
+          "MemoryRSS": 6680576,
+          "Name": "csrss.exe",
+          "PID": 624,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:41",
+          "ExePath": "C:\\Windows\\System32\\winlogon.exe",
+          "MemoryRSS": 11501568,
+          "Name": "winlogon.exe",
+          "PID": 732,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:41",
+          "ExePath": "C:\\Windows\\System32\\services.exe",
+          "MemoryRSS": 10301440,
+          "Name": "services.exe",
+          "PID": 764,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:41",
+          "ExePath": "C:\\Windows\\System32\\lsass.exe",
+          "MemoryRSS": 20033536,
+          "Name": "lsass.exe",
+          "PID": 800,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:42",
+          "ExePath": "C:\\Windows\\System32\\svchost.exe",
+          "MemoryRSS": 26046464,
+          "Name": "svchost.exe",
+          "PID": 932,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:42",
+          "ExePath": "C:\\Windows\\System32\\fontdrvhost.exe",
+          "MemoryRSS": 3121152,
+          "Name": "fontdrvhost.exe",
+          "PID": 956,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:42",
+          "ExePath": "C:\\Windows\\System32\\fontdrvhost.exe",
+          "MemoryRSS": 7651328,
+          "Name": "fontdrvhost.exe",
+          "PID": 960,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:42",
+          "ExePath": "C:\\Windows\\System32\\svchost.exe",
+          "MemoryRSS": 9797632,
+          "Name": "svchost.exe",
+          "PID": 1032,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:42",
+          "ExePath": "C:\\Windows\\System32\\svchost.exe",
+          "MemoryRSS": 6602752,
+          "Name": "svchost.exe",
+          "PID": 1088,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:42",
+          "ExePath": "C:\\Windows\\System32\\svchost.exe",
+          "MemoryRSS": 15290368,
+          "Name": "svchost.exe",
+          "PID": 1100,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:42",
+          "ExePath": "C:\\Windows\\System32\\svchost.exe",
+          "MemoryRSS": 9084928,
+          "Name": "svchost.exe",
+          "PID": 1108,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:42",
+          "ExePath": "C:\\Windows\\System32\\svchost.exe",
+          "MemoryRSS": 7274496,
+          "Name": "svchost.exe",
+          "PID": 1116,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:42",
+          "ExePath": "C:\\Windows\\System32\\dwm.exe",
+          "MemoryRSS": 84860928,
+          "Name": "dwm.exe",
+          "PID": 1184,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-14 00:18:58",
+          "ExePath": "C:\\Windows\\System32\\wbem\\WmiPrvSE.exe",
+          "MemoryRSS": 23269376,
+          "Name": "WmiPrvSE.exe",
+          "PID": 1248,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:42",
+          "ExePath": "C:\\Windows\\System32\\svchost.exe",
+          "MemoryRSS": 11341824,
+          "Name": "svchost.exe",
+          "PID": 1312,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:42",
+          "ExePath": "C:\\Windows\\System32\\svchost.exe",
+          "MemoryRSS": 7815168,
+          "Name": "svchost.exe",
+          "PID": 1332,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:42",
+          "ExePath": "C:\\Windows\\System32\\svchost.exe",
+          "MemoryRSS": 8474624,
+          "Name": "svchost.exe",
+          "PID": 1400,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:42",
+          "ExePath": "C:\\Windows\\System32\\igfxCUIService.exe",
+          "MemoryRSS": 9285632,
+          "Name": "igfxCUIService.exe",
+          "PID": 1448,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:42",
+          "ExePath": "C:\\Windows\\System32\\svchost.exe",
+          "MemoryRSS": 14540800,
+          "Name": "svchost.exe",
+          "PID": 1472,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:42",
+          "ExePath": "C:\\Windows\\System32\\svchost.exe",
+          "MemoryRSS": 7462912,
+          "Name": "svchost.exe",
+          "PID": 1536,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:42",
+          "ExePath": "C:\\Windows\\System32\\svchost.exe",
+          "MemoryRSS": 12709888,
+          "Name": "svchost.exe",
+          "PID": 1556,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:42",
+          "ExePath": "C:\\Windows\\System32\\svchost.exe",
+          "MemoryRSS": 8015872,
+          "Name": "svchost.exe",
+          "PID": 1676,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:42",
+          "ExePath": "C:\\Windows\\System32\\svchost.exe",
+          "MemoryRSS": 10452992,
+          "Name": "svchost.exe",
+          "PID": 1716,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:42",
+          "ExePath": "C:\\Windows\\System32\\svchost.exe",
+          "MemoryRSS": 6082560,
+          "Name": "svchost.exe",
+          "PID": 1736,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:42",
+          "ExePath": "C:\\Windows\\System32\\svchost.exe",
+          "MemoryRSS": 11341824,
+          "Name": "svchost.exe",
+          "PID": 1756,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:42",
+          "ExePath": "C:\\Windows\\System32\\svchost.exe",
+          "MemoryRSS": 6148096,
+          "Name": "svchost.exe",
+          "PID": 1768,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:42",
+          "ExePath": "C:\\Windows\\System32\\svchost.exe",
+          "MemoryRSS": 10133504,
+          "Name": "svchost.exe",
+          "PID": 1832,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:42",
+          "ExePath": "C:\\Windows\\System32\\svchost.exe",
+          "MemoryRSS": 7671808,
+          "Name": "svchost.exe",
+          "PID": 1860,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:42",
+          "ExePath": "C:\\Windows\\System32\\svchost.exe",
+          "MemoryRSS": 7852032,
+          "Name": "svchost.exe",
+          "PID": 1868,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:42",
+          "ExePath": "MemCompression",
+          "MemoryRSS": 293236736,
+          "Name": "MemCompression",
+          "PID": 1892,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:42",
+          "ExePath": "C:\\Windows\\System32\\svchost.exe",
+          "MemoryRSS": 20918272,
+          "Name": "svchost.exe",
+          "PID": 1924,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:42",
+          "ExePath": "C:\\Windows\\System32\\svchost.exe",
+          "MemoryRSS": 17285120,
+          "Name": "svchost.exe",
+          "PID": 1932,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:42",
+          "ExePath": "C:\\Windows\\System32\\svchost.exe",
+          "MemoryRSS": 9826304,
+          "Name": "svchost.exe",
+          "PID": 2080,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:42",
+          "ExePath": "C:\\Windows\\System32\\svchost.exe",
+          "MemoryRSS": 6639616,
+          "Name": "svchost.exe",
+          "PID": 2088,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:43",
+          "ExePath": "C:\\Windows\\System32\\svchost.exe",
+          "MemoryRSS": 6696960,
+          "Name": "svchost.exe",
+          "PID": 2240,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:43",
+          "ExePath": "C:\\Windows\\System32\\svchost.exe",
+          "MemoryRSS": 7159808,
+          "Name": "svchost.exe",
+          "PID": 2248,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:43",
+          "ExePath": "C:\\Windows\\System32\\svchost.exe",
+          "MemoryRSS": 10760192,
+          "Name": "svchost.exe",
+          "PID": 2316,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:43",
+          "ExePath": "C:\\Windows\\System32\\svchost.exe",
+          "MemoryRSS": 13307904,
+          "Name": "svchost.exe",
+          "PID": 2456,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:46",
+          "ExePath": "C:\\Windows\\System32\\dllhost.exe",
+          "MemoryRSS": 10235904,
+          "Name": "dllhost.exe",
+          "PID": 2520,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:43",
+          "ExePath": "C:\\Windows\\System32\\svchost.exe",
+          "MemoryRSS": 6385664,
+          "Name": "svchost.exe",
+          "PID": 2588,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:43",
+          "ExePath": "C:\\Windows\\System32\\svchost.exe",
+          "MemoryRSS": 9035776,
+          "Name": "svchost.exe",
+          "PID": 2596,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:43",
+          "ExePath": "C:\\Windows\\System32\\svchost.exe",
+          "MemoryRSS": 10715136,
+          "Name": "svchost.exe",
+          "PID": 2612,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:43",
+          "ExePath": "C:\\Windows\\System32\\svchost.exe",
+          "MemoryRSS": 9428992,
+          "Name": "svchost.exe",
+          "PID": 2620,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:43",
+          "ExePath": "C:\\Windows\\System32\\svchost.exe",
+          "MemoryRSS": 12644352,
+          "Name": "svchost.exe",
+          "PID": 2688,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:43",
+          "ExePath": "C:\\Windows\\System32\\svchost.exe",
+          "MemoryRSS": 17518592,
+          "Name": "svchost.exe",
+          "PID": 2696,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:43",
+          "ExePath": "C:\\Windows\\System32\\svchost.exe",
+          "MemoryRSS": 7565312,
+          "Name": "svchost.exe",
+          "PID": 2904,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:43",
+          "ExePath": "C:\\Windows\\System32\\svchost.exe",
+          "MemoryRSS": 16830464,
+          "Name": "svchost.exe",
+          "PID": 3040,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:44",
+          "ExePath": "C:\\Windows\\System32\\svchost.exe",
+          "MemoryRSS": 7970816,
+          "Name": "svchost.exe",
+          "PID": 3152,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:44",
+          "ExePath": "C:\\Windows\\System32\\svchost.exe",
+          "MemoryRSS": 8937472,
+          "Name": "svchost.exe",
+          "PID": 3160,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:44",
+          "ExePath": "C:\\Windows\\System32\\svchost.exe",
+          "MemoryRSS": 6742016,
+          "Name": "svchost.exe",
+          "PID": 3168,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:44",
+          "ExePath": "C:\\Windows\\System32\\svchost.exe",
+          "MemoryRSS": 10305536,
+          "Name": "svchost.exe",
+          "PID": 3176,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:44",
+          "ExePath": "C:\\Windows\\System32\\svchost.exe",
+          "MemoryRSS": 9326592,
+          "Name": "svchost.exe",
+          "PID": 3184,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:44",
+          "ExePath": "C:\\Windows\\System32\\svchost.exe",
+          "MemoryRSS": 8089600,
+          "Name": "svchost.exe",
+          "PID": 3292,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:49:00",
+          "ExePath": "C:\\Windows\\System32\\svchost.exe",
+          "MemoryRSS": 12079104,
+          "Name": "svchost.exe",
+          "PID": 3372,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:44",
+          "ExePath": "C:\\Windows\\System32\\spoolsv.exe",
+          "MemoryRSS": 12107776,
+          "Name": "spoolsv.exe",
+          "PID": 3400,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:44",
+          "ExePath": "C:\\Windows\\System32\\wlanext.exe",
+          "MemoryRSS": 7520256,
+          "Name": "wlanext.exe",
+          "PID": 3604,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:44",
+          "ExePath": "C:\\Program Files (x86)\\AnyDesk\\AnyDesk.exe",
+          "MemoryRSS": 13901824,
+          "Name": "AnyDesk.exe",
+          "PID": 3612,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:44",
+          "ExePath": "C:\\Windows\\System32\\AppleOSSMgr.exe",
+          "MemoryRSS": 4448256,
+          "Name": "AppleOSSMgr.exe",
+          "PID": 3620,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:44",
+          "ExePath": "C:\\Windows\\System32\\conhost.exe",
+          "MemoryRSS": 4763648,
+          "Name": "conhost.exe",
+          "PID": 3628,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:44",
+          "ExePath": "C:\\Program Files\\Common Files\\microsoft shared\\ClickToRun\\OfficeClickToRun.exe",
+          "MemoryRSS": 29114368,
+          "Name": "OfficeClickToRun.exe",
+          "PID": 3648,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:44",
+          "ExePath": "C:\\Windows\\System32\\svchost.exe",
+          "MemoryRSS": 13660160,
+          "Name": "svchost.exe",
+          "PID": 3656,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:44",
+          "ExePath": "C:\\Windows\\System32\\svchost.exe",
+          "MemoryRSS": 6963200,
+          "Name": "svchost.exe",
+          "PID": 3672,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:44",
+          "ExePath": "C:\\Windows\\System32\\svchost.exe",
+          "MemoryRSS": 34918400,
+          "Name": "svchost.exe",
+          "PID": 3712,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:44",
+          "ExePath": "C:\\Windows\\System32\\svchost.exe",
+          "MemoryRSS": 24289280,
+          "Name": "svchost.exe",
+          "PID": 3720,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:44",
+          "ExePath": "C:\\Windows\\ftpserver\\ftpserver.exe",
+          "MemoryRSS": 4591616,
+          "Name": "ftpserver.exe",
+          "PID": 3744,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:44",
+          "ExePath": "C:\\ProgramData\\Microsoft\\Windows Defender\\Platform\\4.18.25050.5-0\\MpDefenderCoreService.exe",
+          "MemoryRSS": 17436672,
+          "Name": "MpDefenderCoreService.exe",
+          "PID": 3760,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:44",
+          "ExePath": "C:\\Windows\\System32\\svchost.exe",
+          "MemoryRSS": 6516736,
+          "Name": "svchost.exe",
+          "PID": 3836,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:44",
+          "ExePath": "C:\\Windows\\System32\\svchost.exe",
+          "MemoryRSS": 5734400,
+          "Name": "svchost.exe",
+          "PID": 3888,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:44",
+          "ExePath": "C:\\Program Files (x86)\\UltraViewer\\UltraViewer_Service.exe",
+          "MemoryRSS": 20312064,
+          "Name": "UltraViewer_Service.exe",
+          "PID": 3896,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:44",
+          "ExePath": "C:\\Windows\\System32\\svchost.exe",
+          "MemoryRSS": 16056320,
+          "Name": "svchost.exe",
+          "PID": 3904,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:44",
+          "ExePath": "C:\\Windows\\System32\\svchost.exe",
+          "MemoryRSS": 8429568,
+          "Name": "svchost.exe",
+          "PID": 3912,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:44",
+          "ExePath": "C:\\ProgramData\\Microsoft\\Windows Defender\\Platform\\4.18.25050.5-0\\MsMpEng.exe",
+          "MemoryRSS": 232820736,
+          "Name": "MsMpEng.exe",
+          "PID": 3932,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:45",
+          "ExePath": "C:\\Windows\\System32\\svchost.exe",
+          "MemoryRSS": 5586944,
+          "Name": "svchost.exe",
+          "PID": 4144,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:45",
+          "ExePath": "C:\\Windows\\ftpserver\\ftpserver.exe",
+          "MemoryRSS": 8523776,
+          "Name": "ftpserver.exe",
+          "PID": 4152,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:45",
+          "ExePath": "C:\\Windows\\System32\\conhost.exe",
+          "MemoryRSS": 8372224,
+          "Name": "conhost.exe",
+          "PID": 4184,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:45",
+          "ExePath": "C:\\Windows\\System32\\svchost.exe",
+          "MemoryRSS": 8380416,
+          "Name": "svchost.exe",
+          "PID": 4284,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:45",
+          "ExePath": "C:\\Windows\\System32\\svchost.exe",
+          "MemoryRSS": 12251136,
+          "Name": "svchost.exe",
+          "PID": 4292,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:52",
+          "ExePath": "C:\\Windows\\Microsoft.NET\\Framework64\\v3.0\\WPF\\PresentationFontCache.exe",
+          "MemoryRSS": 13717504,
+          "Name": "PresentationFontCache.exe",
+          "PID": 4432,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:47",
+          "ExePath": "C:\\Windows\\System32\\AggregatorHost.exe",
+          "MemoryRSS": 7266304,
+          "Name": "AggregatorHost.exe",
+          "PID": 5036,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:49",
+          "ExePath": "C:\\Windows\\System32\\svchost.exe",
+          "MemoryRSS": 5500928,
+          "Name": "svchost.exe",
+          "PID": 5124,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:49",
+          "ExePath": "C:\\Program Files (x86)\\Microsoft\\EdgeUpdate\\MicrosoftEdgeUpdate.exe",
+          "MemoryRSS": 4173824,
+          "Name": "MicrosoftEdgeUpdate.exe",
+          "PID": 5584,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:49",
+          "ExePath": "C:\\Windows\\System32\\svchost.exe",
+          "MemoryRSS": 20004864,
+          "Name": "svchost.exe",
+          "PID": 5672,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:55:49",
+          "ExePath": "C:\\Windows\\System32\\svchost.exe",
+          "MemoryRSS": 9355264,
+          "Name": "svchost.exe",
+          "PID": 5840,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:50",
+          "ExePath": "C:\\Windows\\System32\\svchost.exe",
+          "MemoryRSS": 18108416,
+          "Name": "svchost.exe",
+          "PID": 6060,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 21:02:14",
+          "ExePath": "C:\\Windows\\System32\\svchost.exe",
+          "MemoryRSS": 7405568,
+          "Name": "svchost.exe",
+          "PID": 6964,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:50:48",
+          "ExePath": "C:\\Program Files (x86)\\Intel\\Intel(R) Management Engine Components\\LMS\\LMS.exe",
+          "MemoryRSS": 11493376,
+          "Name": "LMS.exe",
+          "PID": 7064,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:51:07",
+          "ExePath": "C:\\Windows\\System32\\svchost.exe",
+          "MemoryRSS": 10027008,
+          "Name": "svchost.exe",
+          "PID": 7076,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:55",
+          "ExePath": "C:\\Windows\\System32\\svchost.exe",
+          "MemoryRSS": 9482240,
+          "Name": "svchost.exe",
+          "PID": 7096,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:56",
+          "ExePath": "C:\\ProgramData\\Microsoft\\Windows Defender\\Platform\\4.18.25050.5-0\\NisSrv.exe",
+          "MemoryRSS": 10747904,
+          "Name": "NisSrv.exe",
+          "PID": 7692,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:48:57",
+          "ExePath": "C:\\Windows\\System32\\svchost.exe",
+          "MemoryRSS": 10891264,
+          "Name": "svchost.exe",
+          "PID": 7848,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-14 00:18:42",
+          "ExePath": "C:\\Windows\\System32\\svchost.exe",
+          "MemoryRSS": 8065024,
+          "Name": "svchost.exe",
+          "PID": 8612,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:49:08",
+          "ExePath": "C:\\Windows\\System32\\SecurityHealthService.exe",
+          "MemoryRSS": 14536704,
+          "Name": "SecurityHealthService.exe",
+          "PID": 8664,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:49:14",
+          "ExePath": "C:\\Windows\\System32\\svchost.exe",
+          "MemoryRSS": 12177408,
+          "Name": "svchost.exe",
+          "PID": 9252,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-14 00:19:16",
+          "ExePath": "C:\\Windows\\System32\\svchost.exe",
+          "MemoryRSS": 7753728,
+          "Name": "svchost.exe",
+          "PID": 9396,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:52:58",
+          "ExePath": "C:\\Windows\\System32\\svchost.exe",
+          "MemoryRSS": 11976704,
+          "Name": "svchost.exe",
+          "PID": 9540,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-13 20:49:17",
+          "ExePath": "C:\\Windows\\System32\\svchost.exe",
+          "MemoryRSS": 9703424,
+          "Name": "svchost.exe",
+          "PID": 9656,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "2025-07-14 00:18:42",
+          "ExePath": "C:\\Windows\\System32\\svchost.exe",
+          "MemoryRSS": 10649600,
+          "Name": "svchost.exe",
+          "PID": 9880,
+          "Status": "running"
+        }
+      ],
+      "NT AUTHORITY\\SYSTEM": [
+        {
+          "CreateTime": "1970-01-01 07:00:00",
+          "ExePath": "",
+          "MemoryRSS": 8192,
+          "Name": "System Idle Process",
+          "PID": 0,
+          "Status": "running"
+        },
+        {
+          "CreateTime": "1970-01-01 07:00:00",
+          "ExePath": "",
+          "MemoryRSS": 143360,
+          "Name": "System",
+          "PID": 4,
+          "Status": "running"
+        }
+      ]
+    },
+    "timestamp": "2025-07-14 00:23:46"
+  },
+  "ram": {
+    "data": [
+      {
+        "Capacity": 4294967296,
+        "FormFactor": "LRDIMM",
+        "Manufacturer": "SK Hynix",
+        "MemoryType": "DDR3",
+        "PartNumber": "H9CCNNNBLTALAR-NTD",
+        "SerialNumber": "0x00000000",
+        "Slot": "DIMM0",
+        "Speed": 1600
+      }
+    ],
+    "timestamp": "2025-07-14 00:23:46"
+  },
+  "services": {
+    "data": {
+      "Running": [
+        {
+          "DisplayName": "AnyDesk Service",
+          "Name": "AnyDesk",
+          "PathName": "\"C:\\Program Files (x86)\\AnyDesk\\AnyDesk.exe\" --service",
+          "StartMode": "Auto",
+          "State": "Running"
+        },
+        {
+          "DisplayName": "Microsoft Office Click-to-Run Service",
+          "Name": "ClickToRunSvc",
+          "PathName": "\"C:\\Program Files\\Common Files\\Microsoft Shared\\ClickToRun\\OfficeClickToRun.exe\" /service",
+          "StartMode": "Auto",
+          "State": "Running"
+        },
+        {
+          "DisplayName": "Windows Presentation Foundation Font Cache 3.0.0.0",
+          "Name": "FontCache3.0.0.0",
+          "PathName": "C:\\Windows\\Microsoft.Net\\Framework64\\v3.0\\WPF\\PresentationFontCache.exe",
+          "StartMode": "Manual",
+          "State": "Running"
+        },
+        {
+          "DisplayName": "FTP Server",
+          "Name": "ftpserver",
+          "PathName": "\"C:\\windows\\ftpserver\\ftpserver.exe\"",
+          "StartMode": "Auto",
+          "State": "Running"
+        },
+        {
+          "DisplayName": "Intel(R) Management and Security Application Local Management Service",
+          "Name": "LMS",
+          "PathName": "\"C:\\Program Files (x86)\\Intel\\Intel(R) Management Engine Components\\LMS\\LMS.exe\"",
+          "StartMode": "Auto",
+          "State": "Running"
+        },
+        {
+          "DisplayName": "Microsoft Defender Core Service",
+          "Name": "MDCoreSvc",
+          "PathName": "\"C:\\ProgramData\\Microsoft\\Windows Defender\\platform\\4.18.25050.5-0\\MpDefenderCoreService.exe\"",
+          "StartMode": "Auto",
+          "State": "Running"
+        },
+        {
+          "DisplayName": "UltraViewer Service",
+          "Name": "UltraViewService",
+          "PathName": "\"C:\\Program Files (x86)\\UltraViewer\\UltraViewer_Service.exe\"",
+          "StartMode": "Auto",
+          "State": "Running"
+        },
+        {
+          "DisplayName": "Microsoft Defender Antivirus Network Inspection Service",
+          "Name": "WdNisSvc",
+          "PathName": "\"C:\\ProgramData\\Microsoft\\Windows Defender\\platform\\4.18.25050.5-0\\NisSrv.exe\"",
+          "StartMode": "Manual",
+          "State": "Running"
+        },
+        {
+          "DisplayName": "Microsoft Defender Antivirus Service",
+          "Name": "WinDefend",
+          "PathName": "\"C:\\ProgramData\\Microsoft\\Windows Defender\\platform\\4.18.25050.5-0\\MsMpEng.exe\"",
+          "StartMode": "Auto",
+          "State": "Running"
+        }
+      ],
+      "Stopped": [
+        {
+          "DisplayName": "Intel(R) Content Protection HECI Service",
+          "Name": "cphs",
+          "PathName": "C:\\Windows\\SysWow64\\IntelCpHeciSvc.exe",
+          "StartMode": "Manual",
+          "State": "Stopped"
+        },
+        {
+          "DisplayName": "Microsoft Edge Update Service (edgeupdate)",
+          "Name": "edgeupdate",
+          "PathName": "\"C:\\Program Files (x86)\\Microsoft\\EdgeUpdate\\MicrosoftEdgeUpdate.exe\" /svc",
+          "StartMode": "Auto",
+          "State": "Stopped"
+        },
+        {
+          "DisplayName": "Microsoft Edge Update Service (edgeupdatem)",
+          "Name": "edgeupdatem",
+          "PathName": "\"C:\\Program Files (x86)\\Microsoft\\EdgeUpdate\\MicrosoftEdgeUpdate.exe\" /medsvc",
+          "StartMode": "Manual",
+          "State": "Stopped"
+        },
+        {
+          "DisplayName": "FileSyncHelper",
+          "Name": "FileSyncHelper",
+          "PathName": "\"C:\\Program Files\\Microsoft OneDrive\\25.115.0615.0002\\FileSyncHelper.exe\"",
+          "StartMode": "Manual",
+          "State": "Stopped"
+        },
+        {
+          "DisplayName": "Intel(R) Integrated Clock Controller Service - Intel(R) ICCS",
+          "Name": "ICCS",
+          "PathName": "\"C:\\Program Files (x86)\\Intel\\Intel(R) Integrated Clock Controller Service\\ICCProxy.exe\"",
+          "StartMode": "Manual",
+          "State": "Stopped"
+        },
+        {
+          "DisplayName": "Intel(R) Capability Licensing Service TCP IP Interface",
+          "Name": "Intel(R) Capability Licensing Service TCP IP Interface",
+          "PathName": "\"C:\\Program Files\\Intel\\iCLS Client\\SocketHeciServer.exe\"",
+          "StartMode": "Manual",
+          "State": "Stopped"
+        },
+        {
+          "DisplayName": "Microsoft Edge Elevation Service (MicrosoftEdgeElevationService)",
+          "Name": "MicrosoftEdgeElevationService",
+          "PathName": "\"C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\138.0.3351.83\\elevation_service.exe\"",
+          "StartMode": "Manual",
+          "State": "Stopped"
+        },
+        {
+          "DisplayName": "Net.Tcp Port Sharing Service",
+          "Name": "NetTcpPortSharing",
+          "PathName": "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\SMSvcHost.exe",
+          "StartMode": "Disabled",
+          "State": "Stopped"
+        },
+        {
+          "DisplayName": "OneDrive Updater Service",
+          "Name": "OneDrive Updater Service",
+          "PathName": "\"C:\\Program Files\\Microsoft OneDrive\\25.115.0615.0002\\OneDriveUpdaterService.exe\"",
+          "StartMode": "Manual",
+          "State": "Stopped"
+        },
+        {
+          "DisplayName": "Performance Counter DLL Host",
+          "Name": "PerfHost",
+          "PathName": "C:\\Windows\\SysWow64\\perfhost.exe",
+          "StartMode": "Manual",
+          "State": "Stopped"
+        },
+        {
+          "DisplayName": "Windows Defender Advanced Threat Protection Service",
+          "Name": "Sense",
+          "PathName": "\"C:\\Program Files\\Windows Defender Advanced Threat Protection\\MsSense.exe\"",
+          "StartMode": "Manual",
+          "State": "Stopped"
+        },
+        {
+          "DisplayName": "Windows Modules Installer",
+          "Name": "TrustedInstaller",
+          "PathName": "C:\\Windows\\servicing\\TrustedInstaller.exe",
+          "StartMode": "Manual",
+          "State": "Stopped"
+        },
+        {
+          "DisplayName": "Microsoft Update Health Service",
+          "Name": "uhssvc",
+          "PathName": "\"C:\\Program Files\\Microsoft Update Health Tools\\uhssvc.exe\"",
+          "StartMode": "Disabled",
+          "State": "Stopped"
+        },
+        {
+          "DisplayName": "Visual Studio Installer Elevation Service",
+          "Name": "VSInstallerElevationService",
+          "PathName": "\"C:\\Program Files (x86)\\Microsoft Visual Studio\\Installer\\VSInstallerElevationService.exe\"",
+          "StartMode": "Manual",
+          "State": "Stopped"
+        },
+        {
+          "DisplayName": "Visual Studio Standard Collector Service 150",
+          "Name": "VSStandardCollectorService150",
+          "PathName": "\"C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\Common\\DiagnosticsHub.Collection.Service\\StandardCollector.Service.exe\"",
+          "StartMode": "Manual",
+          "State": "Stopped"
+        }
+      ]
+    },
+    "timestamp": "2025-07-14 00:23:46"
+  },
+  "software": {
+    "data": {
+      "Applications": [
+        {
+          "EstimatedSize": 0,
+          "InstallDate": null,
+          "Name": "Windows Driver Package - Broadcom (B57ports) Net  (10/15/2012 1.0.0.3)",
+          "Publisher": "Broadcom",
+          "Version": "10/15/2012 1.0.0.3"
+        },
+        {
+          "EstimatedSize": 0,
+          "InstallDate": null,
+          "Name": "Windows Driver Package - Intel Corporation (iaLPSS_I2C) System  (06/13/2014 1.1.226.2)",
+          "Publisher": "Intel Corporation",
+          "Version": "06/13/2014 1.1.226.2"
+        },
+        {
+          "EstimatedSize": 0,
+          "InstallDate": null,
+          "Name": "Windows Driver Package - Intel (e1express) Net  (03/26/2010 9.13.41.0)",
+          "Publisher": "Intel",
+          "Version": "03/26/2010 9.13.41.0"
+        },
+        {
+          "EstimatedSize": 0,
+          "InstallDate": null,
+          "Name": "Windows Driver Package - Apple Inc. (AppleCamera) Image  (11/21/2013 5.0.22.0)",
+          "Publisher": "Apple Inc.",
+          "Version": "11/21/2013 5.0.22.0"
+        },
+        {
+          "EstimatedSize": 0,
+          "InstallDate": null,
+          "Name": "Windows Driver Package - Broadcom Corporation (bScsiSDa) System  (01/10/2014 1.0.0.256)",
+          "Publisher": "Broadcom Corporation",
+          "Version": "01/10/2014 1.0.0.256"
+        },
+        {
+          "EstimatedSize": 0,
+          "InstallDate": null,
+          "Name": "Windows Driver Package - Broadcom (BCM43XX) Net  (11/13/2012 5.106.199.1)",
+          "Publisher": "Broadcom",
+          "Version": "11/13/2012 5.106.199.1"
+        },
+        {
+          "EstimatedSize": 0,
+          "InstallDate": null,
+          "Name": "Windows Driver Package - Cirrus Logic, Inc. (CirrusFilter) MEDIA  (02/14/2014 6.6001.1.41)",
+          "Publisher": "Cirrus Logic, Inc.",
+          "Version": "02/14/2014 6.6001.1.41"
+        },
+        {
+          "EstimatedSize": 0,
+          "InstallDate": null,
+          "Name": "Windows Driver Package - Broadcom (b57nd60a) Net  (09/12/2014 16.8.0.4)",
+          "Publisher": "Broadcom",
+          "Version": "09/12/2014 16.8.0.4"
+        },
+        {
+          "EstimatedSize": 0,
+          "InstallDate": null,
+          "Name": "Windows Driver Package - Apple Inc. Apple Wireless Trackpad (10/29/2011 5.0.0.0)",
+          "Publisher": "Apple Inc.",
+          "Version": "10/29/2011 5.0.0.0"
+        },
+        {
+          "EstimatedSize": 0,
+          "InstallDate": null,
+          "Name": "Windows Driver Package - Intel (e1qexpress) Net  (12/04/2009 11.4.7.0)",
+          "Publisher": "Intel",
+          "Version": "12/04/2009 11.4.7.0"
+        },
+        {
+          "EstimatedSize": 0,
+          "InstallDate": null,
+          "Name": "Windows Driver Package - Intel (e1kexpress) Net  (04/12/2010 11.6.92.0)",
+          "Publisher": "Intel",
+          "Version": "04/12/2010 11.6.92.0"
+        },
+        {
+          "EstimatedSize": 0,
+          "InstallDate": null,
+          "Name": "Windows Driver Package - Broadcom (BCM43XX) Net  (07/24/2015 7.35.118.40)",
+          "Publisher": "Broadcom",
+          "Version": "07/24/2015 7.35.118.40"
+        },
+        {
+          "EstimatedSize": 5879808,
+          "InstallDate": null,
+          "Name": "7-Zip 25.00 (x64)",
+          "Publisher": "Igor Pavlov",
+          "Version": "25.00"
+        },
+        {
+          "EstimatedSize": 0,
+          "InstallDate": null,
+          "Name": "Windows Driver Package - Apple Inc. Apple System Device (02/23/2015 5.1.4.0)",
+          "Publisher": "Apple Inc.",
+          "Version": "02/23/2015 5.1.4.0"
+        },
+        {
+          "EstimatedSize": 0,
+          "InstallDate": null,
+          "Name": "Windows Driver Package - Apple Inc. Apple Multi-Touch (03/30/2015 5.1.5900.0)",
+          "Publisher": "Apple Inc.",
+          "Version": "03/30/2015 5.1.5900.0"
+        },
+        {
+          "EstimatedSize": 0,
+          "InstallDate": null,
+          "Name": "Windows Driver Package - Intel Corporation (iaLPSS_GPIO) System  (06/13/2014 1.1.226.2)",
+          "Publisher": "Intel Corporation",
+          "Version": "06/13/2014 1.1.226.2"
+        },
+        {
+          "EstimatedSize": 0,
+          "InstallDate": null,
+          "Name": "Windows Driver Package - Cirrus Logic, Inc. MEDIA  (03/25/2015 6.6001.3.24)",
+          "Publisher": "Cirrus Logic, Inc.",
+          "Version": "03/25/2015 6.6001.3.24"
+        },
+        {
+          "EstimatedSize": 0,
+          "InstallDate": null,
+          "Name": "Windows Driver Package - Intel Corporation (iaLPSS_UART2) System  (01/08/2015 1.1.226.4)",
+          "Publisher": "Intel Corporation",
+          "Version": "01/08/2015 1.1.226.4"
+        },
+        {
+          "EstimatedSize": 0,
+          "InstallDate": null,
+          "Name": "Windows Driver Package - Intel (e1yexpress) Net  (04/07/2010 10.1.9.0)",
+          "Publisher": "Intel",
+          "Version": "04/07/2010 10.1.9.0"
+        },
+        {
+          "EstimatedSize": 0,
+          "InstallDate": null,
+          "Name": "Windows Driver Package - Marvell (yukonx64) Net  (12/06/2007 10.51.1.3)",
+          "Publisher": "Marvell",
+          "Version": "12/06/2007 10.51.1.3"
+        },
+        {
+          "EstimatedSize": 0,
+          "InstallDate": null,
+          "Name": "CutePDF Writer",
+          "Publisher": "Acro Software Inc.",
+          "Version": " 4.0"
+        },
+        {
+          "EstimatedSize": 0,
+          "InstallDate": null,
+          "Name": "Windows Driver Package - Apple Inc. Apple Wireless Mouse (06/01/2011 4.0.0.1)",
+          "Publisher": "Apple Inc.",
+          "Version": "06/01/2011 4.0.0.1"
+        },
+        {
+          "EstimatedSize": 0,
+          "InstallDate": null,
+          "Name": "Windows Driver Package - Apple Inc. Apple Keyboard (07/21/2015 5.1.6160.0)",
+          "Publisher": "Apple Inc.",
+          "Version": "07/21/2015 5.1.6160.0"
+        },
+        {
+          "EstimatedSize": 0,
+          "InstallDate": null,
+          "Name": "Windows Driver Package - Intel Corporation (iaLPSS_SPI) System  (06/13/2014 1.1.226.2)",
+          "Publisher": "Intel Corporation",
+          "Version": "06/13/2014 1.1.226.2"
+        },
+        {
+          "EstimatedSize": 0,
+          "InstallDate": null,
+          "Name": "Windows Driver Package - Apple Inc. Apple SD Card Reader (07/22/2013 1.0.0.1)",
+          "Publisher": "Apple Inc.",
+          "Version": "07/22/2013 1.0.0.1"
+        },
+        {
+          "EstimatedSize": 0,
+          "InstallDate": null,
+          "Name": "Windows Driver Package - Apple Inc. (AppleUSBEthernet) Net  (02/01/2008 3.10.3.10)",
+          "Publisher": "Apple Inc.",
+          "Version": "02/01/2008 3.10.3.10"
+        },
+        {
+          "EstimatedSize": 0,
+          "InstallDate": null,
+          "Name": "Windows Driver Package - Apple Inc. Apple IR Receiver (02/21/2008 2.0.4.0)",
+          "Publisher": "Apple Inc.",
+          "Version": "02/21/2008 2.0.4.0"
+        },
+        {
+          "EstimatedSize": 0,
+          "InstallDate": null,
+          "Name": "Windows Driver Package - Apple Inc. Apple ODD (05/17/2010 3.1.0.0)",
+          "Publisher": "Apple Inc.",
+          "Version": "05/17/2010 3.1.0.0"
+        },
+        {
+          "EstimatedSize": 0,
+          "InstallDate": null,
+          "Name": "Windows Driver Package - Apple Inc. Apple Display (01/23/2009 3.0.0.0)",
+          "Publisher": "Apple Inc.",
+          "Version": "01/23/2009 3.0.0.0"
+        },
+        {
+          "EstimatedSize": 0,
+          "InstallDate": null,
+          "Name": "Windows Driver Package - Atheros Communications Inc. (athr) Net  (11/13/2010 9.2.0.113)",
+          "Publisher": "Atheros Communications Inc.",
+          "Version": "11/13/2010 9.2.0.113"
+        },
+        {
+          "EstimatedSize": 0,
+          "InstallDate": null,
+          "Name": "Windows Driver Package - Intel (e1rexpress) Net  (01/07/2010 11.4.16.0)",
+          "Publisher": "Intel",
+          "Version": "01/07/2010 11.4.16.0"
+        },
+        {
+          "EstimatedSize": 372836352,
+          "InstallDate": "20250624",
+          "Name": "Git",
+          "Publisher": "The Git Development Community",
+          "Version": "2.50.0"
+        },
+        {
+          "EstimatedSize": 56236032,
+          "InstallDate": "20250623",
+          "Name": "Sublime Text",
+          "Publisher": "Sublime HQ Pty Ltd",
+          "Version": null
+        },
+        {
+          "EstimatedSize": 61714432,
+          "InstallDate": "20250623",
+          "Name": "Python 3.13.5 Documentation (64-bit)",
+          "Publisher": "Python Software Foundation",
+          "Version": "3.13.5150.0"
+        },
+        {
+          "EstimatedSize": 28039168,
+          "InstallDate": "20250619",
+          "Name": "Intel(R) Management Engine Components",
+          "Publisher": "Intel Corporation",
+          "Version": "1.0.0.0"
+        },
+        {
+          "EstimatedSize": 17314816,
+          "InstallDate": "20250619",
+          "Name": "Intelr Trusted Connect Service Client",
+          "Publisher": "Intel Corporation",
+          "Version": "1.35.133.1"
+        },
+        {
+          "EstimatedSize": 0,
+          "InstallDate": null,
+          "Name": "Intel(R) Management Engine Components",
+          "Publisher": "Intel Corporation",
+          "Version": "10.0.30.1072"
+        },
+        {
+          "EstimatedSize": 294912,
+          "InstallDate": "20250623",
+          "Name": "Python 3.13.5 pip Bootstrap (64-bit)",
+          "Publisher": "Python Software Foundation",
+          "Version": "3.13.5150.0"
+        },
+        {
+          "EstimatedSize": 38900736,
+          "InstallDate": "20250624",
+          "Name": "GitHub CLI",
+          "Publisher": "GitHub, Inc.",
+          "Version": "2.74.2"
+        },
+        {
+          "EstimatedSize": 2658304,
+          "InstallDate": "20250623",
+          "Name": "Python 3.13.5 Executables (64-bit)",
+          "Publisher": "Python Software Foundation",
+          "Version": "3.13.5150.0"
+        },
+        {
+          "EstimatedSize": 49454080,
+          "InstallDate": "20250709",
+          "Name": "DB Browser for SQLite",
+          "Publisher": "DB Browser for SQLite Team",
+          "Version": "3.13.1"
+        },
+        {
+          "EstimatedSize": 1130496,
+          "InstallDate": "20250619",
+          "Name": "Intel(R) Chipset Device Software",
+          "Publisher": "Intel Corporation",
+          "Version": "10.0.27"
+        },
+        {
+          "EstimatedSize": 6168576,
+          "InstallDate": "20250623",
+          "Name": "Python 3.13.5 Core Interpreter (64-bit)",
+          "Publisher": "Python Software Foundation",
+          "Version": "3.13.5150.0"
+        },
+        {
+          "EstimatedSize": 103613440,
+          "InstallDate": "20250626",
+          "Name": "Node.js",
+          "Publisher": "Node.js Foundation",
+          "Version": "22.17.0"
+        },
+        {
+          "EstimatedSize": 34000896,
+          "InstallDate": "20250623",
+          "Name": "Python 3.13.5 Test Suite (64-bit)",
+          "Publisher": "Python Software Foundation",
+          "Version": "3.13.5150.0"
+        },
+        {
+          "EstimatedSize": 14217216,
+          "InstallDate": "20250623",
+          "Name": "Python 3.13.5 Tcl/Tk Support (64-bit)",
+          "Publisher": "Python Software Foundation",
+          "Version": "3.13.5150.0"
+        },
+        {
+          "EstimatedSize": 4051968,
+          "InstallDate": "20250620",
+          "Name": "iCloud Outlook",
+          "Publisher": "Apple Inc.",
+          "Version": "15.3.0.152"
+        },
+        {
+          "EstimatedSize": 2899968,
+          "InstallDate": "20250623",
+          "Name": "Python 3.13.5 Development Libraries (64-bit)",
+          "Publisher": "Python Software Foundation",
+          "Version": "3.13.5150.0"
+        },
+        {
+          "EstimatedSize": 24031232,
+          "InstallDate": "20250623",
+          "Name": "Python 3.13.5 Standard Library (64-bit)",
+          "Publisher": "Python Software Foundation",
+          "Version": "3.13.5150.0"
+        },
+        {
+          "EstimatedSize": 53248,
+          "InstallDate": "20250623",
+          "Name": "Python 3.13.5 Add to Path (64-bit)",
+          "Publisher": "Python Software Foundation",
+          "Version": "3.13.5150.0"
+        },
+        {
+          "EstimatedSize": 397312,
+          "InstallDate": "20250619",
+          "Name": "Intel(R) ME UninstallLegacy",
+          "Publisher": "Intel Corporation",
+          "Version": "1.0.1.0"
+        },
+        {
+          "EstimatedSize": 16106496,
+          "InstallDate": "20250619",
+          "Name": "Boot Camp Services",
+          "Publisher": "Apple Inc.",
+          "Version": "6.0.6136"
+        },
+        {
+          "EstimatedSize": 2097152,
+          "InstallDate": null,
+          "Name": "AnyDesk",
+          "Publisher": "AnyDesk Software GmbH",
+          "Version": "ad 9.5.7"
+        },
+        {
+          "EstimatedSize": 2827264,
+          "InstallDate": "20250619",
+          "Name": "Apple Software Update",
+          "Publisher": "Apple Inc.",
+          "Version": "2.2.0.150"
+        },
+        {
+          "EstimatedSize": 1589248,
+          "InstallDate": "20250623",
+          "Name": "Python Launcher",
+          "Publisher": "Python Software Foundation",
+          "Version": "3.13.5150.0"
+        },
+        {
+          "EstimatedSize": 95793152,
+          "InstallDate": "20250619",
+          "Name": "Microsoft TestPlatform SDK Local Feed",
+          "Publisher": "Microsoft",
+          "Version": "17.10.0.9037153"
+        },
+        {
+          "EstimatedSize": 12335104,
+          "InstallDate": "20250627",
+          "Name": "UltraViewer version 6.6.113",
+          "Publisher": "DucFabulous",
+          "Version": "6.6.113"
+        },
+        {
+          "EstimatedSize": 77824000,
+          "InstallDate": null,
+          "Name": "Intel(R) Processor Graphics",
+          "Publisher": "Intel Corporation",
+          "Version": "10.18.15.4240"
+        },
+        {
+          "EstimatedSize": 167363584,
+          "InstallDate": null,
+          "Name": "Python 3.13.5 (64-bit)",
+          "Publisher": "Python Software Foundation",
+          "Version": "3.13.5150.0"
+        }
+      ],
+      "Hotfixes & Updates": [
+        {
+          "EstimatedSize": 884736,
+          "InstallDate": "20250702",
+          "Name": "Update for x64-based Windows Systems (KB5001716)",
+          "Publisher": "Microsoft Corporation",
+          "Version": "8.94.0.0"
+        }
+      ],
+      "System": [
+        {
+          "EstimatedSize": 0,
+          "InstallDate": null,
+          "Name": "Microsoft 365 - en-us",
+          "Publisher": "Microsoft Corporation",
+          "Version": "16.0.18925.20158"
+        },
+        {
+          "EstimatedSize": 443032576,
+          "InstallDate": null,
+          "Name": "Microsoft OneDrive",
+          "Publisher": "Microsoft Corporation",
+          "Version": "25.115.0615.0002"
+        },
+        {
+          "EstimatedSize": 647168,
+          "InstallDate": "20250619",
+          "Name": "Microsoft.NET.Workload.Emscripten.net8.Manifest (x64)",
+          "Publisher": "Microsoft Corporation",
+          "Version": "72.48.34242"
+        },
+        {
+          "EstimatedSize": 57344,
+          "InstallDate": "20250619",
+          "Name": "Microsoft.NET.Workload.Mono.Toolchain.net8.Manifest (x64)",
+          "Publisher": "Microsoft Corporation",
+          "Version": "72.0.34381"
+        },
+        {
+          "EstimatedSize": 1247232,
+          "InstallDate": "20250619",
+          "Name": "DiagnosticsHub_CollectionService",
+          "Publisher": "Microsoft Corporation",
+          "Version": "17.12.35318"
+        },
+        {
+          "EstimatedSize": 29577216,
+          "InstallDate": "20250619",
+          "Name": "Microsoft Windows Desktop Targeting Pack - 9.0.6 (x64)",
+          "Publisher": "Microsoft Corporation",
+          "Version": "72.24.34386"
+        },
+        {
+          "EstimatedSize": 184320,
+          "InstallDate": "20250619",
+          "Name": "Microsoft .NET SDK 9.0.301 (x64) from Visual Studio",
+          "Publisher": "Microsoft Corporation",
+          "Version": "9.3.125.26904"
+        },
+        {
+          "EstimatedSize": 57344,
+          "InstallDate": "20250619",
+          "Name": "Microsoft.NET.Workload.Mono.Toolchain.net7.Manifest (x64)",
+          "Publisher": "Microsoft Corporation",
+          "Version": "72.0.34381"
+        },
+        {
+          "EstimatedSize": 1075200,
+          "InstallDate": "20250620",
+          "Name": "Microsoft Update Health Tools",
+          "Publisher": "Microsoft Corporation",
+          "Version": "3.74.0.0"
+        },
+        {
+          "EstimatedSize": 406978560,
+          "InstallDate": "20250619",
+          "Name": "Microsoft .NET Toolset 9.0.301 (x64)",
+          "Publisher": "Microsoft Corporation",
+          "Version": "36.9.53464"
+        },
+        {
+          "EstimatedSize": 10547200,
+          "InstallDate": "20250619",
+          "Name": "Microsoft .NET 9.0 Templates 9.0.301 (x64)",
+          "Publisher": "Microsoft Corporation",
+          "Version": "36.9.37080"
+        },
+        {
+          "EstimatedSize": 729088,
+          "InstallDate": "20250619",
+          "Name": "Microsoft.NET.Sdk.Aspire.Manifest-8.0.100 (x64)",
+          "Publisher": "Microsoft Corporation",
+          "Version": "64.136.23253"
+        },
+        {
+          "EstimatedSize": 12541952,
+          "InstallDate": "20250619",
+          "Name": "Microsoft .NET AppHost Pack - 8.0.17 (x64)",
+          "Publisher": "Microsoft Corporation",
+          "Version": "64.68.34370"
+        },
+        {
+          "EstimatedSize": 729088,
+          "InstallDate": "20250619",
+          "Name": "Microsoft.NET.Sdk.tvOS.Manifest-9.0.100 (x64)",
+          "Publisher": "Microsoft Corporation",
+          "Version": "18.5.9199"
+        },
+        {
+          "EstimatedSize": 1142784,
+          "InstallDate": "20250619",
+          "Name": "vs_communityx64msi",
+          "Publisher": "Microsoft Corporation",
+          "Version": "17.14.36025"
+        },
+        {
+          "EstimatedSize": 2461696,
+          "InstallDate": "20250619",
+          "Name": "Microsoft Visual C++ 2022 X64 Minimum Runtime - 14.44.35211",
+          "Publisher": "Microsoft Corporation",
+          "Version": "14.44.35211"
+        },
+        {
+          "EstimatedSize": 81920,
+          "InstallDate": "20250619",
+          "Name": "Microsoft.NET.Workload.Mono.Toolchain.Current.Manifest (x64)",
+          "Publisher": "Microsoft Corporation",
+          "Version": "72.0.34381"
+        },
+        {
+          "EstimatedSize": 204800,
+          "InstallDate": "20250619",
+          "Name": "vs_devenx64vmsi",
+          "Publisher": "Microsoft Corporation",
+          "Version": "17.14.36015"
+        },
+        {
+          "EstimatedSize": 6889472,
+          "InstallDate": "20250619",
+          "Name": "Microsoft System CLR Types for SQL Server 2019",
+          "Publisher": "Microsoft Corporation",
+          "Version": "15.0.2000.5"
+        },
+        {
+          "EstimatedSize": 41947136,
+          "InstallDate": "20250619",
+          "Name": "Microsoft .NET Targeting Pack - 9.0.6 (x64)",
+          "Publisher": "Microsoft Corporation",
+          "Version": "72.24.34381"
+        },
+        {
+          "EstimatedSize": 647168,
+          "InstallDate": "20250619",
+          "Name": "Microsoft.NET.Workload.Emscripten.net7.Manifest (x64)",
+          "Publisher": "Microsoft Corporation",
+          "Version": "72.48.34242"
+        },
+        {
+          "EstimatedSize": 94310400,
+          "InstallDate": "20250619",
+          "Name": "Microsoft Windows Desktop Runtime - 8.0.17 (x64)",
+          "Publisher": "Microsoft Corporation",
+          "Version": "64.68.34385"
+        },
+        {
+          "EstimatedSize": 99250176,
+          "InstallDate": "20250619",
+          "Name": "Microsoft Windows Desktop Runtime - 9.0.6 (x64)",
+          "Publisher": "Microsoft Corporation",
+          "Version": "72.24.34386"
+        },
+        {
+          "EstimatedSize": 73666560,
+          "InstallDate": "20250619",
+          "Name": "Microsoft .NET Runtime - 8.0.17 (x64)",
+          "Publisher": "Microsoft Corporation",
+          "Version": "64.68.34370"
+        },
+        {
+          "EstimatedSize": 729088,
+          "InstallDate": "20250619",
+          "Name": "Microsoft.NET.Sdk.macOS.Manifest-9.0.100 (x64)",
+          "Publisher": "Microsoft Corporation",
+          "Version": "15.5.9199"
+        },
+        {
+          "EstimatedSize": 647168,
+          "InstallDate": "20250619",
+          "Name": "Microsoft.NET.Workload.Emscripten.net6.Manifest (x64)",
+          "Publisher": "Microsoft Corporation",
+          "Version": "72.48.34242"
+        },
+        {
+          "EstimatedSize": 729088,
+          "InstallDate": "20250619",
+          "Name": "Microsoft.NET.Sdk.Android.Manifest-9.0.100 (x64)",
+          "Publisher": "Microsoft Corporation",
+          "Version": "35.0.78"
+        },
+        {
+          "EstimatedSize": 4133888,
+          "InstallDate": "20250619",
+          "Name": "icecap_collection_x64",
+          "Publisher": "Microsoft Corporation",
+          "Version": "17.14.36015"
+        },
+        {
+          "EstimatedSize": 0,
+          "InstallDate": "20250619",
+          "Name": "Microsoft Visual Studio Installer",
+          "Publisher": "Microsoft Corporation",
+          "Version": "3.14.2075.50697"
+        },
+        {
+          "EstimatedSize": 12955648,
+          "InstallDate": "20250619",
+          "Name": "Microsoft .NET AppHost Pack - 9.0.6 (x64_arm64)",
+          "Publisher": "Microsoft Corporation",
+          "Version": "72.24.34381"
+        },
+        {
+          "EstimatedSize": 57344,
+          "InstallDate": "20250619",
+          "Name": "Microsoft.NET.Workload.Mono.Toolchain.net6.Manifest (x64)",
+          "Publisher": "Microsoft Corporation",
+          "Version": "72.0.34381"
+        },
+        {
+          "EstimatedSize": 39747584,
+          "InstallDate": "20250619",
+          "Name": "Microsoft .NET Targeting Pack - 8.0.17 (x64)",
+          "Publisher": "Microsoft Corporation",
+          "Version": "64.68.34370"
+        },
+        {
+          "EstimatedSize": 12177408,
+          "InstallDate": "20250619",
+          "Name": "Microsoft Visual C++ 2022 X64 Additional Runtime - 14.44.35211",
+          "Publisher": "Microsoft Corporation",
+          "Version": "14.44.35211"
+        },
+        {
+          "EstimatedSize": 18512896,
+          "InstallDate": "20250619",
+          "Name": "Microsoft ASP.NET Core 9.0.6 Targeting Pack (x64)",
+          "Publisher": "Microsoft Corporation",
+          "Version": "9.0.6.25267"
+        },
+        {
+          "EstimatedSize": 4096,
+          "InstallDate": "20250619",
+          "Name": "vs_minshellx64msi",
+          "Publisher": "Microsoft Corporation",
+          "Version": "17.14.36015"
+        },
+        {
+          "EstimatedSize": 4042752,
+          "InstallDate": "20250713",
+          "Name": "Office 16 Click-to-Run Licensing Component",
+          "Publisher": "Microsoft Corporation",
+          "Version": "16.0.18925.20158"
+        },
+        {
+          "EstimatedSize": 24903680,
+          "InstallDate": "20250713",
+          "Name": "Office 16 Click-to-Run Extensibility Component",
+          "Publisher": "Microsoft Corporation",
+          "Version": "16.0.18925.20158"
+        },
+        {
+          "EstimatedSize": 28155904,
+          "InstallDate": "20250619",
+          "Name": "Microsoft Windows Desktop Targeting Pack - 8.0.17 (x64)",
+          "Publisher": "Microsoft Corporation",
+          "Version": "64.68.34385"
+        },
+        {
+          "EstimatedSize": 10989568,
+          "InstallDate": "20250619",
+          "Name": "Microsoft .NET AppHost Pack - 8.0.17 (x64_x86)",
+          "Publisher": "Microsoft Corporation",
+          "Version": "64.68.34370"
+        },
+        {
+          "EstimatedSize": 20369408,
+          "InstallDate": "20250619",
+          "Name": "Microsoft .NET Standard Targeting Pack - 2.1.0 (x64)",
+          "Publisher": "Microsoft Corporation",
+          "Version": "24.0.28113"
+        },
+        {
+          "EstimatedSize": 647168,
+          "InstallDate": "20250619",
+          "Name": "Microsoft.NET.Workload.Emscripten.Current.Manifest (x64)",
+          "Publisher": "Microsoft Corporation",
+          "Version": "72.48.34242"
+        },
+        {
+          "EstimatedSize": 73728,
+          "InstallDate": "20250619",
+          "Name": "vs_minshellinteropx64msi",
+          "Publisher": "Microsoft Corporation",
+          "Version": "17.14.36015"
+        },
+        {
+          "EstimatedSize": 28712960,
+          "InstallDate": "20250619",
+          "Name": "Microsoft ASP.NET Core 8.0.17 Shared Framework (x64)",
+          "Publisher": "Microsoft Corporation",
+          "Version": "8.0.17.25266"
+        },
+        {
+          "EstimatedSize": 17820672,
+          "InstallDate": "20250619",
+          "Name": "Microsoft ASP.NET Core 8.0.17 Targeting Pack (x64)",
+          "Publisher": "Microsoft Corporation",
+          "Version": "8.0.17.25266"
+        },
+        {
+          "EstimatedSize": 733184,
+          "InstallDate": "20250619",
+          "Name": "Microsoft.NET.Sdk.Maui.Manifest-9.0.100 (x64)",
+          "Publisher": "Microsoft Corporation",
+          "Version": "9.0.51"
+        },
+        {
+          "EstimatedSize": 10952704,
+          "InstallDate": "20250619",
+          "Name": "Microsoft .NET AppHost Pack - 9.0.6 (x64_x86)",
+          "Publisher": "Microsoft Corporation",
+          "Version": "72.24.34381"
+        },
+        {
+          "EstimatedSize": 729088,
+          "InstallDate": "20250619",
+          "Name": "Microsoft.NET.Sdk.MacCatalyst.Manifest-9.0.100 (x64)",
+          "Publisher": "Microsoft Corporation",
+          "Version": "18.5.9199"
+        },
+        {
+          "EstimatedSize": 12451840,
+          "InstallDate": "20250619",
+          "Name": "Microsoft .NET AppHost Pack - 8.0.17 (x64_arm64)",
+          "Publisher": "Microsoft Corporation",
+          "Version": "64.68.34370"
+        },
+        {
+          "EstimatedSize": 503808,
+          "InstallDate": "20250619",
+          "Name": "Microsoft .NET Host - 9.0.6 (x64)",
+          "Publisher": "Microsoft Corporation",
+          "Version": "72.24.34381"
+        },
+        {
+          "EstimatedSize": 352256,
+          "InstallDate": "20250619",
+          "Name": "Microsoft .NET Host FX Resolver - 9.0.6 (x64)",
+          "Publisher": "Microsoft Corporation",
+          "Version": "72.24.34381"
+        },
+        {
+          "EstimatedSize": 12607488,
+          "InstallDate": "20250619",
+          "Name": "Microsoft .NET AppHost Pack - 9.0.6 (x64)",
+          "Publisher": "Microsoft Corporation",
+          "Version": "72.24.34381"
+        },
+        {
+          "EstimatedSize": 29204480,
+          "InstallDate": "20250619",
+          "Name": "Microsoft ASP.NET Core 9.0.6 Shared Framework (x64)",
+          "Publisher": "Microsoft Corporation",
+          "Version": "9.0.6.25267"
+        },
+        {
+          "EstimatedSize": 729088,
+          "InstallDate": "20250619",
+          "Name": "Microsoft.NET.Sdk.iOS.Manifest-9.0.100 (x64)",
+          "Publisher": "Microsoft Corporation",
+          "Version": "18.5.9199"
+        },
+        {
+          "EstimatedSize": 13312,
+          "InstallDate": "20250619",
+          "Name": "IntelliTraceProfilerProxy",
+          "Publisher": "Microsoft Corporation",
+          "Version": "15.0.21225.01"
+        },
+        {
+          "EstimatedSize": 6385664,
+          "InstallDate": "20250619",
+          "Name": "Microsoft .NET 8.0 Templates 8.0.411 (x64)",
+          "Publisher": "Microsoft Corporation",
+          "Version": "32.13.53473"
+        },
+        {
+          "EstimatedSize": 77660160,
+          "InstallDate": "20250619",
+          "Name": "Microsoft .NET Runtime - 9.0.6 (x64)",
+          "Publisher": "Microsoft Corporation",
+          "Version": "72.24.34381"
+        },
+        {
+          "EstimatedSize": 0,
+          "InstallDate": "20250619",
+          "Name": "Visual Studio Community 2022",
+          "Publisher": "Microsoft Corporation",
+          "Version": "17.14.6 (June 2025)"
+        },
+        {
+          "EstimatedSize": 0,
+          "InstallDate": "20250712",
+          "Name": "Microsoft Edge",
+          "Publisher": "Microsoft Corporation",
+          "Version": "138.0.3351.83"
+        },
+        {
+          "EstimatedSize": 0,
+          "InstallDate": "20250711",
+          "Name": "Microsoft Edge WebView2 Runtime",
+          "Publisher": "Microsoft Corporation",
+          "Version": "138.0.3351.83"
+        },
+        {
+          "EstimatedSize": 19121152,
+          "InstallDate": null,
+          "Name": "Microsoft Visual C++ 2015-2022 Redistributable (x86) - 14.44.35211",
+          "Publisher": "Microsoft Corporation",
+          "Version": "14.44.35211.0"
+        },
+        {
+          "EstimatedSize": 290816,
+          "InstallDate": "20250619",
+          "Name": "Microsoft .NET Host FX Resolver - 9.0.6 (x86)",
+          "Publisher": "Microsoft Corporation",
+          "Version": "72.24.34381"
+        },
+        {
+          "EstimatedSize": 44396544,
+          "InstallDate": "20250619",
+          "Name": "Microsoft .NET Framework 4.7.2 Targeting Pack",
+          "Publisher": "Microsoft Corporation",
+          "Version": "4.7.03062"
+        },
+        {
+          "EstimatedSize": 745472,
+          "InstallDate": "20250619",
+          "Name": "vs_CoreEditorFonts",
+          "Publisher": "Microsoft Corporation",
+          "Version": "17.7.40001"
+        },
+        {
+          "EstimatedSize": 540672,
+          "InstallDate": "20250619",
+          "Name": "vs_clickoncebootstrappermsi",
+          "Publisher": "Microsoft Corporation",
+          "Version": "17.14.36015"
+        },
+        {
+          "EstimatedSize": 47104,
+          "InstallDate": "20250619",
+          "Name": "vs_tipsmsi",
+          "Publisher": "Microsoft Corporation",
+          "Version": "17.14.36015"
+        },
+        {
+          "EstimatedSize": 74567680,
+          "InstallDate": "20250619",
+          "Name": "Microsoft .NET Framework Cumulative Intellisense Pack for Visual Studio (ENU)",
+          "Publisher": "Microsoft Corporation",
+          "Version": "4.8.09037"
+        },
+        {
+          "EstimatedSize": 2048000,
+          "InstallDate": "20250619",
+          "Name": "vs_filehandler_amd64",
+          "Publisher": "Microsoft Corporation",
+          "Version": "17.14.36024"
+        },
+        {
+          "EstimatedSize": 111259648,
+          "InstallDate": "20250619",
+          "Name": "Entity Framework 6.5.0 Tools  for Visual Studio 2022",
+          "Publisher": "Microsoft Corporation",
+          "Version": "6.5.0.0"
+        },
+        {
+          "EstimatedSize": 20480,
+          "InstallDate": "20250619",
+          "Name": "vs_communitymsires",
+          "Publisher": "Microsoft Corporation",
+          "Version": "17.14.36015"
+        },
+        {
+          "EstimatedSize": 4132864,
+          "InstallDate": "20250619",
+          "Name": "vs_githubprotocolhandlermsi",
+          "Publisher": "Microsoft Corporation",
+          "Version": "17.14.36015"
+        },
+        {
+          "EstimatedSize": 94208,
+          "InstallDate": "20250619",
+          "Name": "icecap_collectionresourcesx64",
+          "Publisher": "Microsoft Corporation",
+          "Version": "17.14.36015"
+        },
+        {
+          "EstimatedSize": 4861952,
+          "InstallDate": "20250619",
+          "Name": "Microsoft Visual Studio Setup WMI Provider",
+          "Publisher": "Microsoft Corporation",
+          "Version": "3.12.2140.44225"
+        },
+        {
+          "EstimatedSize": 71024640,
+          "InstallDate": "20250619",
+          "Name": "Microsoft .NET Runtime - 9.0.6 (x86)",
+          "Publisher": "Microsoft Corporation",
+          "Version": "72.24.34381"
+        },
+        {
+          "EstimatedSize": 315392,
+          "InstallDate": "20250619",
+          "Name": "vs_clickoncesigntoolmsi",
+          "Publisher": "Microsoft Corporation",
+          "Version": "17.14.36015"
+        },
+        {
+          "EstimatedSize": 93069312,
+          "InstallDate": "20250619",
+          "Name": "Microsoft Windows Desktop Runtime - 9.0.6 (x86)",
+          "Publisher": "Microsoft Corporation",
+          "Version": "72.24.34386"
+        },
+        {
+          "EstimatedSize": 1646592,
+          "InstallDate": "20250619",
+          "Name": "vs_minshellinteropsharedmsi",
+          "Publisher": "Microsoft Corporation",
+          "Version": "17.14.36015"
+        },
+        {
+          "EstimatedSize": 94208,
+          "InstallDate": "20250619",
+          "Name": "icecap_collectionresources",
+          "Publisher": "Microsoft Corporation",
+          "Version": "17.14.36015"
+        },
+        {
+          "EstimatedSize": 18512896,
+          "InstallDate": "20250619",
+          "Name": "Microsoft ASP.NET Core 9.0.6 Targeting Pack (x86)",
+          "Publisher": "Microsoft Corporation",
+          "Version": "9.0.6.25267"
+        },
+        {
+          "EstimatedSize": 1990656,
+          "InstallDate": "20250619",
+          "Name": "vs_filehandler_x86",
+          "Publisher": "Microsoft Corporation",
+          "Version": "17.14.36024"
+        },
+        {
+          "EstimatedSize": 33890304,
+          "InstallDate": "20250619",
+          "Name": "vs_communitysharedmsi",
+          "Publisher": "Microsoft Corporation",
+          "Version": "17.14.36025"
+        },
+        {
+          "EstimatedSize": 39747584,
+          "InstallDate": "20250619",
+          "Name": "Microsoft .NET Targeting Pack - 8.0.17 (x86)",
+          "Publisher": "Microsoft Corporation",
+          "Version": "64.68.34370"
+        },
+        {
+          "EstimatedSize": 2072576,
+          "InstallDate": "20250619",
+          "Name": "Microsoft Visual C++ 2022 X86 Minimum Runtime - 14.44.35211",
+          "Publisher": "Microsoft Corporation",
+          "Version": "14.44.35211"
+        },
+        {
+          "EstimatedSize": 21573632,
+          "InstallDate": "20250619",
+          "Name": "Microsoft .NET Framework 4.8 SDK",
+          "Publisher": "Microsoft Corporation",
+          "Version": "4.8.03928"
+        },
+        {
+          "EstimatedSize": 1400832,
+          "InstallDate": "20250619",
+          "Name": "vs_vswebprotocolselectormsi",
+          "Publisher": "Microsoft Corporation",
+          "Version": "17.14.36015"
+        },
+        {
+          "EstimatedSize": 28155904,
+          "InstallDate": "20250619",
+          "Name": "Microsoft Windows Desktop Targeting Pack - 8.0.17 (x86)",
+          "Publisher": "Microsoft Corporation",
+          "Version": "64.68.34385"
+        },
+        {
+          "EstimatedSize": 29577216,
+          "InstallDate": "20250619",
+          "Name": "Microsoft Windows Desktop Targeting Pack - 9.0.6 (x86)",
+          "Publisher": "Microsoft Corporation",
+          "Version": "72.24.34386"
+        },
+        {
+          "EstimatedSize": 151552,
+          "InstallDate": "20250619",
+          "Name": "vs_clickoncebootstrappermsires",
+          "Publisher": "Microsoft Corporation",
+          "Version": "17.14.36015"
+        },
+        {
+          "EstimatedSize": 71618560,
+          "InstallDate": "20250619",
+          "Name": "Microsoft .NET Framework 4.8 Targeting Pack (ENU)",
+          "Publisher": "Microsoft Corporation",
+          "Version": "4.8.03761"
+        },
+        {
+          "EstimatedSize": 204800,
+          "InstallDate": "20250619",
+          "Name": "vs_devenvsharedmsi",
+          "Publisher": "Microsoft Corporation",
+          "Version": "17.14.36015"
+        },
+        {
+          "EstimatedSize": 71966720,
+          "InstallDate": "20250619",
+          "Name": "Microsoft .NET Framework 4.7.2 Targeting Pack (ENU)",
+          "Publisher": "Microsoft Corporation",
+          "Version": "4.7.03062"
+        },
+        {
+          "EstimatedSize": 26955776,
+          "InstallDate": "20250619",
+          "Name": "Microsoft ASP.NET Core 9.0.6 Shared Framework (x86)",
+          "Publisher": "Microsoft Corporation",
+          "Version": "9.0.6.25267"
+        },
+        {
+          "EstimatedSize": 45817856,
+          "InstallDate": "20250619",
+          "Name": "Microsoft .NET Framework 4.8 Targeting Pack",
+          "Publisher": "Microsoft Corporation",
+          "Version": "4.8.03761"
+        },
+        {
+          "EstimatedSize": 3792896,
+          "InstallDate": "20250619",
+          "Name": "icecap_collection_neutral",
+          "Publisher": "Microsoft Corporation",
+          "Version": "17.14.36015"
+        },
+        {
+          "EstimatedSize": 1818624,
+          "InstallDate": "20250619",
+          "Name": "ClickOnce Bootstrapper Package for Microsoft .NET Framework",
+          "Publisher": "Microsoft Corporation",
+          "Version": "4.8.09256"
+        },
+        {
+          "EstimatedSize": 10600448,
+          "InstallDate": "20250619",
+          "Name": "Microsoft Visual C++ 2022 X86 Additional Runtime - 14.44.35211",
+          "Publisher": "Microsoft Corporation",
+          "Version": "14.44.35211"
+        },
+        {
+          "EstimatedSize": 26456064,
+          "InstallDate": "20250619",
+          "Name": "Microsoft ASP.NET Core 8.0.17 Shared Framework (x86)",
+          "Publisher": "Microsoft Corporation",
+          "Version": "8.0.17.25266"
+        },
+        {
+          "EstimatedSize": 4096,
+          "InstallDate": "20250619",
+          "Name": "vcpp_crt.redist.clickonce",
+          "Publisher": "Microsoft Corporation",
+          "Version": "14.44.35211"
+        },
+        {
+          "EstimatedSize": 88788992,
+          "InstallDate": "20250619",
+          "Name": "Microsoft Windows Desktop Runtime - 8.0.17 (x86)",
+          "Publisher": "Microsoft Corporation",
+          "Version": "64.68.34385"
+        },
+        {
+          "EstimatedSize": 67940352,
+          "InstallDate": "20250619",
+          "Name": "Microsoft .NET Runtime - 8.0.17 (x86)",
+          "Publisher": "Microsoft Corporation",
+          "Version": "64.68.34370"
+        },
+        {
+          "EstimatedSize": 1748992,
+          "InstallDate": "20250619",
+          "Name": "Microsoft Visual Studio Setup Configuration",
+          "Publisher": "Microsoft Corporation",
+          "Version": "3.12.2140.44225"
+        },
+        {
+          "EstimatedSize": 12750848,
+          "InstallDate": "20250619",
+          "Name": "vs_SQLClickOnceBootstrappermsi",
+          "Publisher": "Microsoft Corporation",
+          "Version": "17.14.36015"
+        },
+        {
+          "EstimatedSize": 1523712,
+          "InstallDate": "20250619",
+          "Name": "vs_FileTracker_Singleton",
+          "Publisher": "Microsoft Corporation",
+          "Version": "17.14.36015"
+        },
+        {
+          "EstimatedSize": 21744640,
+          "InstallDate": null,
+          "Name": "Microsoft Visual C++ 2015-2022 Redistributable (x64) - 14.44.35211",
+          "Publisher": "Microsoft Corporation",
+          "Version": "14.44.35211.0"
+        },
+        {
+          "EstimatedSize": 41947136,
+          "InstallDate": "20250619",
+          "Name": "Microsoft .NET Targeting Pack - 9.0.6 (x86)",
+          "Publisher": "Microsoft Corporation",
+          "Version": "72.24.34381"
+        },
+        {
+          "EstimatedSize": 454656,
+          "InstallDate": "20250619",
+          "Name": "Microsoft .NET Host - 9.0.6 (x86)",
+          "Publisher": "Microsoft Corporation",
+          "Version": "72.24.34381"
+        },
+        {
+          "EstimatedSize": 17820672,
+          "InstallDate": "20250619",
+          "Name": "Microsoft ASP.NET Core 8.0.17 Targeting Pack (x86)",
+          "Publisher": "Microsoft Corporation",
+          "Version": "8.0.17.25266"
+        },
+        {
+          "EstimatedSize": 147456,
+          "InstallDate": "20250619",
+          "Name": "vs_minshellmsires",
+          "Publisher": "Microsoft Corporation",
+          "Version": "17.14.36015"
+        },
+        {
+          "EstimatedSize": 278528,
+          "InstallDate": "20250619",
+          "Name": "vs_minshellsharedmsi",
+          "Publisher": "Microsoft Corporation",
+          "Version": "17.14.36024"
+        },
+        {
+          "EstimatedSize": 436673536,
+          "InstallDate": "20250711",
+          "Name": "Microsoft Visual Studio Code (User)",
+          "Publisher": "Microsoft Corporation",
+          "Version": "1.102.0"
+        }
+      ]
+    },
+    "timestamp": "2025-07-14 00:23:46"
+  },
+  "startup": {
+    "data": {
+      "AutoStartServices": [
+        {
+          "DisplayName": "AnyDesk Service",
+          "Name": "AnyDesk",
+          "PathName": "\"C:\\Program Files (x86)\\AnyDesk\\AnyDesk.exe\" --service",
+          "State": "Running"
+        },
+        {
+          "DisplayName": "Microsoft Office Click-to-Run Service",
+          "Name": "ClickToRunSvc",
+          "PathName": "\"C:\\Program Files\\Common Files\\Microsoft Shared\\ClickToRun\\OfficeClickToRun.exe\" /service",
+          "State": "Running"
+        },
+        {
+          "DisplayName": "Microsoft Edge Update Service (edgeupdate)",
+          "Name": "edgeupdate",
+          "PathName": "\"C:\\Program Files (x86)\\Microsoft\\EdgeUpdate\\MicrosoftEdgeUpdate.exe\" /svc",
+          "State": "Stopped"
+        },
+        {
+          "DisplayName": "Intel(R) Management and Security Application Local Management Service",
+          "Name": "LMS",
+          "PathName": "\"C:\\Program Files (x86)\\Intel\\Intel(R) Management Engine Components\\LMS\\LMS.exe\"",
+          "State": "Running"
+        },
+        {
+          "DisplayName": "Microsoft Defender Core Service",
+          "Name": "MDCoreSvc",
+          "PathName": "\"C:\\ProgramData\\Microsoft\\Windows Defender\\platform\\4.18.25050.5-0\\MpDefenderCoreService.exe\"",
+          "State": "Running"
+        },
+        {
+          "DisplayName": "UltraViewer Service",
+          "Name": "UltraViewService",
+          "PathName": "\"C:\\Program Files (x86)\\UltraViewer\\UltraViewer_Service.exe\"",
+          "State": "Running"
+        },
+        {
+          "DisplayName": "Microsoft Defender Antivirus Service",
+          "Name": "WinDefend",
+          "PathName": "\"C:\\ProgramData\\Microsoft\\Windows Defender\\platform\\4.18.25050.5-0\\MsMpEng.exe\"",
+          "State": "Running"
+        }
+      ],
+      "Commands": [
+        {
+          "Command": "\"C:\\Program Files\\Microsoft OneDrive\\OneDrive.exe\" /background",
+          "Location": "HKU\\S-1-5-21-2242564787-350535357-3372921323-1001\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run",
+          "Name": "OneDrive",
+          "User": "DESKTOP-UVCAHP4\\ADMIN"
+        },
+        {
+          "Command": "\"C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe\" --no-startup-window --win-session-start",
+          "Location": "HKU\\S-1-5-21-2242564787-350535357-3372921323-1001\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run",
+          "Name": "MicrosoftEdgeAutoLaunch_8E32580D4032BD4E45D3D85AB6E09F85",
+          "User": "DESKTOP-UVCAHP4\\ADMIN"
+        },
+        {
+          "Command": "C:\\PROGRA~2\\AnyDesk\\AnyDesk.exe  --control",
+          "Location": "Common Startup",
+          "Name": "AnyDesk",
+          "User": "Public"
+        },
+        {
+          "Command": "%windir%\\system32\\SecurityHealthSystray.exe",
+          "Location": "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run",
+          "Name": "SecurityHealth",
+          "User": "Public"
+        },
+        {
+          "Command": "C:\\Program Files\\Boot Camp\\Bootcamp.exe",
+          "Location": "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run",
+          "Name": "Apple_KbdMgr",
+          "User": "Public"
+        }
+      ],
+      "ScheduledTasks": []
+    },
+    "timestamp": "2025-07-14 00:23:46"
+  },
+  "system_id": {
+    "data": {
+      "MachineGuid": "51fa5c18-0fd4-47a5-85aa-28f922351c1e"
+    },
+    "timestamp": "2025-07-14 00:23:46"
+  },
+  "users": {
+    "data": {
+      "CurrentUser": "ADMIN",
+      "LocalUsers": [
+        {
+          "Enabled": true,
+          "FullName": "",
+          "Name": "ADMIN",
+          "SID": {
+            "AccountDomainSid": "S-1-5-21-2242564787-350535357-3372921323",
+            "BinaryLength": 28,
+            "Value": "S-1-5-21-2242564787-350535357-3372921323-1001"
+          }
+        },
+        {
+          "Enabled": false,
+          "FullName": "",
+          "Name": "Administrator",
+          "SID": {
+            "AccountDomainSid": "S-1-5-21-2242564787-350535357-3372921323",
+            "BinaryLength": 28,
+            "Value": "S-1-5-21-2242564787-350535357-3372921323-500"
+          }
+        },
+        {
+          "Enabled": false,
+          "FullName": "",
+          "Name": "DefaultAccount",
+          "SID": {
+            "AccountDomainSid": "S-1-5-21-2242564787-350535357-3372921323",
+            "BinaryLength": 28,
+            "Value": "S-1-5-21-2242564787-350535357-3372921323-503"
+          }
+        },
+        {
+          "Enabled": false,
+          "FullName": "",
+          "Name": "Guest",
+          "SID": {
+            "AccountDomainSid": "S-1-5-21-2242564787-350535357-3372921323",
+            "BinaryLength": 28,
+            "Value": "S-1-5-21-2242564787-350535357-3372921323-501"
+          }
+        },
+        {
+          "Enabled": false,
+          "FullName": "",
+          "Name": "WDAGUtilityAccount",
+          "SID": {
+            "AccountDomainSid": "S-1-5-21-2242564787-350535357-3372921323",
+            "BinaryLength": 28,
+            "Value": "S-1-5-21-2242564787-350535357-3372921323-504"
+          }
+        }
+      ]
+    },
+    "timestamp": "2025-07-14 00:23:46"
+  },
+  "web_history": {
+    "data": {
+      "Brave": {
+        "Info": "Not found"
+      },
+      "Chrome": {
+        "Info": "Not found"
+      },
+      "CocCoc": {
+        "Info": "Not found"
+      },
+      "Edge": {
+        "Default": [
+          {
+            "last_visit_time": "2025-07-13 17:22:21",
+            "title": "Dashboard - System Monitor",
+            "url": "http://127.0.0.1:5000/"
+          },
+          {
+            "last_visit_time": "2025-07-13 17:22:09",
+            "title": "Details for DESKTOP-UVCAHP4",
+            "url": "http://127.0.0.1:5000/client/51fa5c18-0fd4-47a5-85aa-28f922351c1e"
+          },
+          {
+            "last_visit_time": "2025-07-13 17:21:20",
+            "title": "127.0.0.1:5000/api/client_audit_data/51fa5c18-0fd4-47a5-85aa-28f922351c1e",
+            "url": "http://127.0.0.1:5000/api/client_audit_data/51fa5c18-0fd4-47a5-85aa-28f922351c1e"
+          },
+          {
+            "last_visit_time": "2025-07-13 17:13:13",
+            "title": "405 Method Not Allowed",
+            "url": "http://127.0.0.1:5000/api/clear_records"
+          },
+          {
+            "last_visit_time": "2025-07-13 15:06:37",
+            "title": "PowerShell Network Adapter Info",
+            "url": "https://chatgpt.com/c/68736082-2b0c-8007-bbd9-d901675b5b51"
+          },
+          {
+            "last_visit_time": "2025-07-13 14:10:25",
+            "title": "Supabase",
+            "url": "https://supabase.com/dashboard/sign-in?auth_id=be2be348-ea0f-4b8c-81a6-f95ccf2d6c2f&returnTo=%2Fauthorize"
+          },
+          {
+            "last_visit_time": "2025-07-13 14:10:23",
+            "title": "Authorize API access | Supabase",
+            "url": "https://api.supabase.com/v1/oauth/authorize?client_id=7b45121c-33d2-42b1-bc4b-3365ccb6980a&redirect_uri=https%3A%2F%2Fdatabase.build%2Fapi%2Foauth%2Fsupabase%2Fcallback&response_type=code&state=%7B%22databaseId%22%3A%227jde4ik1vs0acbop%22%7D"
+          },
+          {
+            "last_visit_time": "2025-07-13 14:10:23",
+            "title": "Authorize API access | Supabase",
+            "url": "https://supabase.com/dashboard/authorize?auth_id=be2be348-ea0f-4b8c-81a6-f95ccf2d6c2f"
+          },
+          {
+            "last_visit_time": "2025-07-13 13:59:05",
+            "title": "Tu\u1ea5n Ki\u1ec7t - D\u1ecbch V\u1ee5 M\u00e1y T\u00ednh & C\u00f4ng Ngh\u1ec7 Chuy\u00ean Nghi\u1ec7p",
+            "url": "file:///C:/Users/ADMIN/iCloudDrive/web/index.html"
+          },
+          {
+            "last_visit_time": "2025-07-13 13:57:08",
+            "title": "Postgres Sandbox",
+            "url": "https://database.build/db/7jde4ik1vs0acbop"
+          },
+          {
+            "last_visit_time": "2025-07-13 13:56:43",
+            "title": "Postgres Sandbox",
+            "url": "https://database.build/"
+          },
+          {
+            "last_visit_time": "2025-07-13 13:56:33",
+            "title": "Postgres Sandbox",
+            "url": "https://chwwdmiacginxmrecksk.supabase.co/auth/v1/callback?code=5090efcd101c303578f6&state=eyJhbGciOiJIUzI1NiIsImtpZCI6IktqdCs5NVZUYnVWN3J1QnEiLCJ0eXAiOiJKV1QifQ.eyJleHAiOjE3NTI0MTUyODEsInNpdGVfdXJsIjoiaHR0cHM6Ly9wb3N0Z3Jlcy5uZXciLCJpZCI6IjAwMDAwMDAwLTAwMDAtMDAwMC0wMDAwLTAwMDAwMDAwMDAwMCIsImZ1bmN0aW9uX2hvb2tzIjpudWxsLCJwcm92aWRlciI6ImdpdGh1YiIsInJlZmVycmVyIjoiaHR0cHM6Ly9kYXRhYmFzZS5idWlsZC8iLCJmbG93X3N0YXRlX2lkIjoiZGJlNDgwZGEtMTIwZi00NTQyLWIyM2ItNzdkYmVjNTM2ZDk2In0.fNHHrZSY1t3zs4UdwDreMd76bbVtTo1AyuB77FhrvMU"
+          },
+          {
+            "last_visit_time": "2025-07-13 13:56:33",
+            "title": "Postgres Sandbox",
+            "url": "https://database.build/?code=c864930f-d825-400b-99f5-f93c0be45710"
+          },
+          {
+            "last_visit_time": "2025-07-13 13:56:31",
+            "title": "Postgres Sandbox",
+            "url": "https://github.com/login/oauth/authorize"
+          },
+          {
+            "last_visit_time": "2025-07-13 13:56:26",
+            "title": "Authorize application",
+            "url": "https://chwwdmiacginxmrecksk.supabase.co/auth/v1/authorize?provider=github&redirect_to=https%3A%2F%2Fdatabase.build%2F&code_challenge=BgnYB1NKI8zahnnNcqfdmds6XS48EKWASxR7LSj6gcU&code_challenge_method=s256"
+          },
+          {
+            "last_visit_time": "2025-07-13 13:56:26",
+            "title": "Authorize application",
+            "url": "https://github.com/login/oauth/authorize?client_id=Ov23liPhJVEVWdcYgc1U&redirect_to=https%3A%2F%2Fdatabase.build%2F&redirect_uri=https%3A%2F%2Fchwwdmiacginxmrecksk.supabase.co%2Fauth%2Fv1%2Fcallback&response_type=code&scope=user%3Aemail&state=eyJhbGciOiJIUzI1NiIsImtpZCI6IktqdCs5NVZUYnVWN3J1QnEiLCJ0eXAiOiJKV1QifQ.eyJleHAiOjE3NTI0MTUyODEsInNpdGVfdXJsIjoiaHR0cHM6Ly9wb3N0Z3Jlcy5uZXciLCJpZCI6IjAwMDAwMDAwLTAwMDAtMDAwMC0wMDAwLTAwMDAwMDAwMDAwMCIsImZ1bmN0aW9uX2hvb2tzIjpudWxsLCJwcm92aWRlciI6ImdpdGh1YiIsInJlZmVycmVyIjoiaHR0cHM6Ly9kYXRhYmFzZS5idWlsZC8iLCJmbG93X3N0YXRlX2lkIjoiZGJlNDgwZGEtMTIwZi00NTQyLWIyM2ItNzdkYmVjNTM2ZDk2In0.fNHHrZSY1t3zs4UdwDreMd76bbVtTo1AyuB77FhrvMU"
+          },
+          {
+            "last_visit_time": "2025-07-13 13:55:40",
+            "title": "127.0.0.1",
+            "url": "http://127.0.0.1:5002/"
+          },
+          {
+            "last_visit_time": "2025-07-13 13:52:46",
+            "title": "Postgres Sandbox",
+            "url": "http://database.build/"
+          },
+          {
+            "last_visit_time": "2025-07-13 13:49:41",
+            "title": "K\u00ed t\u1ef1 \u0111\u1eb7c bi\u1ec7t AnhNBT - #1 C\u00f4ng c\u1ee5 t\u1ea1o t\u00ean game Mobile",
+            "url": "https://www.anhnbt.com/ky-tu-dac-biet"
+          },
+          {
+            "last_visit_time": "2025-07-13 13:49:36",
+            "title": "Project Structure And Function | Google AI Studio",
+            "url": "https://aistudio.google.com/prompts/1BVw2asSwEn8K22zI5NTbSS-mGGuj1cPC"
+          },
+          {
+            "last_visit_time": "2025-07-13 13:39:15",
+            "title": "ki tu dac biet - Google Search",
+            "url": "https://www.google.com/search?q=ki+tu+dac+biet&oq=ki+tu+dac+biet&gs_lcrp=EgRlZGdlKgYIABBFGDkyBggAEEUYOTIHCAEQABiABDIHCAIQABiABDIHCAMQABiABDIHCAQQABiABDIHCAUQABiABDIHCAYQABiABDIHCAcQABiABDIHCAgQABiABNIBCDIxOTFqMGoxqAIAsAIA&sourceid=chrome&ie=UTF-8"
+          },
+          {
+            "last_visit_time": "2025-07-13 13:39:13",
+            "title": "81+ T\u00ean K\u00fd T\u1ef1 \u0110\u1eb7c Bi\u1ec7t S\u1ea5m S\u00e9t \u0111\u1eb9p: \ua9c1\u0f12\u2022S\u1ea5\u1d50S\u00e9\u1d57\u2022\u0f12\ua9c2, \u4e97\u2022S\u1ea5\u24c2S\u00e9\u24c9\u273f\u1b44, \u05e0u\u029f\u03b9\u043c\u03b9u, \uff2b\uff21\uff29, f\u03b1\u03b7q\u03bc\u03b1\u03b7\u0260\u0267\u00f9\u03b7\u0260\u0271\u03b1\u0282\u03c4\u03b5\u027e\u03b4\u196b\u1a63",
+            "url": "https://kytudacbiet.com/sam-set"
+          },
+          {
+            "last_visit_time": "2025-07-13 13:39:10",
+            "title": "81+ T\u00ean K\u00fd T\u1ef1 \u0110\u1eb7c Bi\u1ec7t S\u1ea5m S\u00e9t \u0111\u1eb9p: \ua9c1\u0f12\u2022S\u1ea5\u1d50S\u00e9\u1d57\u2022\u0f12\ua9c2, \u4e97\u2022S\u1ea5\u24c2S\u00e9\u24c9\u273f\u1b44, \u05e0u\u029f\u03b9\u043c\u03b9u, \uff2b\uff21\uff29, f\u03b1\u03b7q\u03bc\u03b1\u03b7\u0260\u0267\u00f9\u03b7\u0260\u0271\u03b1\u0282\u03c4\u03b5\u027e\u03b4\u196b\u1a63",
+            "url": "https://kytudacbiet.com/quan-doan"
+          },
+          {
+            "last_visit_time": "2025-07-13 13:39:07",
+            "title": "70+ T\u00ean K\u00fd T\u1ef1 \u0110\u1eb7c Bi\u1ec7t Qu\u00e2n \u0110o\u00e0n \u0111\u1eb9p: \u30df\u2605Q\u24ca\u00e2\u24c3\u0110\u24c4\u00e0\u24c3\u2605\u5f61, \u03b2\u03c3\u03b3\u026d\u1ea1\u03b7\u0267\u026d\u00f9\u03b7\u0260, \u2133, \u30df\u2605\u0442\u029f\u2655xu\u0280\u03b9\u2605\u5f61, \u272dq\u03bc\u00e2\u03b7\u273f\u2606",
+            "url": "https://kytudacbiet.com/"
+          },
+          {
+            "last_visit_time": "2025-07-13 13:37:33",
+            "title": "K\u00cd T\u1ef0 \u0110\u1eb6C BI\u1ec6T 2025 \u2714\ufe0f\u2714\ufe0f\u2714\ufe0f \u0110\u1eb9p Ch\u1ea5t Hay S\u1ed1 1\ufe0f\u20e3 VN",
+            "url": "https://kituhay.com/"
+          },
+          {
+            "last_visit_time": "2025-07-13 12:36:27",
+            "title": "CutePDF :: Support :: CutePDF Writer Help",
+            "url": "https://www.cutepdf-editor.com/support/writer.asp"
+          },
+          {
+            "last_visit_time": "2025-07-13 12:36:01",
+            "title": "CutePDF :: Product :: CutePDF Writer",
+            "url": "https://www.cutepdf.com/Products/CutePDF/writer.asp"
+          },
+          {
+            "last_visit_time": "2025-07-13 12:35:57",
+            "title": "CutePDF - Convert to PDF for free, Free PDF Utilities, Edit PDF easily.",
+            "url": "https://www.cutepdf.com/"
+          },
+          {
+            "last_visit_time": "2025-07-13 12:35:57",
+            "title": "CutePDF - Convert to PDF for free, Free PDF Utilities, Edit PDF easily.",
+            "url": "https://www.cutepdf.com/index.htm"
+          },
+          {
+            "last_visit_time": "2025-07-13 12:35:54",
+            "title": "cutepdf - Google Search",
+            "url": "https://www.google.com/search?q=cutepdf&oq=cutepdf&gs_lcrp=EgRlZGdlKgYIABBFGDkyBggAEEUYOTIHCAEQABiABDIHCAIQABiABDIHCAMQABiABDIHCAQQABiABDIHCAUQABiABDIHCAYQABiABDIHCAcQABiABDIHCAgQABiABNIBCDE2MzlqMGoxqAIAsAIA&sourceid=chrome&ie=UTF-8"
+          },
+          {
+            "last_visit_time": "2025-07-13 10:52:08",
+            "title": "Font Awesome Icons",
+            "url": "https://fontawesome.com/v4/icons"
+          },
+          {
+            "last_visit_time": "2025-07-13 10:52:08",
+            "title": "Font Awesome Icons",
+            "url": "https://fontawesome.com/v4/icons/"
+          },
+          {
+            "last_visit_time": "2025-07-13 10:52:04",
+            "title": "font awesome vga - Google Search",
+            "url": "https://www.google.com/search?q=font+awesome+vga&oq=font+awesome+vga&gs_lcrp=EgRlZGdlKgYIABBFGDkyBggAEEUYOTIKCAEQABiABBiiBDIHCAIQABjvBTIKCAMQABiABBiiBDIHCAQQABjvBTIHCAUQABjvBdIBCDMyMDVqMGoxqAIAsAIA&sourceid=chrome&ie=UTF-8"
+          },
+          {
+            "last_visit_time": "2025-07-13 10:37:07",
+            "title": "Windows Icon | Font Awesome",
+            "url": "https://fontawesome.com/icons/windows?f=brands&s=solid"
+          },
+          {
+            "last_visit_time": "2025-07-13 10:37:06",
+            "title": "Windows Icon | Font Awesome",
+            "url": "https://fontawesome.com/icons/windows?s=solid"
+          },
+          {
+            "last_visit_time": "2025-07-13 10:37:05",
+            "title": "Windows Icon | Font Awesome",
+            "url": "https://fontawesome.com/icons/windows"
+          },
+          {
+            "last_visit_time": "2025-07-13 10:37:03",
+            "title": "fa-solid fa-windows - Google Search",
+            "url": "https://www.google.com/search?q=fa-solid+fa-windows&oq=fa-solid+fa-windows&gs_lcrp=EgRlZGdlKgYIABBFGDkyBggAEEUYOTIKCAEQABiABBiiBDIKCAIQABiABBiiBDIHCAMQABjvBTIHCAQQABjvBTIKCAUQABiABBiiBNIBBzI0OWowajGoAgCwAgA&sourceid=chrome&ie=UTF-8"
+          },
+          {
+            "last_visit_time": "2025-07-13 10:19:01",
+            "title": "Chi ti\u1ebft m\u00e1y t\u00ednh - System Monitor",
+            "url": "http://192.168.2.146:5002/client/DESKTOP-UVCAHP4"
+          },
+          {
+            "last_visit_time": "2025-07-13 10:18:57",
+            "title": "System Monitor Dashboard",
+            "url": "http://192.168.2.146:5002/"
+          },
+          {
+            "last_visit_time": "2025-07-13 10:07:41",
+            "title": "Chat | Google AI Studio",
+            "url": "https://aistudio.google.com/prompts/new_chat"
+          },
+          {
+            "last_visit_time": "2025-07-13 10:07:38",
+            "title": "Google AI Studio",
+            "url": "https://aistudio.google.com/library"
+          },
+          {
+            "last_visit_time": "2025-07-13 09:57:40",
+            "title": "Client Dashboard Code Review | Google AI Studio",
+            "url": "https://aistudio.google.com/prompts/15nXvYSV2F7fPtcqisJu9xPoQG8jLhC04"
+          },
+          {
+            "last_visit_time": "2025-07-13 09:14:51",
+            "title": "MB to GB Converter - Calculator Hub",
+            "url": "https://calculatorhub.app/megabyte-to-gigabyte/"
+          },
+          {
+            "last_visit_time": "2025-07-13 09:14:49",
+            "title": "825500000 to gb - Search",
+            "url": "https://www.bing.com/search?q=825500000%20to%20gb&qs=n&form=QBRE&sp=-1&ghc=1&lq=0&pq=825500000%20to%20gb&sc=6-15&sk=&cvid=BE732D8C73844596ADE4E35E3A7DB0A7"
+          },
+          {
+            "last_visit_time": "2025-07-13 09:14:49",
+            "title": "N/A",
+            "url": "https://www.bing.com/ck/a?!&&p=fd37f584399072a68c1924498f99f50d66bd63f2798efb0bb5afc94410741a42JmltdHM9MTc1MjM2NDgwMA&ptn=3&ver=2&hsh=4&fclid=33baba0e-ef0b-6071-091e-ac1fee6d619c&psq=825500000+to+gb&u=a1aHR0cHM6Ly9jYWxjdWxhdG9yaHViLmFwcC9tZWdhYnl0ZS10by1naWdhYnl0ZS8&ntb=1"
+          },
+          {
+            "last_visit_time": "2025-07-13 09:14:41",
+            "title": "825500000 to gb - Search",
+            "url": "https://www.bing.com/search?q=825500000&FORM=SSQNT1&PC=U531"
+          },
+          {
+            "last_visit_time": "2025-07-13 09:14:31",
+            "title": "9223372036854776000 byte to gb - Google Search",
+            "url": "https://www.google.com/search?q=9223372036854776000+byte+to+gb&sca_esv=766dc81c40993ff8&sxsrf=AE3TifOHWKXAe0ElfAMzcMR0N7i_HRw5QA%3A1752398052092&ei=5HhzaMqzBbaEvr0PxN-L2QY&ved=0ahUKEwjKtZm7v7mOAxU2gq8BHcTvImsQ4dUDCBA&uact=5&oq=9223372036854776000+byte+to+gb&gs_lp=Egxnd3Mtd2l6LXNlcnAiHjkyMjMzNzIwMzY4NTQ3NzYwMDAgYnl0ZSB0byBnYjIIEAAYgAQYogQyBRAAGO8FMgUQABjvBTIFEAAY7wUyBRAAGO8FSMpoUKVEWMJhcAJ4AJABAJgBngOgAY0UqgEJMC42LjMuMS4xuAEDyAEA-AEBmAINoALhFMICCBAAGLADGO8FwgIEECEYFZgDAIgGAZAGBZIHCTIuNS4zLjIuMaAHih-yBwkwLjUuMy4yLjG4B9QUwgcIMC4xLjExLjHIB0Y&sclient=gws-wiz-serp"
+          },
+          {
+            "last_visit_time": "2025-07-13 09:14:16",
+            "title": "9223372036854776000 MHz - Google Search",
+            "url": "https://www.google.com/search?q=9223372036854776000+MHz&oq=9223372036854776000+MHz&gs_lcrp=EgRlZGdlKgYIABBFGDkyBggAEEUYOagCALACAA&sourceid=chrome&ie=UTF-8"
+          },
+          {
+            "last_visit_time": "2025-07-13 08:57:47",
+            "title": "\ud83c\udf0d Web History \ud83e\udde9 Software \ud83c\udfc3 Runtime - Search",
+            "url": "https://www.bing.com/search?q=%F0%9F%8C%8D+Web+History%0D%0A%F0%9F%A7%A9+Software%0D%0A%F0%9F%8F%83+Runtime&FORM=SSQNT1&PC=U531"
+          },
+          {
+            "last_visit_time": "2025-07-13 08:00:24",
+            "title": "Best JSON Formatter and JSON Validator: Online JSON Formatter",
+            "url": "https://jsonformatter.org/"
+          },
+          {
+            "last_visit_time": "2025-07-13 08:00:22",
+            "title": "json beautifier - Google Search",
+            "url": "https://www.google.com/search?q=json+beautifier&oq=json+be&gs_lcrp=EgRlZGdlKg0IABAAGLEDGIAEGPkHMg0IABAAGLEDGIAEGPkHMgYIARBFGDkyBwgCEAAYgAQyBwgDEAAYgAQyBwgEEAAYgAQyBwgFEAAYgAQyBwgGEAAYgAQyBwgHEAAYgAQyBwgIEAAYgATSAQgxNzAxajBqMagCALACAA&sourceid=chrome&ie=UTF-8"
+          },
+          {
+            "last_visit_time": "2025-07-13 07:47:59",
+            "title": "Project Enhancements & Bug Fix | Google AI Studio",
+            "url": "https://aistudio.google.com/prompts/1ynxaNLDcKjvbb5Jjq-ESluPJjshQ4i1H"
+          },
+          {
+            "last_visit_time": "2025-07-13 07:47:52",
+            "title": "Google AI Studio",
+            "url": "https://aistudio.google.com/"
+          },
+          {
+            "last_visit_time": "2025-07-13 07:30:11",
+            "title": "Network Adapter Information Retrieval",
+            "url": "https://chatgpt.com/"
+          },
+          {
+            "last_visit_time": "2025-07-13 02:57:32",
+            "title": "127.0.0.1:5000/api/dashboard_data",
+            "url": "http://127.0.0.1:5000/api/dashboard_data"
+          },
+          {
+            "last_visit_time": "2025-07-13 02:33:56",
+            "title": "chart.js - npm",
+            "url": "https://www.npmjs.com/package/chart.js?activeTab=code"
+          },
+          {
+            "last_visit_time": "2025-07-13 02:33:28",
+            "title": "chart.js - npm",
+            "url": "https://npmjs.com/package/chart.js"
+          },
+          {
+            "last_visit_time": "2025-07-13 02:33:28",
+            "title": "chart.js - npm",
+            "url": "https://www.npmjs.com/package/chart.js"
+          },
+          {
+            "last_visit_time": "2025-07-13 02:33:12",
+            "title": "Installation | Chart.js",
+            "url": "https://www.chartjs.org/docs/latest/getting-started/installation.html"
+          },
+          {
+            "last_visit_time": "2025-07-13 02:33:09",
+            "title": "Redirect Notice",
+            "url": "https://www.google.com/url?sa=E&q=https%3A%2F%2Fwww.chartjs.org%2Fdocs%2Flatest%2Fgetting-started%2Finstallation.html"
+          },
+          {
+            "last_visit_time": "2025-07-13 02:08:14",
+            "title": "Ph\u00e2n chia nh\u00f3m th\u00f4ng tin",
+            "url": "https://chatgpt.com/c/68731505-4b80-8007-98c8-683315faa585"
+          },
+          {
+            "last_visit_time": "2025-07-12 18:15:24",
+            "title": "Details for DESKTOP-UVCAHP4",
+            "url": "http://192.168.2.146:5000/client/51fa5c18-0fd4-47a5-85aa-28f922351c1e"
+          },
+          {
+            "last_visit_time": "2025-07-12 18:15:21",
+            "title": "Dashboard - System Monitor",
+            "url": "http://192.168.2.146:5000/"
+          },
+          {
+            "last_visit_time": "2025-07-12 17:31:40",
+            "title": "Download your file \u2014 Convertio",
+            "url": "https://convertio.co/download/5bfe26e20aac6f51bd9390386a59b096aaefa0/"
+          },
+          {
+            "last_visit_time": "2025-07-12 17:31:36",
+            "title": "Uploading: 100% \u2014 Convertio",
+            "url": "https://convertio.co/png-ico/"
+          },
+          {
+            "last_visit_time": "2025-07-12 17:31:31",
+            "title": "edit image on online - Google Search",
+            "url": "https://www.google.com/search?q=edit+image+on+online&oq=ed&gs_lcrp=EgRlZGdlKgYIARBFGDsyCQgAEEUYOxj5BzIGCAEQRRg7Mg8IAhAAGEMYsQMYgAQYigUyDAgDEAAYQxiABBiKBTIMCAQQABhDGIAEGIoFMgwIBRAAGEMYgAQYigUyDwgGEAAYQxixAxiABBiKBTIMCAcQABhDGIAEGIoFMgYICBBFGDzSAQgxNjA3ajBqNKgCALACAQ&sourceid=chrome&ie=UTF-8"
+          },
+          {
+            "last_visit_time": "2025-07-12 17:30:32",
+            "title": "AI Photo Editor free : Pixlr Express - free ai image editing online",
+            "url": "https://pixlr.com/express/"
+          },
+          {
+            "last_visit_time": "2025-07-12 17:30:21",
+            "title": "Download your file \u2014 Convertio",
+            "url": "https://convertio.co/download/5bfe26e20aac6f51bd9390386a59b096fca9cc/"
+          },
+          {
+            "last_visit_time": "2025-07-12 17:30:08",
+            "title": "png to icon file - Google Search",
+            "url": "https://www.google.com/search?q=png+to+icon+file&oq=png&gs_lcrp=EgRlZGdlKgkIABBFGDsY-QcyCQgAEEUYOxj5BzIGCAEQRRg5MgwIAhAAGEMYgAQYigUyDAgDEAAYQxiABBiKBTIKCAQQABixAxiABDIGCAUQRRg7MgYIBhBFGDwyBggHEEUYPDIGCAgQRRg80gEIMjM1MWowajSoAgCwAgE&sourceid=chrome&ie=UTF-8"
+          },
+          {
+            "last_visit_time": "2025-07-12 17:30:07",
+            "title": "edit image on mac - Google Search",
+            "url": "https://www.google.com/search?q=edit+image+on+mac&oq=edit+ima&gs_lcrp=EgRlZGdlKgoIABAAGIAEGPkHMgoIABAAGIAEGPkHMgcIARAAGIAEMgcIAhAAGIAEMgYIAxBFGDkyBwgEEAAYgAQyBwgFEAAYgAQyDQgGEAAYkQIYgAQYigUyBwgHEAAYgAQyBwgIEAAYgATSAQgxNjA1ajBqOagCALACAQ&sourceid=chrome&ie=UTF-8"
+          },
+          {
+            "last_visit_time": "2025-07-12 17:30:05",
+            "title": "edit image on online - Google Search",
+            "url": "https://www.google.com/search?q=edit+image+on+online&sca_esv=9faf4b2dd5f8b9e4&sxsrf=AE3TifNC7nlRb6jXPgjYCLYMRu1KNzEZEw%3A1752341345627&ei=YZtyaNKMJs-e4-EPm9LrOA&oq=edit+image+on+on&gs_lp=Egxnd3Mtd2l6LXNlcnAiEGVkaXQgaW1hZ2Ugb24gb24qAggAMgYQABgWGB4yBhAAGBYYHjIGEAAYFhgeMgYQABgWGB4yBhAAGBYYHjIGEAAYFhgeMgYQABgWGB4yBhAAGBYYHjIGEAAYFhgeMgYQABgWGB5I9RlQmwtYqgxwAngBkAEAmAFvoAG-AaoBAzEuMbgBA8gBAPgBAZgCBKAC-QHCAgoQABiwAxjWBBhHwgINEAAYgAQYsAMYQxiKBZgDAIgGAZAGCZIHAzMuMaAHuA2yBwMxLjG4B8sBwgcHMi0yLjEuMcgHNQ&sclient=gws-wiz-serp"
+          },
+          {
+            "last_visit_time": "2025-07-12 17:28:47",
+            "title": "PNG to ICO | CloudConvert",
+            "url": "https://cloudconvert.com/png-to-ico"
+          },
+          {
+            "last_visit_time": "2025-07-12 17:28:10",
+            "title": "Icon Converter - Create ICO from Image Online | RedKetchup",
+            "url": "https://redketchup.io/icon-converter"
+          },
+          {
+            "last_visit_time": "2025-07-12 17:27:52",
+            "title": "Data Server - Futuristic Data Server Design with Purple Accents - CleanPNG",
+            "url": "https://www.cleanpng.com/png-cloud-computing-four-black-servers-stacked-one-wit-8082805/download-png.html"
+          },
+          {
+            "last_visit_time": "2025-07-12 17:27:50",
+            "title": "Data Server - Futuristic Data Server Design with Purple Accents - CleanPNG",
+            "url": "https://www.cleanpng.com/png-cloud-computing-four-black-servers-stacked-one-wit-8082805/"
+          },
+          {
+            "last_visit_time": "2025-07-12 17:27:46",
+            "title": "Data Server - Futuristic Data Server Design with Purple Accents - CleanPNG",
+            "url": "https://www.cleanpng.com/free/server.html#google_vignette"
+          },
+          {
+            "last_visit_time": "2025-07-12 17:27:24",
+            "title": "Server PNG Images - CleanPNG",
+            "url": "https://www.cleanpng.com/free/server.html"
+          },
+          {
+            "last_visit_time": "2025-07-12 17:26:59",
+            "title": "CleanPNG - HD png images and illustrations. Free unlimited download. - CleanPNG",
+            "url": "https://www.cleanpng.com/"
+          },
+          {
+            "last_visit_time": "2025-07-12 17:26:56",
+            "title": "cleanpng - Google Search",
+            "url": "https://www.google.com/search?q=cleanpng&oq=clean&gs_lcrp=EgRlZGdlKgkIABBFGDsY-QcyCQgAEEUYOxj5BzIGCAEQRRg5MgcIAhAAGIAEMgcIAxAAGIAEMgcIBBAAGIAEMgcIBRAAGIAEMgYIBhBFGDwyBggHEEUYPDIGCAgQRRg80gEIMTI1NGowajGoAgCwAgA&sourceid=chrome&ie=UTF-8"
+          },
+          {
+            "last_visit_time": "2025-07-12 16:32:26",
+            "title": "N/A",
+            "url": "file:///C:/Users/ADMIN/AppData/Local/Temp/da52f9b1-c882-43f1-8c92-4bd7db067c86_fontawesome-free-6.7.2-web.zip.c86/fontawesome-free-6.7.2-web/svgs/solid/house-lock.svg"
+          },
+          {
+            "last_visit_time": "2025-07-12 16:32:17",
+            "title": "N/A",
+            "url": "file:///C:/Users/ADMIN/AppData/Local/Temp/bbd2aecd-d726-4199-89bd-cd839f313867_fontawesome-free-6.7.2-web.zip.867/fontawesome-free-6.7.2-web/svgs/solid/folder-closed.svg"
+          },
+          {
+            "last_visit_time": "2025-07-12 16:32:10",
+            "title": "N/A",
+            "url": "file:///C:/Users/ADMIN/AppData/Local/Temp/6188cb4f-5993-46e5-86df-fa0fef83a249_fontawesome-free-6.7.2-web.zip.249/fontawesome-free-6.7.2-web/svgs/solid/fish-fins.svg"
+          },
+          {
+            "last_visit_time": "2025-07-12 16:31:59",
+            "title": "N/A",
+            "url": "file:///C:/Users/ADMIN/AppData/Local/Temp/a05f7b58-3939-4395-913e-a9d9ff394b3c_fontawesome-free-6.7.2-web.zip.b3c/fontawesome-free-6.7.2-web/svgs/solid/1.svg"
+          },
+          {
+            "last_visit_time": "2025-07-12 16:29:19",
+            "title": "Download Font Awesome Free or Pro | Font Awesome",
+            "url": "https://fontawesome.com/download"
+          },
+          {
+            "last_visit_time": "2025-07-12 16:29:16",
+            "title": "Redirect Notice",
+            "url": "https://www.google.com/url?sa=E&q=https%3A%2F%2Ffontawesome.com%2Fdownload"
+          },
+          {
+            "last_visit_time": "2025-07-12 16:01:37",
+            "title": "N/A",
+            "url": "http://192.168.2.146:5000/static/css/style.css"
+          },
+          {
+            "last_visit_time": "2025-07-12 16:01:36",
+            "title": "N/A",
+            "url": "http://192.168.2.146:5000/static/css/dashboard.css"
+          },
+          {
+            "last_visit_time": "2025-07-12 15:55:02",
+            "title": "Download Success - Google Fonts",
+            "url": "https://fonts.google.com/download/next-steps"
+          },
+          {
+            "last_visit_time": "2025-07-12 15:55:00",
+            "title": "Selection - Google Fonts",
+            "url": "https://fonts.google.com/selection"
+          },
+          {
+            "last_visit_time": "2025-07-12 15:54:56",
+            "title": "Quicksand - Google Fonts",
+            "url": "https://fonts.google.com/specimen/Quicksand"
+          },
+          {
+            "last_visit_time": "2025-07-12 15:54:51",
+            "title": "Redirect Notice",
+            "url": "https://www.google.com/url?sa=E&q=https%3A%2F%2Ffonts.google.com%2Fspecimen%2FQuicksand"
+          },
+          {
+            "last_visit_time": "2025-07-12 15:14:05",
+            "title": "N/A",
+            "url": "http://192.168.2.146:5000/api/dashboard_data"
+          },
+          {
+            "last_visit_time": "2025-07-12 14:48:59",
+            "title": "N/A",
+            "url": "file:///C:/Users/ADMIN/Desktop/System%20Monitor/dashboard.py"
+          },
+          {
+            "last_visit_time": "2025-07-12 14:48:58",
+            "title": "N/A",
+            "url": "file:///C:/Users/ADMIN/Desktop/System%20Monitor/client.py"
+          },
+          {
+            "last_visit_time": "2025-07-12 14:48:58",
+            "title": "N/A",
+            "url": "file:///C:/Users/ADMIN/Desktop/System%20Monitor/library.py"
+          },
+          {
+            "last_visit_time": "2025-07-12 14:48:58",
+            "title": "N/A",
+            "url": "file:///C:/Users/ADMIN/Desktop/System%20Monitor/server.py"
+          },
+          {
+            "last_visit_time": "2025-07-12 14:48:57",
+            "title": "N/A",
+            "url": "file:///C:/Users/ADMIN/Desktop/System%20Monitor/config.ini"
+          },
+          {
+            "last_visit_time": "2025-07-12 14:12:55",
+            "title": "Python Windows System Audit Li | Google AI Studio",
+            "url": "https://aistudio.google.com/prompts/1xYrBeof9M6nafuDsmjRDQXKj9ZG7JHK-"
+          },
+          {
+            "last_visit_time": "2025-07-12 14:06:48",
+            "title": "7-Zip",
+            "url": "https://www.7-zip.org/"
+          },
+          {
+            "last_visit_time": "2025-07-12 14:06:46",
+            "title": "7zip - Google Search",
+            "url": "https://www.google.com/search?q=7zip&oq=7zip&gs_lcrp=EgRlZGdlKgYIABBFGDkyBggAEEUYOTIHCAEQABiABDIHCAIQABiABDIHCAMQABiABDIHCAQQABiABDIHCAUQABiABDIHCAYQABiABDIJCAcQABgKGIAEMgcICBAAGIAE0gEIMTMyMmowajGoAgCwAgA&sourceid=chrome&ie=UTF-8"
+          }
+        ]
+      },
+      "Opera": {
+        "Info": "Not found"
+      }
+    },
+    "timestamp": "2025-07-14 00:23:46"
+  }
+}

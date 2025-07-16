@@ -1,0 +1,42 @@
+[server]
+host = 0.0.0.0
+port = 4567
+health_check_port = 7654
+
+[client]
+server = 127.0.0.1
+retry_interval = 10
+refesh_interval = 5
+update_info_interval = 60
+max_event_log = 25
+history_limit = 25
+
+[webserver]
+server = 0.0.0.0
+port = 5555
+clients = 250
+records = 1000
+database_size = 100
+dashboard_refresh_interval = 2000
+server_status_refresh_interval = 2000
+client_realtime_metrics_interval = 3000
+
+[audit_modules]
+cpu = true
+ram = true
+disk = true
+gpu = true
+mainboard = true
+network = true
+printers = true
+os = true
+system_id = true
+event_log = true
+users = true
+credentials = true
+services = true
+startup = true
+software = true
+processes = true
+web_history = true
+

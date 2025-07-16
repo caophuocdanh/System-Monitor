@@ -1,0 +1,4 @@
+websockets
+Flask
+psutil
+requests

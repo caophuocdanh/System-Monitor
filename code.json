@@ -1,0 +1,384 @@
+{
+  "cpu": {
+    "data": {
+      "Brand": "Intel(R) Core(TM) i5-4278U CPU @ 2.60GHz",
+      "System": "Windows",
+      "Logical Cores": 4,
+      "Physical Cores": 2,
+      "Architecture": "x86_64"
+    },
+    "timestamp": "2025-07-14 00:23:46"
+  },
+  "credentials": {
+    "data": {
+      "Web": [
+        {
+          "Target": "LegacyGeneric:target=git:https://github.com",
+          "Type": "Generic",
+          "User": "caophuocdanh"
+        },
+        {
+          "Target": "MicrosoftAccount:target=SSO_POP_Device",
+          "Type": "Generic",
+          "User": "02dryzeopjhzsjmq"
+        }
+      ],
+      "Windows": [
+        {
+          "Target": "Domain:target=danhcp.dssddns.net",
+          "Type": "Domain Password",
+          "User": "dev"
+        }
+      ]
+    },
+    "timestamp": "2025-07-14 00:23:46"
+  },
+  "disk": {
+    "data": {
+      "NetworkDrives": [
+        {
+          "DeviceID": "Y:",
+          "ProviderName": "\\\\127.0.0.1\\scan"
+        }
+      ],
+      "PhysicalDisks": [
+        {
+          "Model": "Samsung SSD 860 EVO 250GB",
+          "Size": 250056737280,
+          "Partitions": [
+            {
+              "DeviceID": "Disk #0, Partition #2",
+              "Size": 154847412224
+            }
+          ]
+        }
+      ]
+    },
+    "timestamp": "2025-07-14 00:23:46"
+  },
+  "event_log": {
+    "data": [
+      {
+        "Id": 8003,
+        "LevelDisplayName": "Error",
+        "Message": "The master browser has received a server announcement from the computer DESKTOP-09ATOP7 that believes that it is the master browser...",
+        "ProviderName": "bowser",
+        "TimeCreated": "2025-07-13 21:53:19"
+      },
+      {
+        "Id": 1014,
+        "LevelDisplayName": "Warning",
+        "Message": "Name resolution for the name mobile.events.data.microsoft.com timed out after none of the configured DNS servers responded.",
+        "ProviderName": "Microsoft-Windows-DNS-Client",
+        "TimeCreated": "2025-07-13 23:13:33"
+      },
+      {
+        "Id": 19,
+        "LevelDisplayName": "Information",
+        "Message": "Installation Successful: Windows successfully installed the following update: Security Intelligence Update for Microsoft Defender Antivirus...",
+        "ProviderName": "Microsoft-Windows-WindowsUpdateClient",
+        "TimeCreated": "2025-07-13 20:59:24"
+      }
+    ],
+    "timestamp": "2025-07-14 00:23:46"
+  },
+  "gpu": {
+    "data": [
+      {
+        "Name": "Intel(R) Iris(TM) Graphics 5100",
+        "DriverVersion": "20.19.15.4624",
+        "VRAM_Bytes": 1073741824
+      }
+    ],
+    "timestamp": "2025-07-14 00:23:46"
+  },
+  "mainboard": {
+    "data": {
+      "BIOS": {
+        "Manufacturer": "Apple Inc.",
+        "Version": "483.0.0.0.0"
+      },
+      "BaseBoard": {
+        "Manufacturer": "Apple Inc.",
+        "Product": "Mac-35C5E08120C7EEAF",
+        "Version": "Macmini7,1"
+      }
+    },
+    "timestamp": "2025-07-14 00:23:46"
+  },
+  "network": {
+    "data": [
+      {
+        "Description": "Broadcom NetXtreme Gigabit Ethernet",
+        "MACAddress": "AC:87:A3:01:8D:EC",
+        "Status": "Media disconnected"
+      },
+      {
+        "Description": "Broadcom 802.11ac Network Adapter",
+        "MACAddress": "6C:40:08:A4:31:6A",
+        "Status": "Connected",
+        "IPAddresses": [
+          "192.168.2.146",
+          "fe80::7e88:3682:3bb:58d"
+        ]
+      }
+    ],
+    "timestamp": "2025-07-14 00:23:46"
+  },
+  "os": {
+    "data": {
+      "Caption": "Microsoft Windows 10 Pro",
+      "CSName": "DESKTOP-UVCAHP4",
+      "LastBootUpTime": "2025-07-13 20:48:36",
+      "Version": "10.0.19045"
+    },
+    "timestamp": "2025-07-14 00:23:46"
+  },
+  "printers": {
+    "data": [
+      {
+        "Default": true,
+        "Printer Name": "CutePDF Writer",
+        "Status": "Ready"
+      },
+      {
+        "Default": false,
+        "Printer Name": "Microsoft Print to PDF",
+        "Status": "Ready"
+      },
+      {
+        "Default": false,
+        "Printer Name": "OneNote for Windows 10",
+        "Status": "Ready"
+      }
+    ],
+    "timestamp": "2025-07-14 00:23:46"
+  },
+  "processes": {
+    "data": {
+      "DESKTOP-UVCAHP4\\ADMIN": [
+        {
+          "Name": "explorer.exe",
+          "PID": 5596,
+          "Status": "running"
+        },
+        {
+          "Name": "Code.exe",
+          "PID": 7296,
+          "Status": "running"
+        },
+        {
+          "Name": "python.exe",
+          "PID": 7472,
+          "Status": "running"
+        },
+        {
+          "Name": "msedge.exe",
+          "PID": 9560,
+          "Status": "running"
+        }
+      ],
+      "NT AUTHORITY\\SYSTEM": [
+        {
+          "Name": "System Idle Process",
+          "PID": 0,
+          "Status": "running"
+        },
+        {
+          "Name": "System",
+          "PID": 4,
+          "Status": "running"
+        }
+      ]
+    },
+    "timestamp": "2025-07-14 00:23:46"
+  },
+  "ram": {
+    "data": [
+      {
+        "Capacity": 4294967296,
+        "Manufacturer": "SK Hynix",
+        "MemoryType": "DDR3",
+        "Speed": 1600
+      },
+      {
+        "Capacity": 4294967296,
+        "Manufacturer": "SK Hynix",
+        "MemoryType": "DDR3",
+        "Speed": 1600
+      }
+    ],
+    "timestamp": "2025-07-14 00:23:46"
+  },
+  "services": {
+    "data": {
+      "Running": [
+        {
+          "DisplayName": "AnyDesk Service",
+          "Name": "AnyDesk",
+          "State": "Running"
+        },
+        {
+          "DisplayName": "FTP Server",
+          "Name": "ftpserver",
+          "State": "Running"
+        },
+        {
+          "DisplayName": "Microsoft Defender Antivirus Service",
+          "Name": "WinDefend",
+          "State": "Running"
+        }
+      ],
+      "Stopped": [
+        {
+          "DisplayName": "Microsoft Edge Update Service (edgeupdate)",
+          "Name": "edgeupdate",
+          "State": "Stopped"
+        },
+        {
+          "DisplayName": "Net.Tcp Port Sharing Service",
+          "Name": "NetTcpPortSharing",
+          "State": "Stopped"
+        }
+      ]
+    },
+    "timestamp": "2025-07-14 00:23:46"
+  },
+  "software": {
+    "data": {
+      "Applications": [
+        {
+          "Name": "7-Zip 25.00 (x64)",
+          "Publisher": "Igor Pavlov",
+          "Version": "25.00"
+        },
+        {
+          "Name": "Git",
+          "Publisher": "The Git Development Community",
+          "Version": "2.50.0"
+        },
+        {
+          "Name": "Python 3.13.5 (64-bit)",
+          "Publisher": "Python Software Foundation",
+          "Version": "3.13.5150.0"
+        }
+      ],
+      "Hotfixes & Updates": [
+        {
+          "Name": "Update for x64-based Windows Systems (KB5001716)",
+          "Publisher": "Microsoft Corporation",
+          "InstallDate": "20250702"
+        }
+      ],
+      "System": [
+        {
+          "Name": "Microsoft OneDrive",
+          "Publisher": "Microsoft Corporation",
+          "Version": "25.115.0615.0002"
+        },
+        {
+          "Name": "Microsoft Edge",
+          "Publisher": "Microsoft Corporation",
+          "Version": "138.0.3351.83"
+        },
+        {
+          "Name": "Visual Studio Community 2022",
+          "Publisher": "Microsoft Corporation",
+          "Version": "17.14.6 (June 2025)"
+        }
+      ]
+    },
+    "timestamp": "2025-07-14 00:23:46"
+  },
+  "startup": {
+    "data": {
+      "AutoStartServices": [
+        {
+          "DisplayName": "AnyDesk Service",
+          "Name": "AnyDesk",
+          "State": "Running"
+        },
+        {
+          "DisplayName": "Microsoft Defender Antivirus Service",
+          "Name": "WinDefend",
+          "State": "Running"
+        }
+      ],
+      "Commands": [
+        {
+          "Name": "OneDrive",
+          "Command": "\"C:\\Program Files\\Microsoft OneDrive\\OneDrive.exe\" /background",
+          "Location": "HKU\\...\\Run"
+        },
+        {
+          "Name": "SecurityHealth",
+          "Command": "%windir%\\system32\\SecurityHealthSystray.exe",
+          "Location": "HKLM\\...\\Run"
+        }
+      ],
+      "ScheduledTasks": []
+    },
+    "timestamp": "2025-07-14 00:23:46"
+  },
+  "system_id": {
+    "data": {
+      "MachineGuid": "51fa5c18-0fd4-47a5-85aa-28f922351c1e"
+    },
+    "timestamp": "2025-07-14 00:23:46"
+  },
+  "users": {
+    "data": {
+      "CurrentUser": "ADMIN",
+      "LocalUsers": [
+        {
+          "Enabled": true,
+          "Name": "ADMIN"
+        },
+        {
+          "Enabled": false,
+          "Name": "Administrator"
+        },
+        {
+          "Enabled": false,
+          "Name": "Guest"
+        }
+      ]
+    },
+    "timestamp": "2025-07-14 00:23:46"
+  },
+  "web_history": {
+    "data": {
+      "Brave": {
+        "Info": "Not found"
+      },
+      "Chrome": {
+        "Info": "Not found"
+      },
+      "Edge": {
+        "Default": [
+          {
+            "last_visit_time": "2025-07-13 17:22:21",
+            "title": "Dashboard - System Monitor",
+            "url": "http://127.0.0.1:5000/"
+          },
+          {
+            "last_visit_time": "2025-07-13 15:06:37",
+            "title": "PowerShell Network Adapter Info",
+            "url": "https://chatgpt.com/c/68736082-2b0c-8007-bbd9-d901675b5b51"
+          },
+          {
+            "last_visit_time": "2025-07-13 13:59:05",
+            "title": "Tuấn Kiệt - Dịch Vụ Máy Tính & Công Nghệ Chuyên Nghiệp",
+            "url": "file:///C:/Users/ADMIN/iCloudDrive/web/index.html"
+          },
+          {
+            "last_visit_time": "2025-07-13 10:52:08",
+            "title": "Font Awesome Icons",
+            "url": "https://fontawesome.com/v4/icons"
+          }
+        ]
+      }
+    },
+    "timestamp": "2025-07-14 00:23:46"
+  }
+}
