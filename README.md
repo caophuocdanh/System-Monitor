@@ -75,7 +75,7 @@ graph TD
     end
 
     subgraph "Người quản trị (Admin)"
-        ADMIN[Admin's Browser\nTruy cập Dashboard]
+        ADMIN[Admin's Browser <br> Truy cập Dashboard]
     end
 
     C1 --> S
