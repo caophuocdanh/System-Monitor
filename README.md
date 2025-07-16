@@ -63,9 +63,9 @@ Hệ thống hoạt động theo mô hình Client-Server với một Dashboard g
 ```mermaid
 graph TD
     subgraph "Các máy trạm (Clients)"
-        C1[Client 1\n(Windows)]
-        C2[Client 2\n(Windows)]
-        C3[Client ...\n(Windows)]
+        C1[Client 1]
+        C2[Client 2]
+        C3[Client n]
     end
 
     subgraph "Hệ thống trung tâm (Server)"
