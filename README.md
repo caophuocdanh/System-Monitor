@@ -1,13 +1,6 @@
 # System Monitor
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-v4.0-blue.svg" alt="Version">
-  <img src="https://img.shields.io/badge/platform-Windows-0078D6.svg" alt="Platform">
-  <img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License">
-  <img src="https://img.shields.io/badge/status-active-brightgreen.svg" alt="Status">
-</p>
-
-<p align="center">
   <b><i>Giải pháp giám sát hệ thống Windows từ xa, tập trung, và trực quan theo thời gian thực.</i></b>
 </p>
 
