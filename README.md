@@ -83,7 +83,7 @@ graph TD
     C3 --> S
 
     S --> DB
-    S --> DASH
+    S --> ADMIN
     DASH --> DB
     ADMIN --> DASH
 ```
