@@ -13,7 +13,7 @@
 
 <p align="center">
   <!-- Thêm ảnh chụp màn hình dashboard ở đây để tăng tính trực quan -->
-<img src="requirements/dashboard.png" alt="Dashboard" width="80%">
+<img src="requirements/dashboard.png" alt="Dashboard" width="100%">
 </p>
 
 ---
