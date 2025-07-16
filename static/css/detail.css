@@ -318,6 +318,69 @@ body.theme-modern .component-block {
   border-bottom: none;
 }
 
+/* --- LOGS TAB CONTROLS --- */
+.log-controls {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1rem;
+    padding: 0.5rem;
+    background-color: var(--color-bg);
+    border-radius: var(--border-radius);
+}
+
+.log-controls label {
+    font-weight: 600;
+    color: var(--color-text-muted);
+}
+
+.log-controls select {
+    padding: 0.5rem;
+    border-radius: 4px;
+    border: 1px solid #ccc;
+    background-color: var(--color-surface);
+    color: var(--color-text);
+    font-family: var(--font-primary);
+}
+
+.log-pagination {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 1.5rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--color-bg);
+}
+
+.log-pagination-info {
+    font-weight: 600;
+    color: var(--color-text-muted);
+    font-size: 0.9rem;
+}
+
+.log-pagination-buttons button {
+    background-color: var(--color-primary);
+    color: white;
+    border: none;
+    padding: 0.6rem 1.2rem;
+    border-radius: var(--border-radius);
+    cursor: pointer;
+    font-weight: 600;
+    margin-left: 0.5rem;
+    transition: background-color 0.2s ease;
+}
+
+.log-pagination-buttons button:hover:not(:disabled) {
+    filter: brightness(110%);
+}
+
+.log-pagination-buttons button:disabled {
+    background-color: #ccc;
+    cursor: not-allowed;
+    opacity: 0.7;
+}
+
 
 /* --- WEB HISTORY TOGGLE STYLES --- */
 .toggle-header { cursor: pointer; background-color: var(--color-bg); padding: 0.75rem 1rem; border-radius: var(--border-radius); margin-top: 1rem; margin-bottom: 0.5rem; display: flex; justify-content: space-between; align-items: center; transition: background-color 0.2s ease; }
@@ -325,7 +388,7 @@ body.theme-modern .component-block {
 body.theme-modern .toggle-header:hover { background-color: #2c2c2c; }
 .toggle-header::after { content: '▼'; font-size: 0.8rem; transition: transform 0.3s ease; }
 .toggle-header.active::after { transform: rotate(180deg); }
-.toggle-content { display: none; padding-left: 1rem; border-left: 3px solid var(--color-bg); }
+.toggle-content { display: none; }
 .toggle-content.active { display: block; }
 
 

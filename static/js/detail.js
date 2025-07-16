@@ -29,6 +29,29 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let auditData = {};
     const charts = {};
+    // --- Thông tin về Logs ---
+    let allLogs = [];
+    let logCurrentPage = 1;
+    const LOG_ITEMS_PER_PAGE = 10;
+    let logFilterLevel = 'All';
+    // --- Thông tin về dịch vụ ---
+    let allServices = [];
+    let serviceCurrentPage = 1;
+    const SERVICE_ITEMS_PER_PAGE = 10;
+    let serviceFilterState = 'All';
+    // --- Thông tin về tiến trình ---
+    let allProcesses = [];
+    let processCurrentPage = 1;
+    const PROCESS_ITEMS_PER_PAGE = 10;
+    let processFilterStatus = 'All';
+    // --- Thông tin về phần mềm ---
+    let allSoftware = [];
+    let softwareCurrentPage = 1;
+    const SOFTWARE_ITEMS_PER_PAGE = 10;
+    let softwareFilterGroup = 'All';
+    // --- Thông tin về tài khoản ---
+    let allCredentials = [];
+    let credentialFilterGroup = 'All';
 
     // --- Helper Functions ---
     function getUsageLevelClass(percentage) {
@@ -546,7 +569,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const chartsToRender = [
                     {
                         id: 'cpuPerfChart',
-                        title: 'CPU Usagea (%)',
+                        title: 'CPU Usage (%)',
                         datasets: [{ label: 'CPU', data: data.cpu, color: 'rgba(253, 126, 20, 1)' }],
                         options: { isPercentage: true },
                         icon: {icon: 'fa-solid fa-microchip'}
@@ -955,58 +978,990 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('peripherals').innerHTML = `<div class="content-grid grid-cols-2">${content}</div>`;
     }
 
-    function renderSecurity() {
-        const credentials = auditData.credentials?.data || {};
-        const content = Object.entries(credentials).map(([group, items]) => createGrid(group, items)).join('<hr class="item-separator">');
-        document.getElementById('security').innerHTML = buildCard('security', 'Stored Credentials', 'fa-key', content);
+    // Hàm tạo bảng hiển thị danh sách thông tin đăng nhập đã lưu
+    function createCredentialGrid(title, dataArray) {
+        if (!Array.isArray(dataArray) || dataArray.length === 0) {
+            return title ? `<h3>${title}</h3><p>No credentials match the current filter.</p>` : '<p>No data found.</p>';
+        }
+
+        // Định nghĩa thứ tự và tên hiển thị
+        const headersToDisplay = [
+            { key: 'Target', displayName: 'Target' },
+            { key: 'Type',   displayName: 'Type' },
+            { key: 'User',   displayName: 'User' },
+            { key: 'Group',  displayName: 'Group' }
+        ];
+        
+        // Định nghĩa kích thước cột
+        const gridTemplateColumns = "15% 45% 10% 15% 15%"; // No, Target, Type, User, Group
+        
+        const headerHtml = `
+            <div class="grid-header">
+                <div class="grid-cell col-no">No.</div>
+                ${headersToDisplay.map(h => `<div class="grid-cell">${h.displayName}</div>`).join('')}
+            </div>
+        `;
+
+        // Tạo HTML cho các dòng dữ liệu
+        const bodyHtml = dataArray.map((row, index) => {
+            const rowCells = headersToDisplay.map(header => 
+                `<div class="grid-cell">${formatValue(header.key, row[header.key])}</div>`
+            ).join('');
+            return `<div class="grid-row"><div class="grid-cell col-no">${index + 1}</div>${rowCells}</div>`;
+        }).join('');
+
+        const titleHtml = title ? `<h3>${title}</h3>` : '';
+        return `
+            ${titleHtml}
+            <div class="table-responsive">
+                <div class="data-grid" style="grid-template-columns: ${gridTemplateColumns};">
+                    ${headerHtml}${bodyHtml}
+                </div>
+            </div>
+        `;
     }
 
-    function renderUsers() {
-        const users = auditData.users?.data || {};
-        let content = '';
-        if (users && users.CurrentUser) content += renderKeyValue('Current User', users.CurrentUser, true);
-        if (users && Array.isArray(users.LocalUsers)) {
-            const processedUsers = users.LocalUsers.map(user => ({ Name: user.Name, FullName: user.FullName, AccountDomain: user.SID?.AccountDomainSid, SID_Value: user.SID?.Value, Enabled: user.Enabled }));
-            content += createGrid('Local Users', processedUsers);
+    function populateCredentialGroupFilter() {
+        const filterSelect = document.getElementById('credential-group-filter');
+        if (!filterSelect) return;
+
+        const groups = [...new Set(allCredentials.map(cred => cred.Group))];
+        
+        filterSelect.innerHTML = '<option value="All">All Groups</option>';
+
+        groups.sort().forEach(group => {
+            if (group) {
+                const option = document.createElement('option');
+                option.value = group;
+                option.textContent = group;
+                filterSelect.appendChild(option);
+            }
+        });
+    }
+
+    function updateCredentialView() {
+        // Lọc dữ liệu
+        const filteredCredentials = credentialFilterGroup === 'All'
+            ? allCredentials
+            : allCredentials.filter(cred => cred.Group === credentialFilterGroup);
+
+        // Render bảng (không phân trang)
+        const gridContainer = document.getElementById('credential-grid-container');
+        if (gridContainer) {
+            const title = `Stored Credentials (Showing ${filteredCredentials.length} of ${allCredentials.length} entries)`;
+            gridContainer.innerHTML = createCredentialGrid(title, filteredCredentials);
         }
+    }
+
+    // Hàm renderSecurity đã được cập nhật để sử dụng các hàm mới và logic mới
+    function renderSecurity() {
+        const credentialsData = auditData.credentials?.data || {};
+        const securityContainer = document.getElementById('security');
+
+        if (Object.keys(credentialsData).length === 0) {
+            securityContainer.innerHTML = buildCard('security', 'Stored Credentials', 'fa-key', '<p>No data available.</p>');
+            return;
+        }
+
+        // Gộp tất cả credentials từ các group và gán 'Group' cho từng mục
+        allCredentials = Object.entries(credentialsData).flatMap(([group, items]) => {
+            if (!Array.isArray(items)) return [];
+            return items.map(item => ({ ...item, Group: group }));
+        });
+        
+        // Sắp xếp mặc định theo Target
+        allCredentials.sort((a, b) => (a.Target || '').toLowerCase().localeCompare((b.Target || '').toLowerCase()));
+
+        // Tạo HTML cho bộ điều khiển và container
+        const controlsHtml = `
+            <div class="log-controls">
+                <label for="credential-group-filter">Filter by Group:</label>
+                <select id="credential-group-filter"></select>
+            </div>
+            <div id="credential-grid-container"></div>
+        `;
+
+        // Bọc vào một card
+        securityContainer.innerHTML = buildCard(
+            'security', 
+            'Stored Credentials', 
+            'fa-key', 
+            controlsHtml
+        );
+
+        // Đổ dữ liệu vào bộ lọc
+        populateCredentialGroupFilter();
+
+        // Thêm event listener
+        const filterSelect = document.getElementById('credential-group-filter');
+        if (filterSelect) {
+            filterSelect.addEventListener('change', (e) => {
+                credentialFilterGroup = e.target.value;
+                updateCredentialView();
+            });
+        }
+
+        // Gọi render lần đầu
+        updateCredentialView();
+    }
+
+    // Hàm tạo bảng hiển thị danh sách người dùng
+    function createUserGrid(title, dataArray) {
+        if (!Array.isArray(dataArray) || dataArray.length === 0) {
+            return title ? `<h3>${title}</h3><p>No data found.</p>` : '<p>No data found.</p>';
+        }
+
+        // Định nghĩa thứ tự và tên hiển thị các cột
+        const headersToDisplay = [
+            { key: 'Name',          displayName: 'Name' },
+            { key: 'FullName',      displayName: 'Full Name' },
+            { key: 'AccountDomain', displayName: 'Account Domain' },
+            { key: 'SID_Value',     displayName: 'SID Value' },
+            { key: 'Enabled',       displayName: 'Enabled' }
+        ];
+        
+        // Định nghĩa kích thước cột theo yêu cầu
+        const gridTemplateColumns = "10% 15% 15% 25% 25% 10%";
+        
+        const headerHtml = `
+            <div class="grid-header">
+                <div class="grid-cell col-no">No.</div>
+                ${headersToDisplay.map(h => `<div class="grid-cell">${h.displayName}</div>`).join('')}
+            </div>
+        `;
+
+        // Tạo HTML cho các dòng dữ liệu
+        const bodyHtml = dataArray.map((row, index) => {
+            // Lặp qua headersToDisplay để đảm bảo đúng thứ tự
+            const rowCells = headersToDisplay.map(header => 
+                `<div class="grid-cell">${formatValue(header.key, row[header.key])}</div>`
+            ).join('');
+            return `<div class="grid-row"><div class="grid-cell col-no">${index + 1}</div>${rowCells}</div>`;
+        }).join('');
+
+        const titleHtml = title ? `<h3>${title}</h3>` : '';
+        return `
+            ${titleHtml}
+            <div class="table-responsive">
+                <div class="data-grid" style="grid-template-columns: ${gridTemplateColumns};">
+                    ${headerHtml}${bodyHtml}
+                </div>
+            </div>
+        `;
+    }
+
+    // Hàm renderUsers đã được cập nhật để sử dụng các hàm mới và logic mới
+    function renderUsers() {
+        const usersData = auditData.users?.data || {};
+        let content = '';
+
+        // Hiển thị Current User (nếu có)
+        if (usersData && usersData.CurrentUser) {
+            content += renderKeyValue('Current User', usersData.CurrentUser, true);
+        }
+
+        // Xử lý và hiển thị bảng Local Users
+        if (usersData && Array.isArray(usersData.LocalUsers)) {
+            // 1. Xử lý dữ liệu để làm phẳng cấu trúc SID
+            const processedUsers = usersData.LocalUsers.map(user => ({
+                Name: user.Name,
+                FullName: user.FullName,
+                AccountDomain: user.SID?.AccountDomainSid, // Dùng optional chaining
+                SID_Value: user.SID?.Value,
+                Enabled: user.Enabled
+            }));
+
+            // 2. Gọi hàm tạo grid tùy chỉnh
+            content += createUserGrid('Local Users', processedUsers);
+        }
+        
+        // Đưa nội dung vào card
         document.getElementById('users').innerHTML = buildCard('users', 'User Accounts', 'fa-users', content);
     }
 
+    // Hàm tạo bảng hiển thị danh sách phần mềm đã cài đặt
+    function createSoftwareGrid(title, dataArray, currentPage, itemsPerPage) {
+        if (!Array.isArray(dataArray) || dataArray.length === 0) {
+            return title ? `<h3>${title}</h3><p>No software matches the current filter.</p>` : '<p>No data found.</p>';
+        }
+
+        // Định nghĩa thứ tự và tên hiển thị các cột
+        const headersToDisplay = [
+            { key: 'Name',            displayName: 'Name' },
+            { key: 'EstimatedSizeByte', displayName: 'Size' },
+            { key: 'InstallDate',     displayName: 'Install Date' },
+            { key: 'InstallLocation', displayName: 'Install Location' },
+            { key: 'Publisher',       displayName: 'Publisher' },
+            { key: 'Version',         displayName: 'Version' },
+            { key: 'Group',           displayName: 'Group' } // Thêm cột Group
+        ];
+        
+        // Định nghĩa kích thước cột theo yêu cầu
+        const gridTemplateColumns = "5%	26%	9%	13%	15%	12%	10%	10%";
+        
+        const headerHtml = `
+            <div class="grid-header">
+                <div class="grid-cell col-no">No.</div>
+                ${headersToDisplay.map(h => `<div class="grid-cell">${h.displayName}</div>`).join('')}
+            </div>
+        `;
+
+        // Tạo HTML cho các dòng dữ liệu
+        const bodyHtml = dataArray.map((row, index) => {
+            const globalIndex = (currentPage - 1) * itemsPerPage + index + 1;
+            
+            const rowCells = headersToDisplay.map(header => {
+                let cellContent;
+                // Xử lý đặc biệt cho cột Size
+                if (header.key === 'EstimatedSizeByte') {
+                    cellContent = formatBytes(row[header.key]);
+                } else {
+                    cellContent = formatValue(header.key, row[header.key]);
+                }
+                return `<div class="grid-cell">${cellContent}</div>`;
+            }).join('');
+            
+            return `<div class="grid-row"><div class="grid-cell col-no">${globalIndex}</div>${rowCells}</div>`;
+        }).join('');
+
+        const titleHtml = title ? `<h3>${title}</h3>` : '';
+        return `
+            ${titleHtml}
+            <div class="table-responsive">
+                <div class="data-grid" style="grid-template-columns: ${gridTemplateColumns};">
+                    ${headerHtml}${bodyHtml}
+                </div>
+            </div>
+        `;
+    }
+
+    function populateSoftwareGroupFilter() {
+        const filterSelect = document.getElementById('software-group-filter');
+        if (!filterSelect) return;
+
+        // Lấy tất cả các group duy nhất
+        const groups = [...new Set(allSoftware.map(sw => sw.Group))];
+        
+        filterSelect.innerHTML = '<option value="All">All Groups</option>';
+
+        groups.sort().forEach(group => {
+            if (group) {
+                const option = document.createElement('option');
+                option.value = group;
+                option.textContent = group;
+                filterSelect.appendChild(option);
+            }
+        });
+    }
+
+    function updateSoftwareView() {
+        // Lọc dữ liệu
+        const filteredSoftware = softwareFilterGroup === 'All'
+            ? allSoftware
+            : allSoftware.filter(sw => sw.Group === softwareFilterGroup);
+
+        // Phân trang
+        const totalPages = Math.ceil(filteredSoftware.length / SOFTWARE_ITEMS_PER_PAGE);
+        if (softwareCurrentPage > totalPages) {
+            softwareCurrentPage = totalPages || 1;
+        }
+        const startIndex = (softwareCurrentPage - 1) * SOFTWARE_ITEMS_PER_PAGE;
+        const paginatedSoftware = filteredSoftware.slice(startIndex, startIndex + SOFTWARE_ITEMS_PER_PAGE);
+
+        // Render bảng
+        const gridContainer = document.getElementById('software-grid-container');
+        if (gridContainer) {
+            const title = `Installed Software (Showing ${filteredSoftware.length} of ${allSoftware.length} entries)`;
+            gridContainer.innerHTML = createSoftwareGrid(title, paginatedSoftware, softwareCurrentPage, SOFTWARE_ITEMS_PER_PAGE);
+        }
+        
+        // Render phân trang
+        const paginationContainer = document.getElementById('software-pagination-container');
+        if (paginationContainer) {
+            const startItem = startIndex + 1;
+            const endItem = Math.min(startIndex + SOFTWARE_ITEMS_PER_PAGE, filteredSoftware.length);
+            const infoText = filteredSoftware.length > 0 ? `Showing ${startItem}-${endItem} of ${filteredSoftware.length}` : 'No software to display.';
+            
+            paginationContainer.innerHTML = `
+                <div class="log-pagination-info">Page ${softwareCurrentPage} of ${totalPages || 1} | ${infoText}</div>
+                <div class="log-pagination-buttons">
+                    <button id="software-prev-btn" ${softwareCurrentPage === 1 ? 'disabled' : ''}>Previous</button>
+                    <button id="software-next-btn" ${softwareCurrentPage >= totalPages ? 'disabled' : ''}>Next</button>
+                </div>
+            `;
+        }
+    }
+
+    // Hàm tạo bảng hiển thị danh sách phần mềm đã cài đặt
     function renderSoftware() {
-        const software = auditData.software?.data || {};
-        if (Object.keys(software).length === 0 || software.Error) { document.getElementById('software').innerHTML = buildCard('software', 'Software', 'fa-cubes', '<p>No data.</p>'); return; }
-        const content = Object.entries(software).map(([group, items]) => buildCard('software', group, 'fa-cubes', createGrid(null, items), 'scrollable-card')).join('');
-        document.getElementById('software').innerHTML = `<div class="content-grid grid-cols-1">${content}</div>`;
+        const softwareData = auditData.software?.data || {};
+        const softwareContainer = document.getElementById('software');
+
+        if (Object.keys(softwareData).length === 0 || softwareData.Error) {
+            softwareContainer.innerHTML = buildCard('software', 'Software', 'fa-cubes', '<p>No data.</p>');
+            return;
+        }
+
+        // Gộp tất cả phần mềm từ các group và gán 'Group' cho từng phần mềm
+        allSoftware = Object.entries(softwareData).flatMap(([group, items]) => {
+            // Bỏ qua các group không phải là mảng (ví dụ: 'Errors')
+            if (!Array.isArray(items)) return [];
+            return items.map(item => ({ ...item, Group: group }));
+        });
+        
+        // Sắp xếp mặc định theo tên phần mềm
+        allSoftware.sort((a, b) => (a.Name || '').toLowerCase().localeCompare((b.Name || '').toLowerCase()));
+
+        // Tạo HTML cho các bộ điều khiển và container
+        const controlsHtml = `
+            <div class="log-controls">
+                <label for="software-group-filter">Filter by Group:</label>
+                <select id="software-group-filter"></select>
+            </div>
+            <div id="software-grid-container"></div>
+            <div class="log-pagination" id="software-pagination-container"></div>
+        `;
+
+        // Bọc vào một card
+        softwareContainer.innerHTML = buildCard(
+            'software', 
+            'Installed Software', 
+            'fa-cubes', 
+            controlsHtml
+        );
+
+        // Đổ dữ liệu vào bộ lọc
+        populateSoftwareGroupFilter();
+
+        // Thêm event listener
+        const filterSelect = document.getElementById('software-group-filter');
+        if (filterSelect) {
+            filterSelect.addEventListener('change', (e) => {
+                softwareFilterGroup = e.target.value;
+                softwareCurrentPage = 1;
+                updateSoftwareView();
+            });
+        }
+        
+        const paginationContainer = document.getElementById('software-pagination-container');
+        if (paginationContainer) {
+            paginationContainer.addEventListener('click', (e) => {
+                const filteredSoftware = softwareFilterGroup === 'All' ? allSoftware : allSoftware.filter(sw => sw.Group === softwareFilterGroup);
+                const totalPages = Math.ceil(filteredSoftware.length / SOFTWARE_ITEMS_PER_PAGE);
+
+                if (e.target.id === 'software-prev-btn' && softwareCurrentPage > 1) {
+                    softwareCurrentPage--;
+                    updateSoftwareView();
+                }
+                if (e.target.id === 'software-next-btn' && softwareCurrentPage < totalPages) {
+                    softwareCurrentPage++;
+                    updateSoftwareView();
+                }
+            });
+        }
+
+        // Gọi render lần đầu
+        updateSoftwareView();
     }
 
+    // Hàm tạo bảng hiển thị danh sách tiến trình
+    function createProcessGrid(title, dataArray, currentPage, itemsPerPage) {
+        if (!Array.isArray(dataArray) || dataArray.length === 0) {
+            return title ? `<h3>${title}</h3><p>No processes match the current filter.</p>` : '<p>No data found.</p>';
+        }
+
+        const headersToDisplay = [
+            { key: 'PID',        displayName: 'PID' },
+            { key: 'Name',       displayName: 'Name' },
+            { key: 'ExePath',    displayName: 'Path' },
+            { key: 'MemoryRSS',  displayName: 'Memory' },
+            { key: 'Username',   displayName: 'User' },
+            { key: 'CreateTime', displayName: 'Create Time' },
+            { key: 'Status',     displayName: 'Status' }
+        ];
+        
+        const gridTemplateColumns = "5% 7% 14% 30% 9% 14% 14% 7%";
+        
+        const headerHtml = `
+            <div class="grid-header">
+                <div class="grid-cell col-no">No.</div>
+                ${headersToDisplay.map(h => `<div class="grid-cell">${h.displayName}</div>`).join('')}
+            </div>
+        `;
+
+        // Tạo HTML cho các dòng dữ liệu
+        const bodyHtml = dataArray.map((row, index) => {
+            const globalIndex = (currentPage - 1) * itemsPerPage + index + 1;
+            
+            // --- LOGIC MỚI ĐỂ XỬ LÝ CỘT SIZE ---
+            const rowCells = headersToDisplay.map(header => {
+                let cellContent;
+                
+                // Nếu là cột Size (MemoryRSS), dùng hàm formatBytes
+                if (header.key === 'MemoryRSS') {
+                    cellContent = formatBytes(row[header.key]);
+                } 
+                // Đối với các cột khác, vẫn dùng formatValue như cũ
+                else {
+                    cellContent = formatValue(header.key, row[header.key]);
+                }
+                
+                return `<div class="grid-cell">${cellContent}</div>`;
+            }).join('');
+            // --- KẾT THÚC LOGIC MỚI ---
+            
+            return `<div class="grid-row"><div class="grid-cell col-no">${globalIndex}</div>${rowCells}</div>`;
+        }).join('');
+
+        const titleHtml = title ? `<h3>${title}</h3>` : '';
+        return `
+            ${titleHtml}
+            <div class="table-responsive">
+                <div class="data-grid" style="grid-template-columns: ${gridTemplateColumns};">
+                    ${headerHtml}${bodyHtml}
+                </div>
+            </div>
+        `;
+    }
+
+    function populateProcessStatusFilter() {
+        const filterSelect = document.getElementById('process-status-filter');
+        if (!filterSelect) return;
+
+        // Lấy tất cả các status duy nhất
+        const statuses = [...new Set(allProcesses.map(proc => proc.Status))];
+        
+        filterSelect.innerHTML = '<option value="All">All Statuses</option>';
+
+        statuses.sort().forEach(status => {
+            if (status) {
+                const option = document.createElement('option');
+                option.value = status;
+                option.textContent = status.charAt(0).toUpperCase() + status.slice(1); // Viết hoa chữ cái đầu
+                filterSelect.appendChild(option);
+            }
+        });
+    }
+
+    function updateProcessView() {
+        // Lọc dữ liệu
+        const filteredProcesses = processFilterStatus === 'All'
+            ? allProcesses
+            : allProcesses.filter(proc => proc.Status === processFilterStatus);
+
+        // Phân trang
+        const totalPages = Math.ceil(filteredProcesses.length / PROCESS_ITEMS_PER_PAGE);
+        if (processCurrentPage > totalPages) {
+            processCurrentPage = totalPages || 1;
+        }
+        const startIndex = (processCurrentPage - 1) * PROCESS_ITEMS_PER_PAGE;
+        const paginatedProcesses = filteredProcesses.slice(startIndex, startIndex + PROCESS_ITEMS_PER_PAGE);
+
+        // Render bảng
+        const gridContainer = document.getElementById('process-grid-container');
+        if (gridContainer) {
+            const title = `Processes (Showing ${filteredProcesses.length} of ${allProcesses.length} entries)`;
+            gridContainer.innerHTML = createProcessGrid(title, paginatedProcesses, processCurrentPage, PROCESS_ITEMS_PER_PAGE);
+        }
+        
+        // Render phân trang
+        const paginationContainer = document.getElementById('process-pagination-container');
+        if (paginationContainer) {
+            const startItem = startIndex + 1;
+            const endItem = Math.min(startIndex + PROCESS_ITEMS_PER_PAGE, filteredProcesses.length);
+            const infoText = filteredProcesses.length > 0 ? `Showing ${startItem}-${endItem} of ${filteredProcesses.length}` : 'No processes to display.';
+            
+            paginationContainer.innerHTML = `
+                <div class="log-pagination-info">Page ${processCurrentPage} of ${totalPages || 1} | ${infoText}</div>
+                <div class="log-pagination-buttons">
+                    <button id="process-prev-btn" ${processCurrentPage === 1 ? 'disabled' : ''}>Previous</button>
+                    <button id="process-next-btn" ${processCurrentPage >= totalPages ? 'disabled' : ''}>Next</button>
+                </div>
+            `;
+        }
+    }
+
+    // Hàm chính để render tab tiến trình
     function renderRuntime() {
-        const processes = auditData.processes?.data || {};
-        if (Object.keys(processes).length === 0 || processes.Error) { document.getElementById('runtime').innerHTML = buildCard('runtime', 'Processes', 'fa-cogs', '<p>No data.</p>'); return; }
-        const content = Object.entries(processes).map(([group, items]) => buildCard('runtime', `User: ${group}`, 'fa-cogs', createGrid(null, items), 'runtime-card')).join('');
-        document.getElementById('runtime').innerHTML = `<div class="content-grid grid-cols-1">${content}</div>`;
+        const processesData = auditData.processes?.data || {};
+        const runtimeContainer = document.getElementById('runtime');
+
+        if (Object.keys(processesData).length === 0 || processesData.Error) {
+            runtimeContainer.innerHTML = buildCard('runtime', 'Processes', 'fa-cogs', '<p>No data.</p>');
+            return;
+        }
+
+        // Gộp tất cả tiến trình từ các user khác nhau và gán 'Username' cho từng tiến trình
+        allProcesses = Object.entries(processesData).flatMap(([user, procs]) => {
+            // Gán thuộc tính 'Username' cho mỗi process object
+            return procs.map(proc => ({ ...proc, Username: user }));
+        });
+        
+        // Sắp xếp mặc định theo tên tiến trình (không phân biệt chữ hoa/thường)
+        allProcesses.sort((a, b) => a.Name.toLowerCase().localeCompare(b.Name.toLowerCase()));
+
+        // Tạo HTML cho các bộ điều khiển và container
+        const controlsHtml = `
+            <div class="log-controls">
+                <label for="process-status-filter">Filter by Status:</label>
+                <select id="process-status-filter"></select>
+            </div>
+            <div id="process-grid-container"></div>
+            <div class="log-pagination" id="process-pagination-container"></div>
+        `;
+
+        // Bọc vào một card
+        runtimeContainer.innerHTML = buildCard(
+            'runtime', 
+            'Processes', 
+            'fa-cogs', 
+            controlsHtml
+        );
+
+        // Đổ dữ liệu vào bộ lọc
+        populateProcessStatusFilter();
+
+        // Thêm event listener
+        const filterSelect = document.getElementById('process-status-filter');
+        if (filterSelect) {
+            filterSelect.addEventListener('change', (e) => {
+                processFilterStatus = e.target.value;
+                processCurrentPage = 1;
+                updateProcessView();
+            });
+        }
+        
+        const paginationContainer = document.getElementById('process-pagination-container');
+        if (paginationContainer) {
+            paginationContainer.addEventListener('click', (e) => {
+                const filteredProcesses = processFilterStatus === 'All' ? allProcesses : allProcesses.filter(p => p.Status === processFilterStatus);
+                const totalPages = Math.ceil(filteredProcesses.length / PROCESS_ITEMS_PER_PAGE);
+
+                if (e.target.id === 'process-prev-btn' && processCurrentPage > 1) {
+                    processCurrentPage--;
+                    updateProcessView();
+                }
+                if (e.target.id === 'process-next-btn' && processCurrentPage < totalPages) {
+                    processCurrentPage++;
+                    updateProcessView();
+                }
+            });
+        }
+
+        // Gọi render lần đầu
+        updateProcessView();
     }
 
+    // Hàm tạo lưới dịch vụ với tiêu đề, dữ liệu, trang hiện tại và số mục mỗi trang
+    function createServiceGrid(title, dataArray, currentPage, itemsPerPage) {
+        if (!Array.isArray(dataArray) || dataArray.length === 0) {
+            return title ? `<h3>${title}</h3><p>No services match the current filter.</p>` : '<p>No data found.</p>';
+        }
+
+        // Định nghĩa thứ tự và tên hiển thị
+        const headersToDisplay = [
+            { key: 'DisplayName', displayName: 'Display Name' },
+            { key: 'Name',        displayName: 'Name' },
+            { key: 'StartMode',   displayName: 'Start Mode' },
+            { key: 'PathName',    displayName: 'Path Name' },
+            { key: 'State',       displayName: 'State' },
+        ];
+        
+        // Định nghĩa kích thước cột theo yêu cầu
+        const gridTemplateColumns = "8% 12% 10% 10% 50% 10%"; // No, DisplayName, Name, StartMode, PathName, State
+        
+        const headerHtml = `
+            <div class="grid-header">
+                <div class="grid-cell col-no">No.</div>
+                ${headersToDisplay.map(h => `<div class="grid-cell">${h.displayName}</div>`).join('')}
+            </div>
+        `;
+
+        // Tính toán số thứ tự chính xác
+        const bodyHtml = dataArray.map((row, index) => {
+            const globalIndex = (currentPage - 1) * itemsPerPage + index + 1;
+            const rowCells = headersToDisplay.map(header => 
+                `<div class="grid-cell">${formatValue(header.key, row[header.key])}</div>`
+            ).join('');
+            return `<div class="grid-row"><div class="grid-cell col-no">${globalIndex}</div>${rowCells}</div>`;
+        }).join('');
+
+        const titleHtml = title ? `<h3>${title}</h3>` : '';
+        return `
+            ${titleHtml}
+            <div class="table-responsive">
+                <div class="data-grid" style="grid-template-columns: ${gridTemplateColumns};">
+                    ${headerHtml}${bodyHtml}
+                </div>
+            </div>
+        `;
+    }
+
+    function populateServiceStateFilter() {
+        const filterSelect = document.getElementById('service-state-filter');
+        if (!filterSelect) return;
+
+        const states = [...new Set(allServices.map(service => service.State))];
+        
+        filterSelect.innerHTML = '<option value="All">All States</option>';
+
+        states.sort().forEach(state => {
+            if (state) {
+                const option = document.createElement('option');
+                option.value = state;
+                option.textContent = state;
+                filterSelect.appendChild(option);
+            }
+        });
+    }
+
+    function updateServiceView() {
+        // Lọc dữ liệu
+        const filteredServices = serviceFilterState === 'All'
+            ? allServices
+            : allServices.filter(service => service.State === serviceFilterState);
+
+        // Phân trang
+        const totalPages = Math.ceil(filteredServices.length / SERVICE_ITEMS_PER_PAGE);
+        if (serviceCurrentPage > totalPages) {
+            serviceCurrentPage = totalPages || 1;
+        }
+        const startIndex = (serviceCurrentPage - 1) * SERVICE_ITEMS_PER_PAGE;
+        const paginatedServices = filteredServices.slice(startIndex, startIndex + SERVICE_ITEMS_PER_PAGE);
+
+        // Render bảng
+        const gridContainer = document.getElementById('service-grid-container');
+        if (gridContainer) {
+            const title = `Services (Showing ${filteredServices.length} of ${allServices.length} entries)`;
+            gridContainer.innerHTML = createServiceGrid(title, paginatedServices, serviceCurrentPage, SERVICE_ITEMS_PER_PAGE);
+        }
+        
+        // Render phân trang
+        const paginationContainer = document.getElementById('service-pagination-container');
+        if (paginationContainer) {
+            const startItem = startIndex + 1;
+            const endItem = Math.min(startIndex + SERVICE_ITEMS_PER_PAGE, filteredServices.length);
+
+            let infoText = 'No services to display.';
+            if (filteredServices.length > 0) {
+                infoText = `Showing ${startItem}-${endItem} of ${filteredServices.length}`;
+            }
+            
+            paginationContainer.innerHTML = `
+                <div class="log-pagination-info">Page ${serviceCurrentPage} of ${totalPages || 1} | ${infoText}</div>
+                <div class="log-pagination-buttons">
+                    <button id="service-prev-btn" ${serviceCurrentPage === 1 ? 'disabled' : ''}>Previous</button>
+                    <button id="service-next-btn" ${serviceCurrentPage >= totalPages ? 'disabled' : ''}>Next</button>
+                </div>
+            `;
+        }
+    }
+
+    // Hàm render dịch vụ
     function renderServices() {
-        const services = auditData.services?.data || {};
-        if (Object.keys(services).length === 0 || services.Error) { document.getElementById('services').innerHTML = buildCard('services', 'Services', 'fa-concierge-bell', '<p>No data.</p>'); return; }
-        const content = Object.entries(services).map(([group, items]) => buildCard('services', `State: ${group}`, 'fa-concierge-bell', createGrid(null, items), 'runtime-card')).join('');
-        document.getElementById('services').innerHTML = `<div class="content-grid grid-cols-1">${content}</div>`;
+        const servicesData = auditData.services?.data || {};
+        if (Object.keys(servicesData).length === 0 || servicesData.Error) {
+            document.getElementById('services').innerHTML = buildCard('services', 'Services', 'fa-concierge-bell', '<p>No data.</p>');
+            return;
+        }
+
+        // Gộp tất cả dịch vụ từ các state khác nhau vào một mảng duy nhất
+        allServices = Object.values(servicesData).flat();
+        const servicesContainer = document.getElementById('services');
+
+        // Tạo HTML cho các bộ điều khiển và container
+        const controlsHtml = `
+            <div class="log-controls">
+                <label for="service-state-filter">Filter by State:</label>
+                <select id="service-state-filter"></select>
+            </div>
+            <div id="service-grid-container"></div>
+            <div class="log-pagination" id="service-pagination-container"></div>
+        `;
+
+        // Bọc vào một card
+        servicesContainer.innerHTML = buildCard(
+            'services', 
+            'Services', 
+            'fa-concierge-bell', 
+            controlsHtml
+        );
+
+        // Đổ dữ liệu vào bộ lọc
+        populateServiceStateFilter();
+
+        // Thêm event listener
+        const filterSelect = document.getElementById('service-state-filter');
+        if (filterSelect) {
+            filterSelect.addEventListener('change', (e) => {
+                serviceFilterState = e.target.value;
+                serviceCurrentPage = 1;
+                updateServiceView();
+            });
+        }
+        
+        const paginationContainer = document.getElementById('service-pagination-container');
+        if (paginationContainer) {
+            paginationContainer.addEventListener('click', (e) => {
+                const filteredServices = serviceFilterState === 'All' ? allServices : allServices.filter(s => s.State === serviceFilterState);
+                const totalPages = Math.ceil(filteredServices.length / SERVICE_ITEMS_PER_PAGE);
+
+                if (e.target.id === 'service-prev-btn' && serviceCurrentPage > 1) {
+                    serviceCurrentPage--;
+                    updateServiceView();
+                }
+                if (e.target.id === 'service-next-btn' && serviceCurrentPage < totalPages) {
+                    serviceCurrentPage++;
+                    updateServiceView();
+                }
+            });
+        }
+
+        // Gọi render lần đầu
+        updateServiceView();
+    }
+
+    // --- Event Log Rendering ---
+    function createEventLogGrid(title, dataArray, currentPage, itemsPerPage) {
+        if (!Array.isArray(dataArray) || dataArray.length === 0) {
+            return title ? `<h3>${title}</h3><p>No logs match the current filter.</p>` : '<p>No data found.</p>';
+        }
+
+        const headersToDisplay = [
+            { key: 'Id',               displayName: 'Id' },
+            { key: 'LevelDisplayName', displayName: 'Level' },
+            { key: 'ProviderName',     displayName: 'Provider Name' },
+            { key: 'Message',          displayName: 'Message' },
+            { key: 'TimeCreated',      displayName: 'Time Created' },
+        ];
+        
+        const gridTemplateColumns = "7% 8% 10% 15% 45% 15%";
+        
+        const headerHtml = `
+            <div class="grid-header">
+                <div class="grid-cell col-no">No.</div>
+                ${headersToDisplay.map(h => `<div class="grid-cell">${h.displayName}</div>`).join('')}
+            </div>
+        `;
+
+        // Sửa logic tính 'No.'
+        const bodyHtml = dataArray.map((row, index) => {
+            const globalIndex = (currentPage - 1) * itemsPerPage + index + 1;
+            const rowCells = headersToDisplay.map(header => 
+                `<div class="grid-cell">${formatValue(header.key, row[header.key])}</div>`
+            ).join('');
+            return `<div class="grid-row"><div class="grid-cell col-no">${globalIndex}</div>${rowCells}</div>`;
+        }).join('');
+
+        const titleHtml = title ? `<h3>${title}</h3>` : '';
+        return `
+            ${titleHtml}
+            <div class="table-responsive">
+                <div class="data-grid" style="grid-template-columns: ${gridTemplateColumns};">
+                    ${headerHtml}${bodyHtml}
+                </div>
+            </div>
+        `;
+    }
+
+    function populateLogLevelFilter() {
+        const filterSelect = document.getElementById('log-level-filter');
+        if (!filterSelect) return;
+
+        // Lấy tất cả các level duy nhất từ dữ liệu log
+        const levels = [...new Set(allLogs.map(log => log.LevelDisplayName))];
+        
+        // Xóa các option cũ
+        filterSelect.innerHTML = '<option value="All">All Levels</option>';
+
+        // Thêm các option mới
+        levels.sort().forEach(level => {
+            if (level) { // Bỏ qua các giá trị null/undefined
+                const option = document.createElement('option');
+                option.value = level;
+                option.textContent = level;
+                filterSelect.appendChild(option);
+            }
+        });
+    }
+
+    function updateLogView() {
+        // 1. Lọc dữ liệu dựa trên level đã chọn
+        const filteredLogs = logFilterLevel === 'All'
+            ? allLogs
+            : allLogs.filter(log => log.LevelDisplayName === logFilterLevel);
+
+        // 2. Tính toán phân trang
+        const totalPages = Math.ceil(filteredLogs.length / LOG_ITEMS_PER_PAGE);
+        // Đảm bảo trang hiện tại không vượt quá tổng số trang (sau khi lọc)
+        if (logCurrentPage > totalPages) {
+            logCurrentPage = totalPages || 1;
+        }
+        const startIndex = (logCurrentPage - 1) * LOG_ITEMS_PER_PAGE;
+        const paginatedLogs = filteredLogs.slice(startIndex, startIndex + LOG_ITEMS_PER_PAGE);
+
+        // 3. Render bảng với dữ liệu đã được phân trang
+        const gridContainer = document.getElementById('log-grid-container');
+        if (gridContainer) {
+            const title = `System Log (Showing ${filteredLogs.length} of ${allLogs.length} entries)`;
+            gridContainer.innerHTML = createEventLogGrid(title, paginatedLogs, logCurrentPage, LOG_ITEMS_PER_PAGE);
+        }
+        
+        // 4. Render các nút điều khiển phân trang
+        const paginationContainer = document.getElementById('log-pagination-container');
+        if (paginationContainer) {
+            const startItem = startIndex + 1;
+            const endItem = Math.min(startIndex + LOG_ITEMS_PER_PAGE, filteredLogs.length);
+
+            let infoText = 'No logs to display.';
+            if (filteredLogs.length > 0) {
+                infoText = `Showing ${startItem}-${endItem} of ${filteredLogs.length}`;
+            }
+            
+            paginationContainer.innerHTML = `
+                <div class="log-pagination-info">Page ${logCurrentPage} of ${totalPages || 1} | ${infoText}</div>
+                <div class="log-pagination-buttons">
+                    <button id="log-prev-btn" ${logCurrentPage === 1 ? 'disabled' : ''}>Previous</button>
+                    <button id="log-next-btn" ${logCurrentPage >= totalPages ? 'disabled' : ''}>Next</button>
+                </div>
+            `;
+        }
     }
 
     function renderLogs() {
-        const logs = auditData.event_log?.data || [];
-        document.getElementById('logs').innerHTML = buildCard('logs', 'Event Logs', 'fa-clipboard-list', createGrid('System Log (Last 25)', logs), 'scrollable-card');
+        // Lưu dữ liệu vào biến toàn cục
+        allLogs = auditData.event_log?.data || [];
+        const logsContainer = document.getElementById('logs');
+        
+        // Tạo cấu trúc HTML cho các bộ điều khiển và container
+        const controlsHtml = `
+            <div class="log-controls">
+                <label for="log-level-filter">Filter by Level:</label>
+                <select id="log-level-filter"></select>
+            </div>
+            <div id="log-grid-container"></div>
+            <div class="log-pagination" id="log-pagination-container"></div>
+        `;
+
+        // Bọc tất cả vào trong một info-card
+        logsContainer.innerHTML = buildCard(
+            'logs', 
+            'Event Logs', 
+            'fa-clipboard-list', 
+            controlsHtml
+        );
+
+        // Đổ dữ liệu vào bộ lọc
+        populateLogLevelFilter();
+
+        // Thêm các event listener một lần duy nhất
+        const filterSelect = document.getElementById('log-level-filter');
+        if (filterSelect) {
+            filterSelect.addEventListener('change', (e) => {
+                logFilterLevel = e.target.value;
+                logCurrentPage = 1; // Rất quan trọng: Reset về trang 1 khi lọc
+                updateLogView();
+            });
+        }
+        
+        const paginationContainer = document.getElementById('log-pagination-container');
+        if (paginationContainer) {
+            paginationContainer.addEventListener('click', (e) => {
+                const filteredLogs = logFilterLevel === 'All' ? allLogs : allLogs.filter(log => log.LevelDisplayName === logFilterLevel);
+                const totalPages = Math.ceil(filteredLogs.length / LOG_ITEMS_PER_PAGE);
+
+                if (e.target.id === 'log-prev-btn' && logCurrentPage > 1) {
+                    logCurrentPage--;
+                    updateLogView();
+                }
+                if (e.target.id === 'log-next-btn' && logCurrentPage < totalPages) {
+                    logCurrentPage++;
+                    updateLogView();
+                }
+            });
+        }
+
+        // Gọi render lần đầu tiên
+        updateLogView();
     }
 
+    // --- Web History Rendering ---
+    function createWebHistoryGrid(dataArray) {
+        // 1. Kiểm tra dữ liệu đầu vào
+        if (!Array.isArray(dataArray) || dataArray.length === 0) {
+            return '<p>No data found.</p>';
+        }
+
+        // 2. Định nghĩa thứ tự và tên hiển thị của các cột
+        const headers = [
+            { key: 'title',           displayName: 'Title' },
+            { key: 'url',             displayName: 'Url' },
+            { key: 'last_visit_time', displayName: 'Last Visit Time' }
+        ];
+
+        // 3. Định nghĩa kích thước các cột theo yêu cầu (No., Title, Url, Time)
+        const gridTemplateColumns = "10% 20% 50% 20%";
+
+        // 4. Tạo HTML cho header
+        const headerHtml = `
+            <div class="grid-header">
+                <div class="grid-cell col-no">No.</div>
+                ${headers.map(h => `<div class="grid-cell">${h.displayName}</div>`).join('')}
+            </div>
+        `;
+
+        // 5. Tạo HTML cho các dòng dữ liệu
+        const bodyHtml = dataArray.map((row, index) => {
+            if (typeof row !== 'object' || row === null) return '';
+            
+            // Lặp qua `headers` đã định nghĩa để đảm bảo đúng thứ tự cột
+            const rowCells = headers.map(header => 
+                `<div class="grid-cell">${formatValue(header.key, row[header.key])}</div>`
+            ).join('');
+
+            return `<div class="grid-row"><div class="grid-cell col-no">${index + 1}</div>${rowCells}</div>`;
+        }).join('');
+
+        // 6. Kết hợp và trả về HTML hoàn chỉnh cho bảng
+        return `
+            <div class="table-responsive">
+                <div class="data-grid" style="grid-template-columns: ${gridTemplateColumns};">
+                    ${headerHtml}${bodyHtml}
+                </div>
+            </div>
+        `;
+    }
+
+    // --- Web History Rendering ---
     function renderHistory() {
-        const history = auditData.web_history?.data || {};
-        if (Object.keys(history).length === 0) { document.getElementById('history').innerHTML = buildCard('history', 'Web History', 'fa-globe', '<p>No data.</p>'); return; }
-        const content = Object.entries(history).map(([browser, profiles]) => {
-            if (profiles.Info || Object.keys(profiles).length === 0) return buildCard('history', browser, 'fa-globe', `<p>${profiles.Info || 'No profiles.'}</p>`);
-            const profilesHtml = Object.entries(profiles).map(([profile, items]) => `<h3 class="toggle-header">${profile}</h3><div class="toggle-content">${createGrid(null, items)}</div>`).join('');
+        const historyData = auditData.web_history?.data || {};
+        const historyContainer = document.getElementById('history');
+
+        const browsersWithData = Object.entries(historyData).filter(([browser, profiles]) => {
+            return !profiles.Info && Object.keys(profiles).length > 0;
+        });
+
+        if (browsersWithData.length === 0) {
+            historyContainer.innerHTML = buildCard('history', 'Web History', 'fa-globe', '<p>No web history data found for any browser.</p>');
+            return;
+        }
+
+        const content = browsersWithData.map(([browser, profiles]) => {
+            // Chỗ này không đổi
+            const profilesHtml = Object.entries(profiles)
+                .map(([profile, items]) => {
+                    // *** THAY ĐỔI DUY NHẤT Ở ĐÂY ***
+                    // Gọi hàm mới 'createWebHistoryGrid' thay vì 'createGrid'
+                    const historyTableHtml = createWebHistoryGrid(items);
+                    
+                    return `<h3 class="toggle-header">${profile}</h3><div class="toggle-content">${historyTableHtml}</div>`;
+                })
+                .join('');
+            
             return buildCard('history', browser, 'fa-globe', profilesHtml);
         }).join('');
-        document.getElementById('history').innerHTML = `<div class="content-grid grid-cols-1">${content}</div>`;
+
+        historyContainer.innerHTML = `<div class="content-grid grid-cols-1">${content}</div>`;
     }
 
     // --- Main Fetch and Render Call ---

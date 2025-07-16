@@ -323,6 +323,7 @@ h1, h2, h3 {
     color: var(--color-surface);
     border-color: var(--color-success);
     opacity: 0.8;
+    cursor: default;
 }
 
 .server-status-bar.offline {
