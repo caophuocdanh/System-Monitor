@@ -78,6 +78,10 @@ graph TD
     C1 --> S
     C2 --> S
     C3 --> S
+    C4 --> S
+    C5 --> S
+    C6 --> S
+    C7 --> S
 
     S --> DB
     DASH --> DB
