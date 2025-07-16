@@ -192,6 +192,10 @@ Dự án này được cấp phép theo Giấy phép "Tự tui cấp". Xem file 
 
 ---
 <p align="center">
+<<<<<<< HEAD
   <i>Hệ thống quản lý mục đích cá nhân, không kinh doanh, trao đổi, mua bán.</i>
   <i>Opensource dành cho ai cần. Tự chịu trách nhiệm nếu bị vấn đề gì.</i>
+=======
+  <i>Hệ thống lý tưởng cho quản trị viên IT, phòng lab, trường học, và doanh nghiệp nhỏ.</i>
+>>>>>>> f4964a5a5f86667daa60c0ca071c5c733d14d210
 </p>
