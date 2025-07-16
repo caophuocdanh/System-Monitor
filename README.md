@@ -58,7 +58,11 @@ graph TD
     subgraph "Các máy trạm (Clients)"
         C1[Client 1 <br> Windows]
         C2[Client 2 <br> Windows]
-        C3[Client ... <br> Windows]
+        C3[Client 3 <br> Windows]
+        C4[Client 4 <br> Windows]
+        C5[Client 5 <br> Windows]
+        C6[Client 6 <br> Windows]
+        C7[Client ... <br> Windows]
     end
 
     subgraph "Hệ thống trung tâm (Server)"
