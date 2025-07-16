@@ -63,28 +63,28 @@ Hệ thống hoạt động theo mô hình Client-Server với một Dashboard g
 ```mermaid
 graph TD
     subgraph "Các máy trạm (Clients)"
-        C1[Client 1\n(Windows)]
-        C2[Client 2\n(Windows)]
-        C3[Client ...\n(Windows)]
+        C1["Client 1 (Windows)"]
+        C2["Client 2 (Windows)"]
+        C3["Client ... (Windows)"]
     end
 
     subgraph "Hệ thống trung tâm (Server)"
-        S["**System Monitor Server**\nNhận dữ liệu\nLưu vào SQLite\nHealth Check"]
-        DB["**SQLite Database**\nLưu trữ thông tin"]
-        DASH["**System Monitor Dashboard**\nGiao diện Web (Flask)\nCung cấp REST API"]
+        S["System Monitor Server"]
+        DB["SQLite Database"]
+        DASH["System Monitor Dashboard"]
     end
 
     subgraph "Người quản trị (Admin)"
-        ADMIN["**Admin's Browser**\nTruy cập Dashboard"]
+        ADMIN["Admin's Browser"]
     end
 
-    C1 -- "Gửi dữ liệu Realtime\n(WebSocket)" --> S
-    C2 -- "Gửi dữ liệu Realtime\n(WebSocket)" --> S
-    C3 -- "Gửi dữ liệu Realtime\n(WebSocket)" --> S
+    C1 -->|Gửi dữ liệu Realtime (WebSocket)| S
+    C2 -->|Gửi dữ liệu Realtime (WebSocket)| S
+    C3 -->|Gửi dữ liệu Realtime (WebSocket)| S
 
-    S -- "Lưu trữ/Truy vấn" --> DB
-    DASH -- "Truy vấn dữ liệu" --> DB
-    ADMIN -- "HTTP Request\n(http://server-ip:5000)" --> DASH
+    S -->|Lưu trữ/Truy vấn| DB
+    DASH -->|Truy vấn dữ liệu| DB
+    ADMIN -->|HTTP Request (http://server-ip:5000)| DASH
 
     style S fill:#D5E8D4,stroke:#82B366,stroke-width:2px
     style DASH fill:#DAE8FC,stroke:#6C8EBF,stroke-width:2px
