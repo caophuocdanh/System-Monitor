@@ -500,11 +500,11 @@ class WindowsAuditor:
         @staticmethod
         def _decode_manufacturer(code: str) -> str:
             manufacturer_map = {
-                "0x0101": "AMD", "0x010B": "Nanya Technology", "0x012C": "Micron Technology", "0x0134": "Fujitsu", "0x0145": "SanDisk / Western Digital", "0x014F": "Transcend Information", "0x0198": "Kingston / Kioxia", "0x01AD": "SK Hynix", "0x01CE": "Samsung Electronics", "0x01DA": "Renesas Technology",
-                "0x020D": "Spectek", "0x022D": "Nvidia", "0x02A4": "PNY Technologies", "0x02C0": "Micron Technology", "0x02E0": "Infineon Technologies", "0x0351": "Patriot Memory", "0x039E": "ADATA Technology", "0x040B": "Apacer Technology", "0x0434": "GeIL (Golden Emperor)", "0x04CD": "G.Skill",
-                "0x04D2": "Winbond", "0x050D": "Team Group", "0x0539": "Virtium", "0x05CB": "Crucial Technology", "0x065B": "Kingston", "0x079D": "Mushkin", "0x8001": "AMD", "0x800B": "Nanya Technology", "0x802C": "Micron Technology", "0x803F": "Intel",
-                "0x80AD": "SK Hynix", "0x80CE": "Samsung Electronics", "0x80E0": "Infineon Technologies", "0x859B": "Kingston", "0x7F7F7F9E": "ADATA Technology", "0x7F9D": "Corsair", "1337": "Kingmax Semiconductor", "1900": "Kingston", "0443": "G.Skill", "0x0000": "Unspecified",
-                "0xFFFF": "Unspecified", "Unknown": "Unknown Manufacturer"
+                "0x0101": "AMD", "0x010B": "Nanya", "0x012C": "Micron", "0x0134": "Fujitsu", "0x0145": "SanDisk / Western Digital", "0x014F": "Transcend", "0x0198": "Kingston / Kioxia", "0x01AD": "SK Hynix", "0x01CE": "Samsung", "0x01DA": "Renesas",
+                "0x020D": "Spectek", "0x022D": "Nvidia", "0x02A4": "PNY", "0x02C0": "Micron", "0x02E0": "Infineon", "0x0351": "Patriot", "0x039E": "ADATA", "0x040B": "Apacer", "0x0434": "GeIL", "0x04CD": "G.Skill",
+                "0x04D2": "Winbond", "0x050D": "Team Group", "0x0539": "Virtium", "0x05CB": "Crucial", "0x065B": "Kingston", "0x079D": "Mushkin", "0x8001": "AMD", "0x800B": "Nanya", "0x802C": "Micron", "0x803F": "Intel",
+                "0x80AD": "SK Hynix", "0x80CE": "Samsung", "0x80E0": "Infineon", "0x859B": "Kingston", "0x7F7F7F9E": "ADATA", "0x7F9D": "Corsair", "1337": "Kingmax", "1900": "Kingston", "0443": "G.Skill", "0x0000": "Unspecified",
+                "0xFFFF": "Unspecified", "Unknown": "Unknown"
             }
             return manufacturer_map.get(code, code)
 

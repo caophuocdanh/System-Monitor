@@ -670,12 +670,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 const speedKeys = ['ConfiguredClockSpeed', 'Speed', 'BusSpeed'];
                 let clockSpeed;
                 for (const key of speedKeys) { if (ram[key]) { clockSpeed = Number(ram[key]); break; } }
-                const effectiveSpeedMhz = clockSpeed ? (clockSpeed * (String(memoryType).toUpperCase().includes('DDR') ? 2 : 1)) : null;
-                const speedForTitle = effectiveSpeedMhz ? ` bus ${effectiveSpeedMhz} MHz` : 'MHz';
-                const title = `${slotName}: ${manufacturer} ${memoryType} ${capacity} ${speedForTitle}`.replace(/\s+/g, ' ').trim();
+                const effectiveSpeedMhz = clockSpeed ? (clockSpeed * (String(memoryType).toUpperCase().includes('DDR') ? 2 : 1)) : null; 
+                const displaySpeedMhz = clockSpeed ? clockSpeed : null; 
+                // const speedForTitle = displaySpeedMhz ? ` bus ${displaySpeedMhz} MHz` : 'MHz';
+                const speedForTitle = displaySpeedMhz ? `${displaySpeedMhz * 8}` : '';
+                const title = `${slotName}: ${manufacturer} ${memoryType}-${speedForTitle} ${capacity} `.replace(/\s+/g, ' ').trim();
                 const handledKeys = ['Slot', ...speedKeys];
                 const detailsHtml = Object.entries(ram).filter(([key]) => !handledKeys.includes(key)).map(([key, value]) => renderKeyValue(key, value)).join('');
-                const finalDetailsHtml = detailsHtml + (effectiveSpeedMhz ? renderKeyValue('Speed', `${effectiveSpeedMhz} MHz`) : '');
+                const finalDetailsHtml = detailsHtml + (displaySpeedMhz ? renderKeyValue('Bus', `${displaySpeedMhz} MHz`) : '');
                 return `<div><h3><i class="fa-solid fa-memory"></i> ${title}</h3>${finalDetailsHtml}</div>`;
             }).join('');
             const gridClass = memoryData.length > 1 ? 'grid-cols-2' : 'grid-cols-1';
@@ -700,7 +702,42 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             gpuCard = buildCard('hardware', 'Graphics (GPU)', 'fa-tv', '<p>No GPU data available.</p>');
         }
-        document.getElementById('hardware').innerHTML = `<div class="content-grid grid-cols-2">${osCard}${processorCard}</div><div class="content-grid grid-cols-1">${mainboardCard}</div><div class="content-grid grid-cols-1">${memoryCard}</div><div class="content-grid grid-cols-1">${gpuCard}</div>`;
+
+        // --- LOGIC SẮP XẾP VÀ RENDER ĐỘNG ---
+        let finalHtml = '';
+
+        // Hàng 1: Luôn là OS và Processor
+        finalHtml += `<div class="content-grid grid-cols-2">${osCard}${processorCard}</div>`;
+        
+        // Hàng 2: Luôn là Mainboard và Memory
+        finalHtml += `<div class="content-grid grid-cols-1">${mainboardCard}</div>`;
+
+
+
+        switch (true) {
+            case (gpuData.length === 1 && memoryData.length === 1):
+                finalHtml += `<div class="content-grid grid-cols-2">${memoryCard}${gpuCard}</div>`;
+                break;
+
+            case (memoryData.length === 1):
+                finalHtml += `<div class="content-grid grid-cols-1">${gpuCard}</div>`;
+                finalHtml += `<div class="content-grid grid-cols-2">${memoryCard}</div>`;
+                break;
+
+            case (gpuData.length === 1):
+                finalHtml += `<div class="content-grid grid-cols-1">${memoryCard}</div>`;
+                finalHtml += `<div class="content-grid grid-cols-2">${gpuCard}</div>`;
+                break;
+
+            default:
+                finalHtml += `<div class="content-grid grid-cols-1">${memoryCard}</div>`;
+                finalHtml += `<div class="content-grid grid-cols-1">${gpuCard}</div>`;
+                break;
+        }
+
+
+        // Gán toàn bộ HTML đã tạo vào tab hardware
+        document.getElementById('hardware').innerHTML = finalHtml;
     }
 
     function renderDisk() {
