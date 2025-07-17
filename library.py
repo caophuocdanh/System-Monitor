@@ -407,25 +407,6 @@ class WindowsAuditor:
         def __init__(self):
             self._details: List[Dict[str, Any]] = []
 
-        def _decode_status(self, status_code: int) -> List[str]:
-            status_map = {
-                0x1: "Paused", 0x2: "Error", 0x4: "Pending Deletion", 0x8: "Paper Jam",
-                0x10: "Paper Out", 0x20: "Manual Feed", 0x40: "Paper Problem", 0x80: "Offline",
-                0x100: "IO Active", 0x200: "Busy", 0x400: "Printing", 0x800: "Output Bin Full",
-                0x1000: "Not Available", 0x2000: "Waiting", 0x4000: "Processing", 0x8000: "Initializing",
-                0x10000: "Warming Up", 0x20000: "Toner Low", 0x40000: "No Toner", 0x400000: "Output Bin Missing"
-            }
-            return [desc for bit, desc in status_map.items() if status_code & bit] or ["Ready"]
-
-        def _decode_attributes(self, attr_code: int) -> List[str]:
-            attr_map = {
-                0x2: "Default", 0x4: "Shared", 0x8: "Hidden", 0x10: "Printer Fax",
-                0x20: "Network", 0x40: "Enable Dev Query", 0x100: "Direct", 0x200: "Keep Printed Jobs",
-                0x400: "Do Complete First", 0x800: "Work Offline", 0x1000: "Enable BIDI",
-                0x2000: "Raw Only", 0x4000: "Published", 0x8000: "Enable Shared",
-                0x10000: "Hidden Devmode", 0x20000: "Raw Queue", 0x40000: "Local"
-            }
-            return [desc for bit, desc in attr_map.items() if attr_code & bit]
 
         def get_details(self) -> List[Dict[str, Any]]:
             if self._details:
@@ -445,21 +426,23 @@ class WindowsAuditor:
                 )
                 processed = []
                 for p in printers_raw:
-                    status_list = self._decode_status(p.get("Status", 0))
+                    status_code = p.get("Status", 0)
                     attr_code = p.get("Attributes", 0)
-                    attr_list = self._decode_attributes(attr_code)
-                    is_offline = "Offline" in status_list
+                    
+                    # Việc xác định "Online" sẽ được chuyển sang JS.
+                    # Tuy nhiên, vẫn có thể giữ lại ở đây để tiện cho các mục đích khác.
+                    # 0x80 là cờ OFFLINE.
+                    is_online = (status_code & 0x80) == 0
 
                     processed.append({
                         "Printer Name": p.get("pPrinterName"),
                         "Default": (p.get("pPrinterName") == default_printer),
-                        "Online": not ("Offline" in status_list),
-                        "Status": ", ".join(status_list),
+                        "Online": is_online, # Giữ lại trường này cho tiện
+                        "Status": status_code, # Trả về mã số gốc
                         "Driver Name": p.get("pDriverName"),
                         "Jobs in Queue": p.get("cJobs", 0),
                         "Port Name": p.get("pPortName"),
-                        "Attributes": attr_code,
-                        "Attributes Array": attr_list
+                        "Attributes": attr_code
                     })
 
                 self._details = processed
@@ -468,8 +451,6 @@ class WindowsAuditor:
                 self._details = [{"Error": f"Failed to retrieve printers: {e}"}]
 
             return self._details
-
-
 
 
     class _ProcessAudit:
@@ -498,17 +479,6 @@ class WindowsAuditor:
             self._details: List[Dict[str, Any]] = []
 
         @staticmethod
-        def _decode_manufacturer(code: str) -> str:
-            manufacturer_map = {
-                "0x0101": "AMD", "0x010B": "Nanya", "0x012C": "Micron", "0x0134": "Fujitsu", "0x0145": "SanDisk / Western Digital", "0x014F": "Transcend", "0x0198": "Kingston / Kioxia", "0x01AD": "SK Hynix", "0x01CE": "Samsung", "0x01DA": "Renesas",
-                "0x020D": "Spectek", "0x022D": "Nvidia", "0x02A4": "PNY", "0x02C0": "Micron", "0x02E0": "Infineon", "0x0351": "Patriot", "0x039E": "ADATA", "0x040B": "Apacer", "0x0434": "GeIL", "0x04CD": "G.Skill",
-                "0x04D2": "Winbond", "0x050D": "Team Group", "0x0539": "Virtium", "0x05CB": "Crucial", "0x065B": "Kingston", "0x079D": "Mushkin", "0x8001": "AMD", "0x800B": "Nanya", "0x802C": "Micron", "0x803F": "Intel",
-                "0x80AD": "SK Hynix", "0x80CE": "Samsung", "0x80E0": "Infineon", "0x859B": "Kingston", "0x7F7F7F9E": "ADATA", "0x7F9D": "Corsair", "1337": "Kingmax", "1900": "Kingston", "0443": "G.Skill", "0x0000": "Unspecified",
-                "0xFFFF": "Unspecified", "Unknown": "Unknown"
-            }
-            return manufacturer_map.get(code, code)
-
-        @staticmethod
         def _decode_hex_to_ascii(hex_str: str) -> str:
             if not isinstance(hex_str, str) or not hex_str.lower().startswith('0x'):
                 return hex_str.strip()
@@ -520,12 +490,9 @@ class WindowsAuditor:
                 return hex_str
 
         def get_details(self) -> List[Dict[str, Any]]:
-            if self._details: return self._details
-            
+            if self._details: return self._details            
             props = "DeviceLocator,Capacity,Manufacturer,PartNumber,SerialNumber,Speed,MemoryType,FormFactor"
             cmd = f"Get-CimInstance -ClassName Win32_PhysicalMemory | Select-Object {props} | ConvertTo-Json"
-            type_map = {20:"DDR", 21:"DDR2", 24:"DDR3", 26:"DDR4", 28:"DDR5", 34: "LPDDR4"}
-            form_map = {8:"DIMM", 9:"SODIMM", 12:"LRDIMM"}
 
             try:
                 raw_modules = _run_powershell(cmd)
@@ -533,18 +500,17 @@ class WindowsAuditor:
                 
                 processed_modules = []
                 for i, module in enumerate(raw_modules, 1):
-                    manufacturer = self._decode_manufacturer(module.get('Manufacturer', 'N/A'))
                     part_number = self._decode_hex_to_ascii(module.get('PartNumber', 'N/A'))
 
                     processed_modules.append({
                         "Slot": module.get('DeviceLocator', f'Slot {i}').strip(), 
                         "Capacity": int(module.get('Capacity', 0)),
                         "Speed": module.get('Speed', 0), 
-                        "Manufacturer": manufacturer,
+                        "Manufacturer": str(module.get('Manufacturer', 'N/A')).strip(),
                         "PartNumber": part_number,
                         "SerialNumber": str(module.get('SerialNumber', 'N/A')).strip(),
-                        "MemoryType": type_map.get(module.get('MemoryType'), "Unknown"), 
-                        "FormFactor": form_map.get(module.get('FormFactor'), "Unknown")
+                        "MemoryType": module.get('MemoryType'),
+                        "FormFactor": module.get('FormFactor')
                     })
                 self._details = processed_modules
             except Exception as e: 

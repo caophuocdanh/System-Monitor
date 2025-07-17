@@ -137,7 +137,7 @@
 .info-card .key-value { 
     display: flex; 
     flex-direction: row; 
-    align-items: flex-start; 
+    align-items: center; 
     justify-content: space-between; 
     padding: 0.75rem 0; 
     border-bottom: 1px dashed #eee; 
@@ -145,7 +145,7 @@
 }
 .info-card .key-value:last-child { border-bottom: none; }
 .info-card .key { font-weight: 600; color: var(--color-text-muted); flex-shrink: 0; }
-.info-card .value { font-family: var(--font-mono); text-align: right; word-break: break-all; }
+.info-card .value { font-family: var(--font-mono); word-break: break-all; }
 .info-card .value ul { list-style-type: none; padding: 0; margin: 0; width: 100%; text-align: left; }
 .info-card .value ul li { padding: 0.2rem 0; text-align: right;}
 .nested-object { border: 1px solid #e9ecef; border-left: 4px solid var(--color-primary); padding: 0.75rem !important; margin-top: 0.5rem; border-radius: var(--border-radius); background-color: #f8f9fa; }
@@ -171,6 +171,7 @@
 
 /* "TABLE" USING GRID */
 .table-responsive { overflow-x: auto; width: 100%; }
+/*.table-responsive h3{ font-size: 0.9rem; font-weight: 300; flex-direction: row-reverse; border-bottom: none; padding: 0; }*/
 .data-grid { display: grid; border-top: 1px solid #ddd; margin-top: 1rem; font-size: 0.9rem; min-width: 800px; }
 .grid-header, .grid-row { display: contents; }
 .grid-header > .grid-cell { background-color: #f8f9fa; font-weight: 600; color: var(--color-text-muted); padding: 0.75rem; border-bottom: 1px solid #ddd; white-space: nowrap; }
@@ -224,9 +225,10 @@
     font-weight: 700;
     color: var(--color-primary);
     background-color: rgba(13, 110, 253, 0.1);
-    padding: 0.25rem 0.5rem;
+    padding: 0.25rem 3rem;
     border-radius: 4px;
     display: inline-block;
+    border: 1px dashed;
 }
 body.theme-modern .key-value.highlight-value .value { background-color: rgba(61, 139, 253, 0.2); }
 body.theme-retro .key-value.highlight-value .value { text-shadow: 0 0 5px var(--color-primary); }
@@ -236,6 +238,9 @@ body.theme-retro .key-value.highlight-value .value { text-shadow: 0 0 5px var(--
 .printer-item h3 { display: flex; align-items: center; flex-wrap: wrap; gap: 0.75rem; font-size: 1.2rem;  }
 .printer-item h3 .printer-name { margin-right: 0.5rem; }
 .printer-badge { display: inline-block; padding: 0.25rem 0.6rem; font-size: 0.75rem; font-weight: 700; line-height: 1; text-align: center; white-space: nowrap; vertical-align: baseline; border-radius: 10rem; color: #fff; }
+.attributes-list{display: flex;flex-direction: column;align-items: flex-end;gap: 0.25rem}
+.attributes-list p{margin: 0;padding: 0.2rem 0.5rem;background-color: var(--color-bg);border-radius: 4px;font-size: 0.9em;text-align: right}
+body.theme-modern .attributes-list p{background-color: #2c2c2c}
 
 
 /* --- MAINBOARD & BIOS LAYOUT STYLES --- */
@@ -329,7 +334,7 @@ body.theme-modern .component-block {
     justify-content: flex-end;
     align-items: center;
     gap: 1rem;
-    margin-bottom: 1rem;
+    /*margin-bottom: 1rem;*/
     padding: 0.5rem;
     background-color: var(--color-bg);
     border-radius: var(--border-radius);

@@ -1,5 +1,54 @@
 // static/js/detail.js
 
+// --- DATA MAPS FOR DECODING ---
+const manufacturer_map = {
+    "1337": "Kingmax", "1900": "Kingston", "0x0101": "AMD", "0x010B": "Nanya", "0x012C": "Micron", 
+    "0x0134": "Fujitsu", "0x0145": "SanDisk / Western Digital", "0x014F": "Transcend", 
+    "0x0198": "HyperX", "0x01AD": "SK Hynix", "0x01CE": "Samsung", "0x01DA": "Renesas", 
+    "0x020D": "Spectek", "0x022D": "Nvidia", "0x02A4": "PNY", "0x02C0": "Micron", "0x02E0": "Infineon", 
+    "0x0351": "Patriot", "0x039E": "ADATA", "0x040B": "Apacer", "0x0434": "GeIL", "0x04CD": "G.Skill", 
+    "0x04D2": "Winbond", "0x050D": "Team Group", "0x0539": "Virtium", "0x05CB": "Crucial", 
+    "0x065B": "Kingston", "0x079D": "Mushkin", "0x8001": "AMD", "0x800B": "Nanya", "0x802C": "Micron", 
+    "0x803F": "Intel", "0x80AD": "SK Hynix", "0x80CE": "Samsung", "0x80E0": "Infineon", "0x859B": "Kingston", 
+    "0x7F7F7F9E": "ADATA", "0x7F9D": "Corsair", "0443": "G.Skill", "0x0000": "Unspecified", 
+    "0xFFFF": "Unspecified", "Unknown": "Unknown", "04CB": "A-DATA", "017A": "Apacer", "029E": "Corsair", 
+    "059B": "Crucial", "00CE": "Samsung"
+};
+
+const type_map = {
+    20: "DDR", 21: "DDR2", 24: "DDR3", 26: "DDR4", 28: "DDR5", 34: "LPDDR4"
+};
+
+const form_map = {
+    8: "DIMM", 9: "SODIMM", 12: "LRDIMM"
+};
+
+const printer_status_map = {
+    0x1: "Paused", 0x2: "Error", 0x4: "Pending Deletion", 0x8: "Paper Jam",
+    0x10: "Paper Out", 0x20: "Manual Feed", 0x40: "Paper Problem", 0x80: "Offline",
+    0x100: "IO Active", 0x200: "Busy", 0x400: "Printing", 0x800: "Output Bin Full",
+    0x1000: "Not Available", 0x2000: "Waiting", 0x4000: "Processing", 0x8000: "Initializing",
+    0x10000: "Warming Up", 0x20000: "Toner Low", 0x40000: "No Toner", 0x400000: "Output Bin Missing"
+};
+
+const printer_attributes_map = {
+    0x2: "Default", 0x4: "Shared", 0x8: "Hidden", 0x10: "Printer Fax",
+    0x20: "Network", 0x40: "Enable Dev Query", 0x100: "Direct", 0x200: "Keep Printed Jobs",
+    0x400: "Do Complete First", 0x800: "Work Offline", 0x1000: "Enable BIDI",
+    0x2000: "Raw Only", 0x4000: "Published", 0x8000: "Enable Shared",
+    0x10000: "Hidden Devmode", 0x20000: "Raw Queue", 0x40000: "Local"
+};
+
+function decodeBitmask(map, code) {
+    const descriptions = [];
+    for (const bit in map) {
+        if (code & bit) {
+            descriptions.push(map[bit]);
+        }
+    }
+    return descriptions;
+}
+
 // --- Tab Handling ---
 function openTab(evt, tabName) {
     document.querySelectorAll('.tab-content').forEach(tc => tc.classList.remove('active'));
@@ -262,7 +311,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             const gridContainer = document.getElementById(this.gridContainerId);
             if (gridContainer) {
-                const title = `${this.cardTitle} (Showing ${filteredData.length} of ${this.allData.length} entries)`;
+                const title = `(Showing ${filteredData.length} of ${this.allData.length} entries)`;
                 gridContainer.innerHTML = this.createGridFn(title, paginatedData, this.currentPage, this.itemsPerPage);
             }
             
@@ -468,12 +517,7 @@ document.addEventListener('DOMContentLoaded', () => {
             { key: 'last_visit_time', displayName: 'Last Visit Time' }
         ];        
         const gridTemplateColumns = "10% 20% 50% 20%";        
-        const headerHtml = `
-            <div class="grid-header">
-                <div class="grid-cell col-no">No.</div>
-                ${headers.map(h => `<div class="grid-cell">${h.displayName}</div>`).join('')}
-            </div>
-        `;
+        const headerHtml = `<div class="grid-header"><div class="grid-cell col-no">No.</div>${headers.map(h => `<div class="grid-cell">${h.displayName}</div>`).join('')}</div>`;
         const bodyHtml = dataArray.map((row, index) => {
             const rowCells = headers.map(header => {
                 let cellContent;
@@ -482,13 +526,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return `<div class="grid-row"><div class="grid-cell col-no">${index + 1}</div>${rowCells}</div>`;
         }).join('');
 
-        return `
-            <div class="table-responsive">
-                <div class="data-grid" style="grid-template-columns: ${gridTemplateColumns};">
-                    ${headerHtml}${bodyHtml}
-                </div>
-            </div>
-        `;
+        return `<div class="table-responsive"><div class="data-grid" style="grid-template-columns: ${gridTemplateColumns};">${headerHtml}${bodyHtml}</div></div>`;
     }
 
     function createEventLogGrid(title, dataArray, currentPage, itemsPerPage) {
@@ -504,12 +542,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const titleHtml = title ? `<h3>${title}</h3>` : '';
         return `
             ${titleHtml}
-            <div class="table-responsive">
-                <div class="data-grid" style="grid-template-columns: ${gridTemplateColumns};">
-                    ${headerHtml}${bodyHtml}
-                </div>
-            </div>
-        `;
+            <div class="table-responsive"><div class="data-grid" style="grid-template-columns: ${gridTemplateColumns};">${headerHtml}${bodyHtml}</div></div>`;
     }
 
     function createServiceGrid(title, dataArray, currentPage, itemsPerPage) {
@@ -523,7 +556,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return `<div class="grid-row"><div class="grid-cell col-no">${globalIndex}</div>${rowCells}</div>`;
         }).join('');
         const titleHtml = title ? `<h3>${title}</h3>` : '';
-        return `<div class="table-responsive">${titleHtml}<div class="data-grid" style="grid-template-columns: ${gridTemplateColumns};">${headerHtml}${bodyHtml}</div></div>`;
+        return `<div class="table-responsive"><div class="data-grid" style="grid-template-columns: ${gridTemplateColumns};">${headerHtml}${bodyHtml}</div></div>`;
     }
 
     function createProcessGrid(title, dataArray, currentPage, itemsPerPage) {
@@ -537,13 +570,13 @@ document.addEventListener('DOMContentLoaded', () => {
             return `<div class="grid-row"><div class="grid-cell col-no">${globalIndex}</div>${rowCells}</div>`;
         }).join('');
         const titleHtml = title ? `<h3>${title}</h3>` : '';
-        return `<div class="table-responsive">${titleHtml}<div class="data-grid" style="grid-template-columns: ${gridTemplateColumns};">${headerHtml}${bodyHtml}</div></div>`;
+        return `<div class="table-responsive"><div class="data-grid" style="grid-template-columns: ${gridTemplateColumns};">${headerHtml}${bodyHtml}</div></div>`;
     }
 
     function createSoftwareGrid(title, dataArray, currentPage, itemsPerPage) {
         if (!Array.isArray(dataArray) || dataArray.length === 0) return title ? `<h3>${title}</h3><p>No software matches the current filter.</p>` : '<p>No data found.</p>';
         const headersToDisplay = [{ key: 'Name', displayName: 'Name' }, { key: 'EstimatedSizeByte', displayName: 'Size' }, { key: 'InstallDate', displayName: 'Install Date' }, { key: 'InstallLocation', displayName: 'Install Location' }, { key: 'Publisher', displayName: 'Publisher' }, { key: 'Version', displayName: 'Version' }, { key: 'Group', displayName: 'Group' }];
-        const gridTemplateColumns = "5% 21% 9% 13% 24% 8% 10% 10%";
+        const gridTemplateColumns = "5% 15% 10% 12% 27% 12% 9% 10%";
         const headerHtml = `<div class="grid-header"><div class="grid-cell col-no">No.</div>${headersToDisplay.map(h => `<div class="grid-cell">${h.displayName}</div>`).join('')}</div>`;
         const bodyHtml = dataArray.map((row, index) => {
             const globalIndex = (currentPage - 1) * itemsPerPage + index + 1;
@@ -551,17 +584,17 @@ document.addEventListener('DOMContentLoaded', () => {
             return `<div class="grid-row"><div class="grid-cell col-no">${globalIndex}</div>${rowCells}</div>`;
         }).join('');
         const titleHtml = title ? `<h3>${title}</h3>` : '';
-        return `<div class="table-responsive">${titleHtml}<div class="data-grid" style="grid-template-columns: ${gridTemplateColumns};">${headerHtml}${bodyHtml}</div></div>`;
+        return `<div class="table-responsive"><div class="data-grid" style="grid-template-columns: ${gridTemplateColumns};">${headerHtml}${bodyHtml}</div></div>`;
     }
 
     function createCredentialGrid(title, dataArray) {
         if (!Array.isArray(dataArray) || dataArray.length === 0) return title ? `<h3>${title}</h3><p>No credentials match the current filter.</p>` : '<p>No data found.</p>';
         const headersToDisplay = [{ key: 'Target', displayName: 'Target' }, { key: 'Type', displayName: 'Type' }, { key: 'User', displayName: 'User' }, { key: 'Group', displayName: 'Group' }];
-        const gridTemplateColumns = "5% 50% 15% 15% 15%";
+        const gridTemplateColumns = "5% 40% 20% 20% 15%";
         const headerHtml = `<div class="grid-header"><div class="grid-cell col-no">No.</div>${headersToDisplay.map(h => `<div class="grid-cell">${h.displayName}</div>`).join('')}</div>`;
         const bodyHtml = dataArray.map((row, index) => `<div class="grid-row"><div class="grid-cell col-no">${index + 1}</div>${headersToDisplay.map(header => `<div class="grid-cell">${formatValue(header.key, row[header.key])}</div>`).join('')}</div>`).join('');
         const titleHtml = title ? `<h3>${title}</h3>` : '';
-        return `<div class="table-responsive">${titleHtml}<div class="data-grid" style="grid-template-columns: ${gridTemplateColumns};">${headerHtml}${bodyHtml}</div></div>`;
+        return `<div class="table-responsive"><div class="data-grid" style="grid-template-columns: ${gridTemplateColumns};">${headerHtml}${bodyHtml}</div></div>`;
     }
     
     function createUserGrid(title, dataArray) {
@@ -571,7 +604,63 @@ document.addEventListener('DOMContentLoaded', () => {
         const headerHtml = `<div class="grid-header"><div class="grid-cell col-no">No.</div>${headersToDisplay.map(h => `<div class="grid-cell">${h.displayName}</div>`).join('')}</div>`;
         const bodyHtml = dataArray.map((row, index) => `<div class="grid-row"><div class="grid-cell col-no">${index + 1}</div>${headersToDisplay.map(header => `<div class="grid-cell">${formatValue(header.key, row[header.key])}</div>`).join('')}</div>`).join('');
         const titleHtml = title ? `<h3>${title}</h3>` : '';
-        return `<div class="table-responsive">${titleHtml}<div class="data-grid" style="grid-template-columns: ${gridTemplateColumns};">${headerHtml}${bodyHtml}</div></div>`;
+        return `<div class="table-responsive"><div class="data-grid" style="grid-template-columns: ${gridTemplateColumns};">${headerHtml}${bodyHtml}</div></div>`;
+    }
+
+    function createStartupCommandsGrid(title, dataArray, currentPage, itemsPerPage) {
+        if (!Array.isArray(dataArray) || dataArray.length === 0) return title ? `<h3>${title}</h3><p>No startup commands match the current filter.</p>` : '<p>No data found.</p>';
+        const headersToDisplay = [
+            { key: 'Name', displayName: 'Name' },
+            { key: 'Command', displayName: 'Command' },
+            { key: 'Location', displayName: 'Location' },
+            { key: 'User', displayName: 'User' }
+        ];
+        const gridTemplateColumns = "5% 20% 30% 30% 15%";
+        const headerHtml = `<div class="grid-header"><div class="grid-cell col-no">No.</div>${headersToDisplay.map(h => `<div class="grid-cell">${h.displayName}</div>`).join('')}</div>`;
+        const bodyHtml = dataArray.map((row, index) => {
+            const globalIndex = (currentPage - 1) * itemsPerPage + index + 1;
+            const rowCells = headersToDisplay.map(header => `<div class="grid-cell">${formatValue(header.key, row[header.key])}</div>`).join('');
+            return `<div class="grid-row"><div class="grid-cell col-no">${globalIndex}</div>${rowCells}</div>`;
+        }).join('');
+        const titleHtml = title ? `<h3>${title}</h3>` : '';
+        return `<div class="table-responsive"><div class="data-grid" style="grid-template-columns: ${gridTemplateColumns};">${headerHtml}${bodyHtml}</div></div>`;
+    }
+
+    function createAutoStartServicesGrid(title, dataArray, currentPage, itemsPerPage) {
+        if (!Array.isArray(dataArray) || dataArray.length === 0) return title ? `<h3>${title}</h3><p>No auto-start services match the current filter.</p>` : '<p>No data found.</p>';
+        const headersToDisplay = [
+            { key: 'DisplayName', displayName: 'Display Name' },
+            { key: 'Name', displayName: 'Service Name' },
+            { key: 'PathName', displayName: 'Path' },
+            { key: 'State', displayName: 'Current State' }
+        ];
+        const gridTemplateColumns = "5% 25% 20% 40% 10%";
+        const headerHtml = `<div class="grid-header"><div class="grid-cell col-no">No.</div>${headersToDisplay.map(h => `<div class="grid-cell">${h.displayName}</div>`).join('')}</div>`;
+        const bodyHtml = dataArray.map((row, index) => {
+            const globalIndex = (currentPage - 1) * itemsPerPage + index + 1;
+            const rowCells = headersToDisplay.map(header => `<div class="grid-cell">${formatValue(header.key, row[header.key])}</div>`).join('');
+            return `<div class="grid-row"><div class="grid-cell col-no">${globalIndex}</div>${rowCells}</div>`;
+        }).join('');
+        const titleHtml = title ? `<h3>${title}</h3>` : '';
+        return `<div class="table-responsive"><div class="data-grid" style="grid-template-columns: ${gridTemplateColumns};">${headerHtml}${bodyHtml}</div></div>`;
+    }
+
+    // Hàm này không cần phân trang vì thường danh sách này rất ngắn, nhưng vẫn giữ để nhất quán
+    function createScheduledTasksGridSimple(title, dataArray) {
+        if (!Array.isArray(dataArray) || dataArray.length === 0) return title ? `<h3>${title}</h3><p>No scheduled tasks at logon found.</p>` : '<p>No data found.</p>';
+        const headersToDisplay = [
+            { key: 'TaskName', displayName: 'Task Name' },
+            { key: 'TaskPath', displayName: 'Task Path' },
+            { key: 'State', displayName: 'State' }
+        ];
+        const gridTemplateColumns = "5% 40% 45% 10%";
+        const headerHtml = `<div class="grid-header"><div class="grid-cell col-no">No.</div>${headersToDisplay.map(h => `<div class="grid-cell">${h.displayName}</div>`).join('')}</div>`;
+        const bodyHtml = dataArray.map((row, index) => {
+            const rowCells = headersToDisplay.map(header => `<div class="grid-cell">${formatValue(header.key, row[header.key])}</div>`).join('');
+            return `<div class="grid-row"><div class="grid-cell col-no">${index + 1}</div>${rowCells}</div>`;
+        }).join('');
+        const titleHtml = title ? `<h3>${title}</h3>` : '';
+        return `<div class="table-responsive"><div class="data-grid" style="grid-template-columns: ${gridTemplateColumns};">${headerHtml}${bodyHtml}</div></div>`;
     }
 
     // --- Render Functions ---
@@ -659,13 +748,25 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         const mainboardCard = buildCard('hardware', 'Mainboard & BIOS', 'fa-sitemap', mainboardCardContent);
         
+
+
         let memoryCardContent = '';
         const memoryData = auditData.ram?.data || [];
         if (memoryData.length > 0 && !memoryData[0].Error) {
             const ramBlocksHtml = memoryData.map(ram => {
                 const slotName = ram.Slot || 'RAM Stick';
-                const manufacturer = ram.Manufacturer || '';
-                const memoryType = ram.MemoryType || ram.SMBIOSMemoryType || '';
+                const manufacturerCode = String(ram.Manufacturer || 'Unknown');
+                const manufacturer = manufacturer_map[manufacturerCode] || manufacturerCode;
+                const memoryTypeCode = ram.MemoryType;
+                const memoryType = type_map[memoryTypeCode] || `Unknown (${memoryTypeCode})`;
+                const formFactorCode = ram.FormFactor;
+                const formFactor = form_map[formFactorCode] || `Unknown (${formFactorCode})`;
+                const ram_map = {
+                    ...ram,
+                    Manufacturer: manufacturer, // Ghi đè giá trị đã giải mã
+                    MemoryType: memoryType,
+                    FormFactor: formFactor
+                };
                 const capacity = formatBytes(ram.Capacity || 0);
                 const speedKeys = ['ConfiguredClockSpeed', 'Speed', 'BusSpeed'];
                 let clockSpeed;
@@ -676,7 +777,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const speedForTitle = displaySpeedMhz ? `${displaySpeedMhz * 8}` : '';
                 const title = `${slotName}: ${manufacturer} ${memoryType}-${speedForTitle} ${capacity} `.replace(/\s+/g, ' ').trim();
                 const handledKeys = ['Slot', ...speedKeys];
-                const detailsHtml = Object.entries(ram).filter(([key]) => !handledKeys.includes(key)).map(([key, value]) => renderKeyValue(key, value)).join('');
+                const detailsHtml = Object.entries(ram_map).filter(([key]) => !handledKeys.includes(key)).map(([key, value]) => renderKeyValue(key, value)).join('');
                 const finalDetailsHtml = detailsHtml + (displaySpeedMhz ? renderKeyValue('Bus', `${displaySpeedMhz} MHz`) : '');
                 return `<div><h3><i class="fa-solid fa-memory"></i> ${title}</h3>${finalDetailsHtml}</div>`;
             }).join('');
@@ -687,6 +788,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         const memoryCard = buildCard('hardware', 'Memory (RAM)', 'fa-memory', memoryCardContent);
         
+
+
         let gpuCard = '';
         const gpuData = auditData.gpu?.data || [];
         if (Array.isArray(gpuData) && gpuData.length > 0 && !gpuData[0]?.Error) {
@@ -811,15 +914,74 @@ document.addEventListener('DOMContentLoaded', () => {
              document.getElementById('peripherals').innerHTML = buildCard('peripherals', 'Printers', 'fa-print', '<p>No printer data.</p>');
              return;
         }
+        
         const content = printers.map(p => {
-            const printerDetails = {...p};
+            // --- LOGIC DECODE MỚI TẠI ĐÂY ---
+            const statusList = decodeBitmask(printer_status_map, p.Status);
+            const attributesList = decodeBitmask(printer_attributes_map, p.Attributes);
+            
+            const statusText = (statusList.length > 0) ? statusList.join(', ') : 'Ready';
+
+            const printerDetails = {
+                ...p,
+                Status: statusText, // Ghi đè mã số bằng chuỗi đã giải mã
+                Attributes: attributesList.join(', ') || 'None' // Thay thế bằng chuỗi thuộc tính
+            };
+            // --- KẾT THÚC LOGIC DECODE ---
+
             let titleHtml = `<i class="fa-solid fa-print"></i> <span class="printer-name">${printerDetails['Printer Name'] || 'Unknown'}</span>`;
-            if (printerDetails.Default) titleHtml += `<span class="printer-badge status-badge default">Default</span>`;
-            if (printerDetails.hasOwnProperty('Attributes Array')) printerDetails.Attributes = printerDetails['Attributes Array'].join(', ');
-            delete printerDetails['Attributes Array']; delete printerDetails['Printer Name']; delete printerDetails.Default;
-            const detailsHtml = Object.entries(printerDetails).map(([k,v]) => renderKeyValue(k,v)).join('');
+            if (printerDetails.Default) {
+                titleHtml += `<span class="printer-badge status-badge default">Default</span>`;
+            }
+            
+            // Xóa các key không cần hiển thị lặp lại trong phần chi tiết
+            delete printerDetails['Printer Name'];
+            delete printerDetails.Default;
+            delete printerDetails.Attributes;
+            
+            const orderedKeys = [
+                'Online',
+                'Status',
+                'Jobs in Queue',
+                'Port Name',
+                'Driver Name',
+                'Attributes' // Chúng ta sẽ xử lý key này một cách đặc biệt
+            ];
+
+            let detailsHtml = '';
+
+            // 2. Lặp qua mảng thứ tự và tạo HTML
+            orderedKeys.forEach(key => {
+                if (p.hasOwnProperty(key)) {
+                    let value = p[key];
+                    
+                    // Xử lý các trường hợp đặc biệt
+                    if (key === 'Status') {
+                        value = statusText; // Sử dụng giá trị đã giải mã
+                        detailsHtml += renderKeyValue(key, value);
+                    } else if (key === 'Attributes') {
+                        // Render riêng cho "Attributes" với định dạng thẻ <p>
+                        if (attributesList.length > 0) {
+                            const attributesHtml = attributesList.map(attr => `<p>${attr}</p>`).join('');
+                            detailsHtml += `
+                                <div class="key-value">
+                                    <span class="key">Attributes</span>
+                                    <div class="value attributes-list">${attributesHtml}</div>
+                                </div>
+                            `;
+                        } else {
+                            detailsHtml += renderKeyValue('Attributes', 'None');
+                        }
+                    } else {
+                        // Render các key-value bình thường
+                        detailsHtml += renderKeyValue(key, value);
+                    }
+                }
+            });
+            
             return buildCard('peripherals', titleHtml, null, detailsHtml);
         }).join('');
+        
         document.getElementById('peripherals').innerHTML = `<div class="content-grid grid-cols-2">${content}</div>`;
     }
 
@@ -872,6 +1034,83 @@ document.addEventListener('DOMContentLoaded', () => {
             return buildCard('history', browser, 'fa-globe', profilesHtml);
         }).join('');
         historyContainer.innerHTML = `<div class="content-grid grid-cols-1">${content}</div>`;
+    }
+    
+    function renderStartup() {
+        const startupData = auditData.startup?.data || {};
+        const startupContainer = document.getElementById('startup');
+
+        if (Object.keys(startupData).length === 0 || (startupData.AutoStartServices && startupData.AutoStartServices[0]?.Error)) {
+            startupContainer.innerHTML = buildCard('startup', 'Startup Items', 'fa-rocket', '<p>No startup data available or an error occurred.</p>');
+            return;
+        }
+
+        let content = '';
+        
+        // --- 1. Startup Commands (với Phân trang & Filter) ---
+        const commandsData = startupData.Commands || [];
+        // Sử dụng PaginatedTableManager.renderLayout để tạo khung HTML
+        const commandsLayoutHtml = PaginatedTableManager.renderLayout(
+            'Filter by User:', 
+            'startup-commands-user-filter', 
+            'startup-commands-grid-container', 
+            'startup-commands-pagination-container'
+        );
+        content += buildCard('startup', 'Startup Commands', 'fa-terminal', commandsLayoutHtml);
+        
+        // --- 2. Auto-Start Services (với Phân trang & Filter) ---
+        const autoServicesData = startupData.AutoStartServices || [];
+        const servicesLayoutHtml = PaginatedTableManager.renderLayout(
+            'Filter by State:', 
+            'startup-services-state-filter', 
+            'startup-services-grid-container', 
+            'startup-services-pagination-container'
+        );
+        content += buildCard('startup', 'Auto-Start Services (3rd Party)', 'fa-cogs', servicesLayoutHtml);
+        
+        // --- 3. Scheduled Tasks (Hiển thị đơn giản, không phân trang) ---
+        const scheduledTasksData = startupData.ScheduledTasks || [];
+        content += buildCard('startup', 'Scheduled Tasks (At Logon)', 'fa-clock', createScheduledTasksGridSimple(null, scheduledTasksData));
+        
+        // --- Render toàn bộ nội dung ---
+        startupContainer.innerHTML = `<div class="content-grid grid-cols-1">${content}</div>`;
+        
+        // --- Khởi tạo Paginator cho Commands ---
+        // (Phải thực hiện sau khi đã render HTML vào trang)
+        if (commandsData.length > 0) {
+            tableManagers.startupCommands = new PaginatedTableManager({
+                itemsPerPage: 10, // Giới hạn 10 mục
+                filterKey: 'User',
+                createGridFn: createStartupCommandsGrid,
+                cardTitle: 'Startup Commands',
+                filterLabel: 'Filter by User:',
+                containerId: 'startup-commands-container', // ID của card
+                gridContainerId: 'startup-commands-grid-container',
+                paginationContainerId: 'startup-commands-pagination-container',
+                filterSelectId: 'startup-commands-user-filter',
+                prevBtnId: 'startup-commands-prev-btn',
+                nextBtnId: 'startup-commands-next-btn'
+            });
+            tableManagers.startupCommands.loadData(commandsData);
+        }
+        
+        // --- Khởi tạo Paginator cho Services ---
+        if (autoServicesData.length > 0) {
+            tableManagers.startupServices = new PaginatedTableManager({
+                itemsPerPage: 10, // Giới hạn 10 mục
+                filterKey: 'State',
+                createGridFn: createAutoStartServicesGrid,
+                cardTitle: 'Auto-Start Services (3rd Party)',
+                filterLabel: 'Filter by State:',
+                containerId: 'startup-services-container',
+                gridContainerId: 'startup-services-grid-container',
+                paginationContainerId: 'startup-services-pagination-container',
+                filterSelectId: 'startup-services-state-filter',
+                prevBtnId: 'startup-services-prev-btn',
+                nextBtnId: 'startup-services-next-btn'
+            });
+            tableManagers.startupServices.loadData(autoServicesData);
+        }
     }
 
     // --- Paginated/Filtered Render Functions ---
@@ -956,7 +1195,7 @@ document.addEventListener('DOMContentLoaded', () => {
         fetch(`/api/client_audit_data/${CLIENT_GUID}`).then(res => res.json()).then(data => {
             auditData = data;
             renderBasicInfo(); renderPerformance(); renderHardware(); renderDisk(); renderNetwork(); renderPeripherals();
-            renderSecurity(); renderUsers(); renderSoftware(); renderRuntime(); renderServices(); renderLogs(); renderHistory();
+            renderSecurity(); renderUsers(); renderSoftware(); renderRuntime(); renderServices(); renderLogs(); renderHistory();renderStartup();
         }).catch(err => {
             console.error("Failed to fetch audit data:", err);
             document.querySelector('.tabs-container').innerHTML = `<p style="color:red;text-align:center;">Error loading client details.</p>`;
