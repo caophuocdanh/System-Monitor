@@ -221,6 +221,7 @@
 
 
 /* --- USER TAB STYLES --- */
+.key-value.highlight-value{justify-content: flex-start;}
 .key-value.highlight-value .value {
     font-weight: 700;
     color: var(--color-primary);

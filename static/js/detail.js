@@ -311,7 +311,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             const gridContainer = document.getElementById(this.gridContainerId);
             if (gridContainer) {
-                const title = `(Showing ${filteredData.length} of ${this.allData.length} entries)`;
+                const title = ``; //(Showing ${filteredData.length} of ${this.allData.length} entries)`;
                 gridContainer.innerHTML = this.createGridFn(title, paginatedData, this.currentPage, this.itemsPerPage);
             }
             
