@@ -26,22 +26,30 @@ echo Building System Monitor Dashboard executable...
 pyinstaller --noconsole --onefile --name="System Monitor Dashboard" --icon="requirements\dashboard.ico" dashboard.py
 
 echo Building Audit Data executable...
-pyinstaller --noconsole --onefile --icon="requirements\server.ico" --name="Audit Data Sample" "Audit Data.py"
+pyinstaller --noconsole --onefile --icon="requirements\sample.ico" --name="Audit Data Sample" "Audit Data.py"
 
 echo Building Config Editor executable...
-pyinstaller --noconsole --onefile --icon="requirements\server.ico" --name="Config Editor" "config_editor.py"
+pyinstaller --noconsole --onefile --icon="requirements\config.ico" --name="Config Editor" "config_editor.py"
 
-mkdir source
+mkdir "source"
+mkdir "source\server"
+mkdir "source\client"
 
 echo Move all file from dist to source
 move /Y "dist\*" "source\"
 
 echo Copying static and template files to dist folder...
-xcopy static source\static /E /I /Y
-xcopy templates source\templates /E /I /Y
-copy config.ini source\config.ini /Y
-copy requirements\kill_all.bat source\kill_all.bat /Y
-copy requirements\run_server.bat source\run_server.bat /Y
+xcopy static "source\server\static" /E /I /Y
+xcopy templates "source\server\templates" /E /I /Y
+copy config.ini "source\server\config.ini" /Y
+copy config.ini "source\client\config.ini" /Y
+
+move /Y "source\System Monitor Dashboard.exe" "source\server\"
+move /Y "source\System Monitor Server.exe" "source\server\"
+move /Y "source\System Monitor Client.exe" "source\client\"
+
+copy "requirements\kill_all.bat" "source\kill_all.bat" /Y
+copy "requirements\run_server.bat" "source\run_server.bat" /Y
 rmdir /S /Q dist
 rmdir /S /Q build
 del /f /q *.spec
