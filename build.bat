@@ -50,6 +50,7 @@ move /Y "source\System Monitor Client.exe" "source\client\"
 
 copy "requirements\kill_all.bat" "source\kill_all.bat" /Y
 copy "requirements\run_server.bat" "source\run_server.bat" /Y
+copy "requirements\README.md" "source\README.md" /Y
 rmdir /S /Q dist
 rmdir /S /Q build
 del /f /q *.spec
