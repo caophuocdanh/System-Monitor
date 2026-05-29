@@ -7,6 +7,10 @@ taskkill /f /im "Audit Data Sample.exe"
 taskkill /f /im "Config Editor.exe"
 taskkill /f /im "python.exe"
 
+echo Removing Windows Service if exists...
+sc stop SystemMonitorClient
+sc delete SystemMonitorClient
+
 echo Removing dist, build, __pycache__ folders and .spec files...
 rmdir /S /Q dist
 rmdir /S /Q build

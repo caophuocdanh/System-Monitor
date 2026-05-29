@@ -4,14 +4,17 @@ import configparser
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 
-# --- Các hằng số và DISPLAY_NAMES không đổi ---
+# --- Các hằng số và DISPLAY_NAMES ---
 IMMUTABLE_KEYS = {"server", "host"}
 IMMUTABLE_VALUE = "0.0.0.0"
+BOOLEAN_KEYS = {"autostart", "gui"}
 
 DISPLAY_NAMES = {
     "host": "Địa chỉ IP mà server WebSocket sẽ lắng nghe (0.0.0.0 = mọi địa chỉ)", "port": "Cổng WebSocket chính mà server sử dụng", "health_check_port": "Cổng kiểm tra tình trạng server (health-check)",
+    "gui": "Hiển thị cửa sổ Console (Server)",
     "server": "Địa chỉ WebSocket server mà client kết nối", "retry_interval": "Thời gian giữa các lần thử lại nếu mất kết nối (giây)", "refesh_interval": "Tần suất gửi dữ liệu hiệu năng (giây)",
     "update_info_interval": "Chu kỳ gửi lại thông tin đầy đủ (giây)", "max_event_log": "Số lượng log hệ thống lấy tối đa", "history_limit": "Giới hạn số lịch sử trình duyệt mỗi profile",
+    "autostart": "Khởi động cùng Windows",
     "clients": "Số client tối đa hiển thị", "records": "Số bản ghi RAM tạm giữ", "database_size": "Dung lượng DB tối đa (MB)", "dashboard_refresh_interval": "Chu kỳ cập nhật dashboard (ms)",
     "server_status_refresh_interval": "Chu kỳ kiểm tra trạng thái server (ms)", "client_realtime_metrics_interval": "Chu kỳ lấy số liệu client (ms)", "limit_items_per_page": "Số mục hiển thị trên mỗi trang (phân trang)",
     "cpu": "CPU", "ram": "Bộ nhớ RAM", "disk": "Ổ đĩa", "gpu": "Card đồ họa", "mainboard": "Bo mạch chủ", "network": "Mạng", "printers": "Máy in", "os": "Hệ điều hành",
@@ -20,7 +23,6 @@ DISPLAY_NAMES = {
 }
 
 class ConfigEditor(ttk.Frame):
-    # Lớp này không cần thay đổi
     def __init__(self, master, config_path):
         super().__init__(master, padding=(10, 10))
         self.master = master
@@ -52,10 +54,20 @@ class ConfigEditor(ttk.Frame):
                 for i, (key, value) in enumerate(self.config[section_name].items()):
                     label = ttk.Label(group, text=DISPLAY_NAMES.get(key, key), wraplength=180)
                     label.grid(row=i, column=0, sticky="w", pady=2, padx=5)
-                    var = tk.StringVar(value=value)
-                    entry = ttk.Entry(group, textvariable=var, width=15)
-                    entry.grid(row=i, column=1, sticky="w", padx=5)
-                    if key in IMMUTABLE_KEYS and value == IMMUTABLE_VALUE: entry.config(state="disabled")
+                    
+                    # Nhận diện boolean dựa trên key hoặc giá trị
+                    is_bool = key in BOOLEAN_KEYS or section_name == "audit_modules" or value.lower() in ["true", "false", "1", "0"]
+                    
+                    if is_bool:
+                        var = tk.BooleanVar(value=self.config.getboolean(section_name, key))
+                        widget = ttk.Checkbutton(group, variable=var)
+                    else:
+                        var = tk.StringVar(value=value)
+                        widget = ttk.Entry(group, textvariable=var, width=15)
+                        if key in IMMUTABLE_KEYS and value == IMMUTABLE_VALUE: 
+                            widget.config(state="disabled")
+                    
+                    widget.grid(row=i, column=1, sticky="w", padx=5)
                     self.tk_vars[(section_name, key)] = var
             else:
                 placeholder = ttk.Label(group, text="(Không có cấu hình)", style="Placeholder.TLabel")
@@ -82,7 +94,10 @@ class ConfigEditor(ttk.Frame):
         for (section, key), var in self.tk_vars.items():
             if not self.config.has_section(section): self.config.add_section(section)
             value = var.get()
-            if isinstance(value, bool): value = str(value).lower()
+            # Chuyển đổi boolean sang 0/1 để lưu vào config.ini
+            if isinstance(value, bool): 
+                value = "1" if value else "0"
+            
             if not (key in IMMUTABLE_KEYS and self.config.get(section, key, fallback=None) == IMMUTABLE_VALUE):
                  self.config[section][key] = str(value)
         try:
@@ -101,13 +116,9 @@ def is_valid_config_file(file_path):
         if config.has_section(section) and config.items(section): return True
     return False
 
-# --- KHỐI KHỞI CHẠY CHÍNH (ĐÃ SỬA LỖI) ---
 if __name__ == "__main__":
     config_path = "config.ini"
-    
-    # BƯỚC 1: Tạo một cửa sổ root duy nhất ngay từ đầu
     root = tk.Tk()
-    # BƯỚC 2: Ẩn nó đi trong khi kiểm tra file
     root.withdraw() 
 
     if not is_valid_config_file(config_path):
@@ -120,7 +131,6 @@ if __name__ == "__main__":
             selected_file = filedialog.askopenfilename(title="Chọn file config.ini", filetypes=[("INI files", "*.ini"), ("All files", "*.*")])
             if not selected_file:
                 messagebox.showwarning("Hủy bỏ", "Không có file nào được chọn. Chương trình sẽ thoát.")
-                # Hủy cửa sổ root duy nhất và thoát
                 root.destroy()
                 sys.exit()
             
@@ -130,10 +140,7 @@ if __name__ == "__main__":
             else:
                 messagebox.showerror("File không hợp lệ", f"File '{os.path.basename(selected_file)}' không hợp lệ hoặc rỗng. Vui lòng chọn lại.")
     
-    # BƯỚC 3: Sau khi đã có file hợp lệ, hiển thị lại cửa sổ root
     root.deiconify() 
-    
-    # BƯỚC 4: Thiết lập và chạy ứng dụng như bình thường trên cửa sổ root đó
     root.geometry("1025x535")
     root.resizable(False, False)
 
@@ -144,5 +151,4 @@ if __name__ == "__main__":
 
     app = ConfigEditor(master=root, config_path=config_path)
     app.pack(fill="both", expand=True)
-    
     root.mainloop()

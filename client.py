@@ -7,8 +7,23 @@ import json
 import configparser
 import platform
 import hashlib
+import psutil
 from library import WindowsAuditor
 import time # Import time để đo thời gian
+
+# --- Bổ sung cho Windows Service ---
+WIN32_SERVICE_AVAILABLE = False
+if platform.system() == "Windows":
+    try:
+        import win32serviceutil
+        import win32service
+        import win32event
+        import servicemanager
+        import win32timezone  # Bắt buộc cho win32serviceutil
+        import socket
+        WIN32_SERVICE_AVAILABLE = True
+    except ImportError:
+        pass
 
 # --- Các hàm helper không đổi ---
 def get_machine_id():
@@ -56,6 +71,114 @@ def get_enabled_modules_from_config():
             if config.getboolean('audit_modules', module_name):
                 enabled_modules.append(module_name)
     return enabled_modules
+
+def ensure_single_instance():
+    """Kiểm tra và tắt các bản client cũ đang chạy."""
+    current_pid = os.getpid()
+    # Tên file thực thi (ví dụ: System Monitor Client.exe hoặc client.exe)
+    exe_name = os.path.basename(sys.executable)
+    
+    print(f"[CLEANUP] Checking for existing instances of '{exe_name}'...")
+    
+    found_other = False
+    for proc in psutil.process_iter(['pid', 'name', 'exe']):
+        try:
+            # Không tự đóng chính mình
+            if proc.info['pid'] == current_pid:
+                continue
+            
+            # Kiểm tra nếu trùng tên file thực thi hoặc trùng đường dẫn
+            is_same_app = False
+            if proc.info['name'] == exe_name:
+                is_same_app = True
+            elif proc.info['exe'] and os.path.normpath(proc.info['exe']) == os.path.normpath(sys.executable):
+                is_same_app = True
+                
+            if is_same_app:
+                print(f"[CLEANUP] Found existing instance (PID: {proc.info['pid']}). Terminating...")
+                p = psutil.Process(proc.info['pid'])
+                p.terminate()
+                p.wait(timeout=5)
+                print(f"[CLEANUP] PID {proc.info['pid']} terminated.")
+                found_other = True
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.TimeoutExpired):
+            continue
+            
+    if not found_other:
+        print("[CLEANUP] No other instances found.")
+
+def manage_autostart():
+    """Thiết lập/Hủy Windows Service cho client dựa trên config.ini."""
+    if platform.system() != "Windows" or not WIN32_SERVICE_AVAILABLE:
+        return
+
+    config = configparser.ConfigParser()
+    config.read(os.path.join(get_base_path(), "config.ini"))
+    autostart = config.getint('client', 'autostart', fallback=0)
+    
+    service_name = "SystemMonitorClient"
+
+    try:
+        if autostart == 1:
+            # Kiểm tra xem service đã tồn tại chưa
+            try:
+                win32serviceutil.QueryServiceStatus(service_name)
+                print(f"[SERVICE] '{service_name}' already exists.")
+            except:
+                print(f"[SERVICE] Installing '{service_name}'...")
+                # Cài đặt service
+                # Lưu ý: Khi chạy script .py, sys.executable là python.exe
+                # Khi chạy .exe, sys.executable là file .exe đó
+                os.system(f'"{sys.executable}" install')
+                os.system(f'"{sys.executable}" start')
+                print(f"[SERVICE] '{service_name}' installed and started.")
+        else:
+            try:
+                win32serviceutil.QueryServiceStatus(service_name)
+                print(f"[SERVICE] Removing '{service_name}'...")
+                os.system(f'"{sys.executable}" stop')
+                os.system(f'"{sys.executable}" remove')
+                print(f"[SERVICE] '{service_name}' removed.")
+            except:
+                pass # Service không tồn tại
+    except Exception as e:
+        print(f"[SERVICE] Error managing Windows Service: {e}")
+
+if WIN32_SERVICE_AVAILABLE:
+    class SystemMonitorService(win32serviceutil.ServiceFramework):
+        _svc_name_ = "SystemMonitorClient"
+        _svc_display_name_ = "System Monitor Client Service"
+        _svc_description_ = "Gửi thông tin hiệu năng hệ thống về server giám sát."
+
+        def __init__(self, args):
+            win32serviceutil.ServiceFramework.__init__(self, args)
+            self.hWaitStop = win32event.CreateEvent(None, 0, 0, None)
+            self.stop_requested = False
+
+        def SvcStop(self):
+            self.ReportServiceStatus(win32service.SERVICE_STOP_PENDING)
+            win32event.SetEvent(self.hWaitStop)
+            self.stop_requested = True
+
+        def SvcDoRun(self):
+            servicemanager.LogMsg(servicemanager.EVENTLOG_INFORMATION_TYPE,
+                                  servicemanager.PYS_SERVICE_STARTED,
+                                  (self._svc_name_, ''))
+            self.main()
+
+        def main(self):
+            # Chạy audit ban đầu
+            initial_audit_results = run_full_audit_sync()
+            
+            # Khởi tạo vòng lặp asyncio
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            
+            # Chạy hàm connect
+            try:
+                loop.run_until_complete(connect(initial_audit_results))
+            except Exception as e:
+                servicemanager.LogErrorMsg(f"Service Error: {e}")
 
 # --- Các biến toàn cục ---
 CLIENT_GUID = get_machine_id()
@@ -265,14 +388,25 @@ async def connect(initial_audit_data):
 
 
 if __name__ == "__main__":
+    # Kiểm tra xem có đang được gọi bởi Service Control Manager không
+    if len(sys.argv) > 1 and WIN32_SERVICE_AVAILABLE:
+        if sys.argv[1] in ['install', 'remove', 'update', 'start', 'stop', 'restart', 'debug']:
+            win32serviceutil.HandleCommandLine(SystemMonitorService)
+            sys.exit()
+
     if platform.system() != "Windows":
         print("Warning: This client is designed for Windows and may have limited functionality on other OS.")
     
+    # 0. Đảm bảo chỉ có một instance chạy (tắt các bản cũ nếu có)
+    ensure_single_instance()
+
+    # Xử lý cấu hình autostart cùng hệ thống trước (cài đặt/gỡ bỏ service)
+    manage_autostart()
+
     # 1. Chạy audit trước khi làm bất cứ điều gì khác
-    # Đây là một lời gọi blocking, chương trình sẽ chờ ở đây
     initial_audit_results = run_full_audit_sync()
 
-    # 2. Sau khi audit xong, bắt đầu vòng lặp kết nối và truyền dữ liệu audit vào
+    # 2. Bắt đầu vòng lặp kết nối
     try:
         asyncio.run(connect(initial_audit_results))
     except KeyboardInterrupt:
