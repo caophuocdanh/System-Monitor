@@ -847,6 +847,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const diskData = auditData.disk?.data || {};
         const diskTab = document.getElementById('disk');
         let finalHtml = '';
+
+        // 1. Hiển thị đĩa vật lý và phân vùng theo cấu trúc (Logic cũ)
         const physicalDisks = diskData.PhysicalDisks || [];
         if (physicalDisks.length > 0 && !physicalDisks[0].Error) {
             const physicalDisksRows = physicalDisks.map((disk, i) => {
@@ -865,12 +867,36 @@ document.addEventListener('DOMContentLoaded', () => {
             }).join('');
             finalHtml += `<div class="content-grid grid-cols-1">${physicalDisksRows}</div>`;
         }
+
+        // 2. Hiển thị bảng tổng hợp các phân vùng Logic (Dữ liệu mới bổ sung)
+        const logicalVolumes = diskData.LogicalDisks || [];
+        if (logicalVolumes.length > 0) {
+            const headers = [
+                { key: 'DeviceID', displayName: 'Drive' },
+                { key: 'VolumeName', displayName: 'Label' },
+                { key: 'FileSystem', displayName: 'FS' },
+                { key: 'Size', displayName: 'Total' },
+                { key: 'FreeSpace', displayName: 'Free' }
+            ];
+            const headerHtml = `<div class="grid-header"><div class="grid-cell col-no">No.</div>${headers.map(h => `<div class="grid-cell">${h.displayName}</div>`).join('')}</div>`;
+            const bodyHtml = logicalVolumes.map((vol, index) => {
+                const rowCells = headers.map(h => `<div class="grid-cell">${formatValue(h.key, vol[h.key])}</div>`).join('');
+                return `<div class="grid-row"><div class="grid-cell col-no">${index + 1}</div>${rowCells}</div>`;
+            }).join('');
+            
+            const tableHtml = `<div class="table-responsive"><div class="data-grid" style="grid-template-columns: 5% 10% 25% 10% 25% 25%;">${headerHtml}${bodyHtml}</div></div>`;
+            finalHtml += buildCard('disk', 'Logical Volumes Summary', 'fa-table-list', tableHtml);
+        }
+
         const networkDrives = diskData.NetworkDrives || [];
         if (networkDrives.length > 0) {
             const networkDrivesContent = networkDrives.map((drive, i) => buildCard('disk', drive.DeviceID || `Net Drive ${i}`, 'fa-server', renderKeyValue('Provider Name', drive.ProviderName))).join('');
             finalHtml += `<div class="info-card"><h2><i class="fa-solid fa-network-wired"></i> Network Drives</h2><div class="card-content"><div class="content-grid grid-cols-2">${networkDrivesContent}</div></div></div>`;
         }
+        
         diskTab.innerHTML = finalHtml.trim() === '' ? buildCard('disk', 'Storage', 'fa-hdd', '<p>No disk data.</p>') : finalHtml;
+        
+        // Vẽ lại Pie Charts
         physicalDisks.forEach((disk, i) => {
             const logicalDisks = (disk.Partitions || []).flatMap(p => p.LogicalDisks || []);
             if (logicalDisks.length === 0) return;

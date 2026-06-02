@@ -115,7 +115,21 @@ class WindowsAuditor:
         
         @staticmethod
         def get_disk_usage():
-            return psutil.disk_usage('/').percent
+            """Tính trung bình cộng % sử dụng của tất cả các ổ đĩa vật lý > 1GB."""
+            try:
+                total_percent = 0.0
+                count = 0
+                # all=False lọc các ổ đĩa vật lý/cố định trên Windows
+                for part in psutil.disk_partitions(all=False):
+                    if not part.fstype: continue
+                    try:
+                        usage = psutil.disk_usage(part.mountpoint)
+                        if usage.total > 1073741824: # > 1GB
+                            total_percent += usage.percent
+                            count += 1
+                    except (PermissionError, OSError): continue
+                return float(total_percent / count) if count > 0 else 0.0
+            except Exception: return 0.0
 
         @staticmethod
         def get_disk_io_per_disk():
@@ -289,11 +303,21 @@ class WindowsAuditor:
                 if ($pData.Count -gt 0) { @{ DeviceID = $d.DeviceID; Model = $d.Model.Trim(); SerialNumber = $d.SerialNumber.Trim(); InterfaceType = $d.InterfaceType; MediaType = $d.MediaType; Status = $d.Status; Size = $d.Size; Partitions = $pData } }
             } | ConvertTo-Json -Depth 10
             """
-            net_script = "Get-CimInstance -ClassName Win32_LogicalDisk -Filter 'DriveType = 4' | Select-Object DeviceID, ProviderName | ConvertTo-Json"
+            net_script = "Get-CimInstance Win32_LogicalDisk -Filter 'DriveType = 4' | Select-Object DeviceID, ProviderName | ConvertTo-Json"
+            # Thêm logical_script để lấy thông tin chi tiết các ổ đĩa cố định > 1GB
+            logical_script = "Get-CimInstance Win32_LogicalDisk | Where-Object { $_.DriveType -eq 3 -and $_.Size -gt 1073741824 } | Select-Object DeviceID, VolumeName, FileSystem, Size, FreeSpace | ConvertTo-Json"
+
             try:
                 phys_disks = _run_powershell(phys_script, use_bypass=True) or []
                 net_drives = _run_powershell(net_script) or []
-                self._details = {"PhysicalDisks": [phys_disks] if isinstance(phys_disks, dict) else phys_disks, "NetworkDrives": [net_drives] if isinstance(net_drives, dict) else net_drives}
+                logical_drives = _run_powershell(logical_script) or []
+
+                self._details = {
+                    "PhysicalDisks": [phys_disks] if isinstance(phys_disks, dict) else phys_disks, 
+                    "NetworkDrives": [net_drives] if isinstance(net_drives, dict) else net_drives,
+                    "LogicalDisks": [logical_drives] if isinstance(logical_drives, dict) else logical_drives
+                }
+
             except Exception as e: self._details = {"Error": f"Could not retrieve disk info: {e}"}
             return self._details
 
