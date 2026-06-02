@@ -30,9 +30,9 @@ def manage_autostart():
 
     # Xác định đường dẫn thực thi
     if getattr(sys, 'frozen', False):
-        app_path = f'"{sys.executable}" -minimized'
+        app_path = f'"{sys.executable}"'
     else:
-        app_path = f'"{sys.executable}" "{os.path.abspath(sys.argv[0])}" -minimized'
+        app_path = f'"{sys.executable}" "{os.path.abspath(sys.argv[0])}"'
 
     reg_path = r"SOFTWARE\Microsoft\Windows\CurrentVersion\Run"
     approved_path = r"SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run"
@@ -209,7 +209,7 @@ def run_full_audit_sync():
 async def send_metrics(websocket):
     """Gửi các chỉ số hiệu năng (CPU, RAM, Disk, và I/O chi tiết) định kỳ."""
     config = configparser.ConfigParser()
-    config.read('config.ini')
+    config.read(os.path.join(get_base_path(), 'config.ini'))
     metrics_send_interval = int(config['client']['refesh_interval'])
     try:
         while True:
@@ -266,7 +266,7 @@ async def send_updated_audit_and_info(websocket, initial_audit_data):
     Nó sẽ gửi dữ liệu ban đầu ngay lập tức, sau đó lặp lại.
     """
     config = configparser.ConfigParser()
-    config.read('config.ini')
+    config.read(os.path.join(get_base_path(), 'config.ini'))
     update_interval = int(config['client']['update_info_interval'])
     
     # Sử dụng dữ liệu audit đã có từ trước cho lần gửi đầu tiên
@@ -319,7 +319,7 @@ async def connect(initial_audit_data):
     Nhận dữ liệu audit ban đầu làm tham số.
     """
     config = configparser.ConfigParser()
-    config.read('config.ini')
+    config.read(os.path.join(get_base_path(), 'config.ini'))
     server_host = config['client']['server']
     server_port = int(config['server']['port'])
     retry_interval = int(config['client']['retry_interval'])
@@ -360,6 +360,9 @@ async def connect(initial_audit_data):
 
 
 if __name__ == "__main__":
+    # Thiết lập thư mục làm việc về thư mục chứa script
+    os.chdir(get_base_path())
+
     if "-minimized" in sys.argv:
         hide_console()
         

@@ -50,9 +50,9 @@ def manage_autostart():
 
     # Xác định đường dẫn thực thi
     if getattr(sys, 'frozen', False):
-        app_path = f'"{sys.executable}" -minimized'
+        app_path = f'"{sys.executable}"'
     else:
-        app_path = f'"{sys.executable}" "{os.path.abspath(sys.argv[0])}" -minimized'
+        app_path = f'"{sys.executable}" "{os.path.abspath(sys.argv[0])}"'
 
     reg_path = r"SOFTWARE\Microsoft\Windows\CurrentVersion\Run"
     approved_path = r"SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run"
@@ -475,6 +475,9 @@ async def main():
         await asyncio.Future()
 
 if __name__ == "__main__":
+    # Thiết lập thư mục làm việc về thư mục chứa script
+    os.chdir(get_base_path())
+
     # 0. Đảm bảo chỉ có một instance chạy
     ensure_single_instance()
 
