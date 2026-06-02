@@ -13,21 +13,11 @@ import ctypes
 import psutil
 import platform
 
-# Kiểm tra nền tảng để import các thư viện Windows
+# Kiểm tra nền tảng
 IS_WINDOWS = sys.platform == "win32"
-WIN32_SERVICE_AVAILABLE = False
 
 if IS_WINDOWS:
     import winreg
-    try:
-        import win32serviceutil
-        import win32service
-        import win32event
-        import servicemanager
-        import win32timezone
-        WIN32_SERVICE_AVAILABLE = True
-    except ImportError:
-        pass
 
 # --- CẤU HÌNH LOGGING VÀ BIẾN TOÀN CỤC ---
 logging.getLogger('http.server').setLevel(logging.WARNING)
@@ -43,147 +33,97 @@ def get_base_path():
         return os.path.dirname(sys.executable)  # khi đã đóng gói .exe
     return os.path.dirname(os.path.abspath(__file__))  # khi chạy file .py
 
-def manage_autostart():
-    """Thiết lập/Hủy Windows Service cho server dựa trên config.ini."""
-    if not IS_WINDOWS or not WIN32_SERVICE_AVAILABLE:
-        return
-
-    config = configparser.ConfigParser()
-    config.read(os.path.join(get_base_path(), "config.ini"))
-    autostart = config.getint('server', 'autostart', fallback=0)
-    
-    service_name = "SystemMonitorServer"
-
-    try:
-        if autostart == 1:
-            # Kiểm tra xem service đã tồn tại chưa
-            try:
-                win32serviceutil.QueryServiceStatus(service_name)
-                print(f"[SERVICE] '{service_name}' already exists.")
-            except:
-                print(f"[SERVICE] Installing '{service_name}'...")
-                os.system(f'"{sys.executable}" install')
-                os.system(f'"{sys.executable}" start')
-                print(f"[SERVICE] '{service_name}' installed and started.")
-        else:
-            try:
-                win32serviceutil.QueryServiceStatus(service_name)
-                print(f"[SERVICE] Removing '{service_name}'...")
-                os.system(f'"{sys.executable}" stop')
-                os.system(f'"{sys.executable}" remove')
-                print(f"[SERVICE] '{service_name}' removed.")
-            except:
-                pass # Service không tồn tại
-    except Exception as e:
-        print(f"[SERVICE] Error managing Windows Service: {e}")
-
-if WIN32_SERVICE_AVAILABLE:
-    class SystemMonitorServerService(win32serviceutil.ServiceFramework):
-        _svc_name_ = "SystemMonitorServer"
-        _svc_display_name_ = "System Monitor Server Service"
-        _svc_description_ = "Server nhận dữ liệu giám sát hệ thống từ các client."
-
-        def __init__(self, args):
-            win32serviceutil.ServiceFramework.__init__(self, args)
-            self.hWaitStop = win32event.CreateEvent(None, 0, 0, None)
-            self.stop_requested = False
-
-        def SvcStop(self):
-            self.ReportServiceStatus(win32service.SERVICE_STOP_PENDING)
-            win32event.SetEvent(self.hWaitStop)
-            self.stop_requested = True
-
-        def SvcDoRun(self):
-            servicemanager.LogMsg(servicemanager.EVENTLOG_INFORMATION_TYPE,
-                                  servicemanager.PYS_SERVICE_STARTED,
-                                  (self._svc_name_, ''))
-            self.main()
-
-        def main(self):
-            # Khởi tạo DB trước khi chạy
-            setup_database()
-            clear_active_connections()
-            
-            # Khởi tạo vòng lặp asyncio
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            
-            # Chạy hàm main của server
-            try:
-                loop.run_until_complete(main())
-            except Exception as e:
-                servicemanager.LogErrorMsg(f"Service Error: {e}")
-
 def show_console(show=True):
     """Ẩn hoặc hiện cửa sổ console trên Windows."""
+    if IS_WINDOWS:
+        hwnd = ctypes.windll.kernel32.GetConsoleWindow()
+        if hwnd:
+            if show:
+                ctypes.windll.user32.ShowWindow(hwnd, 5) # SW_SHOW
+            else:
+                ctypes.windll.user32.ShowWindow(hwnd, 0) # SW_HIDE
+
+def manage_autostart():
+    """Thiết lập Windows Registry để server tự động chạy cùng hệ thống (luôn force Enabled nếu là Admin)."""
     if not IS_WINDOWS:
         return
-    
-    # Lấy handle của cửa sổ console hiện tại
-    hwnd = ctypes.windll.kernel32.GetConsoleWindow()
-    if hwnd:
-        if show:
-            ctypes.windll.user32.ShowWindow(hwnd, 5) # SW_SHOW
-        else:
-            ctypes.windll.user32.ShowWindow(hwnd, 0) # SW_HIDE
+
+    # Xác định đường dẫn thực thi
+    if getattr(sys, 'frozen', False):
+        app_path = f'"{sys.executable}" -minimized'
+    else:
+        app_path = f'"{sys.executable}" "{os.path.abspath(sys.argv[0])}" -minimized'
+
+    reg_path = r"SOFTWARE\Microsoft\Windows\CurrentVersion\Run"
+    approved_path = r"SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run"
+    app_name = "SystemMonitorServer"
+
+    try:
+        # 1. Mở key HKLM với quyền ghi và xóa
+        key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, reg_path, 0, winreg.KEY_ALL_ACCESS)
+        
+        # 2. Xóa và ghi lại để đảm bảo entry mới nhất
+        try:
+            winreg.DeleteValue(key, app_name)
+        except FileNotFoundError:
+            pass
+        winreg.SetValueEx(key, app_name, 0, winreg.REG_SZ, app_path)
+        winreg.CloseKey(key)
+
+        # 3. Force Enable: Xóa khỏi StartupApproved nếu user từng disable trong Task Manager
+        try:
+            approved_key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, approved_path, 0, winreg.KEY_ALL_ACCESS)
+            winreg.DeleteValue(approved_key, app_name)
+            winreg.CloseKey(approved_key)
+            print(f"[AUTOSTART] Force enabled: Cleared disabled flag for '{app_name}'")
+        except FileNotFoundError:
+            pass # Chưa từng bị disable
+        except Exception:
+            pass
+
+        print(f"[AUTOSTART] Registry refreshed & registered: {app_path}")
+        
+    except PermissionError:
+        print("[AUTOSTART] Skipping Registry update: Not running as Administrator.")
+    except Exception as e:
+        print(f"[AUTOSTART] Error setting autostart: {e}")
 
 def ensure_single_instance():
-    """Kiểm tra và tắt các bản server cũ đang chạy để tránh chiếm dụng port."""
+    """Kiểm tra và tắt triệt để các bản server cũ đang chạy."""
     current_pid = os.getpid()
-    current_script = os.path.abspath(__file__)
+    exe_name = os.path.basename(sys.executable)
     
-    # Lấy danh sách PID của tất cả tiến trình cha để tránh tự sát hoặc giết IDE
-    parent_pids = []
-    try:
-        curr = psutil.Process(current_pid)
-        while curr.parent():
-            curr = curr.parent()
-            parent_pids.append(curr.pid)
-    except:
-        pass
-
-    print(f"[Cleanup] Checking for existing instances of server...")
+    print(f"[CLEANUP] Checking for existing instances of '{exe_name}'...")
     
-    for proc in psutil.process_iter(['pid', 'name', 'cmdline', 'exe']):
+    found_other = False
+    for proc in psutil.process_iter(['pid', 'name', 'exe']):
         try:
-            pid = proc.info['pid']
-            if pid == current_pid or pid in parent_pids:
+            if proc.info['pid'] == current_pid:
                 continue
             
             is_same_app = False
-            # Nếu là file .exe đã đóng gói
-            if getattr(sys, 'frozen', False):
-                if proc.info['exe'] and os.path.normpath(proc.info['exe']) == os.path.normpath(sys.executable):
-                    is_same_app = True
-            else:
-                # Nếu là script .py, kiểm tra cmdline một cách cẩn thận
-                cmdline = proc.info['cmdline']
-                if cmdline:
-                    # Kiểm tra xem có script hiện tại trong cmdline không
-                    # arg có thể là đường dẫn tương đối hoặc tuyệt đối
-                    script_name = os.path.basename(current_script)
-                    for arg in cmdline:
-                        if arg.endswith(script_name) or (os.path.isfile(arg) and os.path.abspath(arg) == current_script):
-                            # Đảm bảo đây là tiến trình python
-                            exe = proc.info['exe']
-                            if exe and 'python' in os.path.basename(exe).lower():
-                                is_same_app = True
-                                break
-                            if 'python' in proc.info['name'].lower():
-                                is_same_app = True
-                                break
-            
+            if proc.info['name'] == exe_name:
+                is_same_app = True
+            elif proc.info['exe'] and os.path.normpath(proc.info['exe']) == os.path.normpath(sys.executable):
+                is_same_app = True
+                
             if is_same_app:
-                print(f"[Cleanup] Found existing instance (PID: {pid}). Terminating...")
-                p = psutil.Process(pid)
-                p.terminate()
+                print(f"[CLEANUP] Found existing instance (PID: {proc.info['pid']}). Terminating...")
+                p = psutil.Process(proc.info['pid'])
                 try:
-                    p.wait(timeout=5)
+                    p.terminate()
+                    p.wait(timeout=3)
                 except psutil.TimeoutExpired:
+                    print(f"[CLEANUP] PID {proc.info['pid']} did not respond to terminate. Killing...")
                     p.kill()
-                print(f"[Cleanup] PID {pid} terminated.")
+                
+                print(f"[CLEANUP] PID {proc.info['pid']} cleaned up.")
+                found_other = True
         except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.TimeoutExpired):
             continue
+            
+    if not found_other:
+        print("[CLEANUP] No other instances found.")
 
 # --- HTTP HEALTH CHECK SERVER ---
 class HealthCheckHandler(BaseHTTPRequestHandler):
@@ -511,9 +451,13 @@ async def main():
     server_port = int(config['server']['port'])
     health_check_port = int(config['server']['health_check_port'])
 
-    # Áp dụng cấu hình GUI
+    # Áp dụng cấu hình GUI và xử lý tham số -minimized
     gui_enabled = config.getboolean('server', 'gui', fallback=True)
-    show_console(gui_enabled)
+
+    if "-minimized" in sys.argv:
+        show_console(False)
+    else:
+        show_console(gui_enabled)
 
     health_thread = threading.Thread(
         target=run_health_check_server, 
@@ -526,21 +470,15 @@ async def main():
     asyncio.create_task(database_writer_worker())
 
     async with websockets.serve(websocket_handler, server_host, server_port):
-        if gui_enabled:
+        if "-minimized" not in sys.argv and gui_enabled:
             print(f"[Server] WebSocket server started at ws://{server_host}:{server_port}")
         await asyncio.Future()
 
 if __name__ == "__main__":
-    # Kiểm tra xem có đang được gọi bởi Service Control Manager không
-    if len(sys.argv) > 1 and WIN32_SERVICE_AVAILABLE:
-        if sys.argv[1] in ['install', 'remove', 'update', 'start', 'stop', 'restart', 'debug']:
-            win32serviceutil.HandleCommandLine(SystemMonitorServerService)
-            sys.exit()
-
     # 0. Đảm bảo chỉ có một instance chạy
     ensure_single_instance()
 
-    # Xử lý cấu hình autostart cùng hệ thống
+    # Xử lý cấu hình autostart cùng hệ thống qua Registry
     manage_autostart()
 
     # Các hàm setup DB chạy một lần duy nhất khi khởi động server

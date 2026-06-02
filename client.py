@@ -9,21 +9,64 @@ import platform
 import hashlib
 import psutil
 from library import WindowsAuditor
-import time # Import time để đo thời gian
+import time 
 
-# --- Bổ sung cho Windows Service ---
-WIN32_SERVICE_AVAILABLE = False
+# --- Quản lý Autostart qua Registry ---
 if platform.system() == "Windows":
+    import winreg
+    import ctypes
+
+def hide_console():
+    """Ẩn cửa sổ console trên Windows."""
+    if platform.system() == "Windows":
+        whnd = ctypes.windll.kernel32.GetConsoleWindow()
+        if whnd != 0:
+            ctypes.windll.user32.ShowWindow(whnd, 0)
+
+def manage_autostart():
+    """Thiết lập Windows Registry để client tự động chạy cùng hệ thống (luôn force Enabled nếu là Admin)."""
+    if platform.system() != "Windows":
+        return
+
+    # Xác định đường dẫn thực thi
+    if getattr(sys, 'frozen', False):
+        app_path = f'"{sys.executable}" -minimized'
+    else:
+        app_path = f'"{sys.executable}" "{os.path.abspath(sys.argv[0])}" -minimized'
+
+    reg_path = r"SOFTWARE\Microsoft\Windows\CurrentVersion\Run"
+    approved_path = r"SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run"
+    app_name = "SystemMonitorClient"
+
     try:
-        import win32serviceutil
-        import win32service
-        import win32event
-        import servicemanager
-        import win32timezone  # Bắt buộc cho win32serviceutil
-        import socket
-        WIN32_SERVICE_AVAILABLE = True
-    except ImportError:
-        pass
+        # 1. Mở key HKLM với quyền ghi và xóa
+        key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, reg_path, 0, winreg.KEY_ALL_ACCESS)
+        
+        # 2. Xóa và ghi lại để đảm bảo entry mới nhất
+        try:
+            winreg.DeleteValue(key, app_name)
+        except FileNotFoundError:
+            pass
+        winreg.SetValueEx(key, app_name, 0, winreg.REG_SZ, app_path)
+        winreg.CloseKey(key)
+
+        # 3. Force Enable: Xóa khỏi StartupApproved nếu user từng disable trong Task Manager
+        try:
+            approved_key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, approved_path, 0, winreg.KEY_ALL_ACCESS)
+            winreg.DeleteValue(approved_key, app_name)
+            winreg.CloseKey(approved_key)
+            print(f"[AUTOSTART] Force enabled: Cleared disabled flag for '{app_name}'")
+        except FileNotFoundError:
+            pass # Chưa từng bị disable
+        except Exception:
+            pass
+
+        print(f"[AUTOSTART] Registry refreshed & registered: {app_path}")
+        
+    except PermissionError:
+        print("[AUTOSTART] Skipping Registry update: Not running as Administrator.")
+    except Exception as e:
+        print(f"[AUTOSTART] Error setting autostart: {e}")
 
 # --- Các hàm helper không đổi ---
 def get_machine_id():
@@ -73,9 +116,8 @@ def get_enabled_modules_from_config():
     return enabled_modules
 
 def ensure_single_instance():
-    """Kiểm tra và tắt các bản client cũ đang chạy."""
+    """Kiểm tra và tắt triệt để các bản client cũ đang chạy."""
     current_pid = os.getpid()
-    # Tên file thực thi (ví dụ: System Monitor Client.exe hoặc client.exe)
     exe_name = os.path.basename(sys.executable)
     
     print(f"[CLEANUP] Checking for existing instances of '{exe_name}'...")
@@ -83,11 +125,9 @@ def ensure_single_instance():
     found_other = False
     for proc in psutil.process_iter(['pid', 'name', 'exe']):
         try:
-            # Không tự đóng chính mình
             if proc.info['pid'] == current_pid:
                 continue
             
-            # Kiểm tra nếu trùng tên file thực thi hoặc trùng đường dẫn
             is_same_app = False
             if proc.info['name'] == exe_name:
                 is_same_app = True
@@ -97,88 +137,20 @@ def ensure_single_instance():
             if is_same_app:
                 print(f"[CLEANUP] Found existing instance (PID: {proc.info['pid']}). Terminating...")
                 p = psutil.Process(proc.info['pid'])
-                p.terminate()
-                p.wait(timeout=5)
-                print(f"[CLEANUP] PID {proc.info['pid']} terminated.")
+                try:
+                    p.terminate()
+                    p.wait(timeout=3)
+                except psutil.TimeoutExpired:
+                    print(f"[CLEANUP] PID {proc.info['pid']} did not respond to terminate. Killing...")
+                    p.kill()
+                
+                print(f"[CLEANUP] PID {proc.info['pid']} cleaned up.")
                 found_other = True
         except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.TimeoutExpired):
             continue
             
     if not found_other:
         print("[CLEANUP] No other instances found.")
-
-def manage_autostart():
-    """Thiết lập/Hủy Windows Service cho client dựa trên config.ini."""
-    if platform.system() != "Windows" or not WIN32_SERVICE_AVAILABLE:
-        return
-
-    config = configparser.ConfigParser()
-    config.read(os.path.join(get_base_path(), "config.ini"))
-    autostart = config.getint('client', 'autostart', fallback=0)
-    
-    service_name = "SystemMonitorClient"
-
-    try:
-        if autostart == 1:
-            # Kiểm tra xem service đã tồn tại chưa
-            try:
-                win32serviceutil.QueryServiceStatus(service_name)
-                print(f"[SERVICE] '{service_name}' already exists.")
-            except:
-                print(f"[SERVICE] Installing '{service_name}'...")
-                # Cài đặt service
-                # Lưu ý: Khi chạy script .py, sys.executable là python.exe
-                # Khi chạy .exe, sys.executable là file .exe đó
-                os.system(f'"{sys.executable}" install')
-                os.system(f'"{sys.executable}" start')
-                print(f"[SERVICE] '{service_name}' installed and started.")
-        else:
-            try:
-                win32serviceutil.QueryServiceStatus(service_name)
-                print(f"[SERVICE] Removing '{service_name}'...")
-                os.system(f'"{sys.executable}" stop')
-                os.system(f'"{sys.executable}" remove')
-                print(f"[SERVICE] '{service_name}' removed.")
-            except:
-                pass # Service không tồn tại
-    except Exception as e:
-        print(f"[SERVICE] Error managing Windows Service: {e}")
-
-if WIN32_SERVICE_AVAILABLE:
-    class SystemMonitorService(win32serviceutil.ServiceFramework):
-        _svc_name_ = "SystemMonitorClient"
-        _svc_display_name_ = "System Monitor Client Service"
-        _svc_description_ = "Gửi thông tin hiệu năng hệ thống về server giám sát."
-
-        def __init__(self, args):
-            win32serviceutil.ServiceFramework.__init__(self, args)
-            self.hWaitStop = win32event.CreateEvent(None, 0, 0, None)
-            self.stop_requested = False
-
-        def SvcStop(self):
-            self.ReportServiceStatus(win32service.SERVICE_STOP_PENDING)
-            win32event.SetEvent(self.hWaitStop)
-            self.stop_requested = True
-
-        def SvcDoRun(self):
-            servicemanager.LogMsg(servicemanager.EVENTLOG_INFORMATION_TYPE,
-                                  servicemanager.PYS_SERVICE_STARTED,
-                                  (self._svc_name_, ''))
-            self.main()
-
-        def main(self):
-            # Chạy audit ban đầu
-            initial_audit_results = run_full_audit_sync()
-            
-            # Khởi tạo vòng lặp asyncio
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            
-            # Chạy hàm connect
-            try:
-                loop.run_until_complete(connect(initial_audit_results))
-            except Exception as e:
-                servicemanager.LogErrorMsg(f"Service Error: {e}")
 
 # --- Các biến toàn cục ---
 CLIENT_GUID = get_machine_id()
@@ -388,12 +360,9 @@ async def connect(initial_audit_data):
 
 
 if __name__ == "__main__":
-    # Kiểm tra xem có đang được gọi bởi Service Control Manager không
-    if len(sys.argv) > 1 and WIN32_SERVICE_AVAILABLE:
-        if sys.argv[1] in ['install', 'remove', 'update', 'start', 'stop', 'restart', 'debug']:
-            win32serviceutil.HandleCommandLine(SystemMonitorService)
-            sys.exit()
-
+    if "-minimized" in sys.argv:
+        hide_console()
+        
     if platform.system() != "Windows":
         print("Warning: This client is designed for Windows and may have limited functionality on other OS.")
     

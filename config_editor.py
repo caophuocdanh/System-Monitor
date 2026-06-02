@@ -5,8 +5,6 @@ import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 
 # --- Các hằng số và DISPLAY_NAMES ---
-IMMUTABLE_KEYS = {"server", "host"}
-IMMUTABLE_VALUE = "0.0.0.0"
 BOOLEAN_KEYS = {"autostart", "gui"}
 
 DISPLAY_NAMES = {
@@ -26,85 +24,157 @@ class ConfigEditor(ttk.Frame):
     def __init__(self, master, config_path):
         super().__init__(master, padding=(10, 10))
         self.master = master
-        self.master.title(f"🛠️ Config Editor - {os.path.basename(config_path)}")
         self.config = configparser.ConfigParser()
         self.tk_vars = {}
-        self.config_path = config_path
-        self.load_config()
-        self.create_widgets()
+        self.config_path = config_path if is_valid_config_file(config_path) else None
+        self.create_base_layout()
+        if self.config_path:
+            self.load_and_refresh()
 
-    def load_config(self):
+    def create_base_layout(self):
+        # 1. Header: Browser area
+        header_frame = ttk.Frame(self, padding=(0, 0, 0, 10))
+        header_frame.pack(fill="x", side="top")
+        
+        ttk.Label(header_frame, text="Configuration File:").pack(side="left")
+        self.path_var = tk.StringVar(value=self.config_path if self.config_path else "No file selected")
+        self.path_entry = ttk.Entry(header_frame, textvariable=self.path_var, state="readonly")
+        self.path_entry.pack(side="left", fill="x", expand=True, padx=5)
+        
+        ttk.Button(header_frame, text="Browse...", command=self.browse_file).pack(side="right")
+
+        # 2. Body: Content area (Notebook or Placeholder)
+        self.body_frame = ttk.Frame(self)
+        self.body_frame.pack(fill="both", expand=True)
+        
+        self.placeholder_label = ttk.Label(
+            self.body_frame, 
+            text="Please select a valid 'config.ini' file to begin editing.",
+            font=("Segoe UI", 11, "italic"),
+            foreground="gray"
+        )
+        self.placeholder_label.place(relx=0.5, rely=0.4, anchor="center")
+
+        # 3. Footer: Action buttons
+        btn_frame = ttk.Frame(self, padding=(0, 10, 0, 0))
+        btn_frame.pack(fill="x", side="bottom")
+
+        self.btn_apply = ttk.Button(btn_frame, text="Apply", command=self.save_config, state="disabled")
+        self.btn_apply.pack(side="right", padx=5)
+
+        self.btn_cancel = ttk.Button(btn_frame, text="Cancel", command=self.master.destroy)
+        self.btn_cancel.pack(side="right", padx=5)
+
+        self.btn_ok = ttk.Button(btn_frame, text="OK", command=self.ok_action, state="disabled")
+        self.btn_ok.pack(side="right", padx=5)
+
+    def browse_file(self):
+        selected = filedialog.askopenfilename(
+            title="Select config.ini", 
+            filetypes=[("INI files", "*.ini"), ("All files", "*.*")]
+        )
+        if selected:
+            if is_valid_config_file(selected):
+                self.config_path = selected
+                self.load_and_refresh()
+            else:
+                messagebox.showerror("Invalid File", "The selected file is not a valid configuration file.")
+
+    def load_and_refresh(self):
+        """Nạp lại dữ liệu và dựng lại các Tab."""
         try:
             self.config.read(self.config_path, encoding='utf-8')
-        except configparser.Error as e:
-            messagebox.showerror("Lỗi đọc file Config", f"Không thể đọc file cấu hình:\n{e}")
-            self.master.destroy()
+            self.path_var.set(self.config_path)
+            self.master.title(f"System Monitor Properties - {os.path.basename(self.config_path)}")
+            
+            # Xóa nội dung cũ trong body_frame (nếu có Notebook)
+            for widget in self.body_frame.winfo_children():
+                widget.destroy()
 
-    def create_widgets(self):
-        self.columnconfigure(0, weight=1)
-        self.columnconfigure(1, weight=1)
-        self.columnconfigure(2, weight=1)
-        main_sections = ["server", "client", "webserver"]
-        for i, section_name in enumerate(main_sections):
-            row = 0; col = i
-            group = ttk.LabelFrame(self, text=section_name.capitalize(), padding=(10, 5))
-            group.grid(row=row, column=col, padx=5, pady=5, sticky="nsw")
-            group.columnconfigure(1, weight=1)
-            if self.config.has_section(section_name) and self.config.items(section_name):
-                for i, (key, value) in enumerate(self.config[section_name].items()):
-                    label = ttk.Label(group, text=DISPLAY_NAMES.get(key, key), wraplength=180)
-                    label.grid(row=i, column=0, sticky="w", pady=2, padx=5)
-                    
-                    # Nhận diện boolean dựa trên key hoặc giá trị
-                    is_bool = key in BOOLEAN_KEYS or section_name == "audit_modules" or value.lower() in ["true", "false", "1", "0"]
-                    
-                    if is_bool:
-                        var = tk.BooleanVar(value=self.config.getboolean(section_name, key))
-                        widget = ttk.Checkbutton(group, variable=var)
-                    else:
-                        var = tk.StringVar(value=value)
-                        widget = ttk.Entry(group, textvariable=var, width=15)
-                        if key in IMMUTABLE_KEYS and value == IMMUTABLE_VALUE: 
-                            widget.config(state="disabled")
-                    
-                    widget.grid(row=i, column=1, sticky="w", padx=5)
-                    self.tk_vars[(section_name, key)] = var
+            # Tạo Notebook mới
+            self.notebook = ttk.Notebook(self.body_frame)
+            self.notebook.pack(fill="both", expand=True)
+
+            sections_map = {
+                "server": "Server Settings",
+                "client": "Client Settings",
+                "webserver": "Web Dashboard",
+                "audit_modules": "Audit Modules"
+            }
+
+            self.tk_vars = {} # Reset vars
+            for section_name, tab_title in sections_map.items():
+                tab = ttk.Frame(self.notebook, padding=10)
+                self.notebook.add(tab, text=tab_title)
+                if section_name == "audit_modules":
+                    self.create_audit_tab(tab)
+                else:
+                    self.create_standard_tab(tab, section_name)
+            
+            # Kích hoạt các nút bấm
+            self.btn_apply.config(state="normal")
+            self.btn_ok.config(state="normal")
+
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to load config: {e}")
+
+    def create_standard_tab(self, parent, section):
+        parent.columnconfigure(1, weight=1)
+        if not self.config.has_section(section):
+            ttk.Label(parent, text=f"Section [{section}] not found").grid(row=0, column=0)
+            return
+
+        for i, (key, value) in enumerate(self.config[section].items()):
+            label_text = DISPLAY_NAMES.get(key, key)
+            ttk.Label(parent, text=label_text, wraplength=300).grid(row=i, column=0, sticky="w", pady=3, padx=(0, 10))
+
+            is_bool = key in BOOLEAN_KEYS or value.lower() in ["true", "false", "1", "0"]
+            if is_bool:
+                var = tk.BooleanVar(value=self.config.getboolean(section, key))
+                widget = ttk.Checkbutton(parent, variable=var)
             else:
-                placeholder = ttk.Label(group, text="(Không có cấu hình)", style="Placeholder.TLabel")
-                placeholder.grid(row=0, column=0, columnspan=2, padx=10, pady=10, sticky="w")
+                var = tk.StringVar(value=value)
+                widget = ttk.Entry(parent, textvariable=var, width=25)
+            
+            widget.grid(row=i, column=1, sticky="w")
+            self.tk_vars[(section, key)] = var
 
-        audit_group = ttk.LabelFrame(self, text="Audit Modules", padding=(10, 5))
-        audit_group.grid(row=1, column=0, columnspan=3, padx=5, pady=5, sticky="ew")
-        if self.config.has_section("audit_modules") and self.config.items("audit_modules"):
-            audit_keys = list(self.config["audit_modules"].keys())
+    def create_audit_tab(self, parent):
+        container = ttk.LabelFrame(parent, text="Monitoring Modules", padding=10)
+        container.pack(fill="both", expand=True)
+
+        if self.config.has_section("audit_modules"):
+            audit_keys = sorted(list(self.config["audit_modules"].keys()))
             for i, key in enumerate(audit_keys):
                 text = DISPLAY_NAMES.get(key, key)
                 var = tk.BooleanVar(value=self.config.getboolean("audit_modules", key))
-                checkbox = ttk.Checkbutton(audit_group, text=text, variable=var)
-                checkbox.grid(row=i // 5, column=i % 5, sticky="w", padx=5, pady=2)
+                checkbox = ttk.Checkbutton(container, text=text, variable=var)
+                checkbox.grid(row=i // 3, column=i % 3, sticky="w", padx=10, pady=3)
                 self.tk_vars[("audit_modules", key)] = var
         else:
-            placeholder = ttk.Label(audit_group, text="(Không có cấu hình)", style="Placeholder.TLabel")
-            placeholder.pack(padx=10, pady=10, anchor="w")
+            ttk.Label(container, text="Audit section missing").pack()
 
-        save_btn = ttk.Button(self, text="💾 Lưu cấu hình", command=self.save_config, style="Accent.TButton")
-        save_btn.grid(row=2, column=1, pady=20, sticky="")
+    def ok_action(self):
+        if self.save_config(silent=True):
+            self.master.destroy()
 
-    def save_config(self):
+    def save_config(self, silent=False):
+        if not self.config_path: return False
         for (section, key), var in self.tk_vars.items():
             if not self.config.has_section(section): self.config.add_section(section)
             value = var.get()
-            # Chuyển đổi boolean sang 0/1 để lưu vào config.ini
             if isinstance(value, bool): 
                 value = "1" if value else "0"
             
-            if not (key in IMMUTABLE_KEYS and self.config.get(section, key, fallback=None) == IMMUTABLE_VALUE):
-                 self.config[section][key] = str(value)
+            self.config[section][key] = str(value)
         try:
             with open(self.config_path, "w", encoding="utf-8") as f: self.config.write(f)
-            messagebox.showinfo("✅ Thành công", f"Đã lưu file {os.path.basename(self.config_path)} thành công!")
+            if not silent:
+                messagebox.showinfo("Success", "Settings applied successfully.")
+            return True
         except Exception as e:
-            messagebox.showerror("❌ Lỗi", f"Lỗi khi lưu file: {e}")
+            messagebox.showerror("Error", f"Failed to save settings: {e}")
+            return False
 
 def is_valid_config_file(file_path):
     if not os.path.exists(file_path): return False
@@ -123,14 +193,13 @@ if __name__ == "__main__":
 
     if not is_valid_config_file(config_path):
         if os.path.exists(config_path):
-            messagebox.showwarning("File không hợp lệ", f"File '{os.path.basename(config_path)}' không có nội dung hợp lệ.\nVui lòng chọn một file config khác.")
+            messagebox.showwarning("Invalid File", f"File '{os.path.basename(config_path)}' does not contain valid settings.\nPlease select another file.")
         else:
-            messagebox.showinfo("Thông báo", "Không tìm thấy file config.ini. Vui lòng chọn file.")
+            messagebox.showinfo("Information", "config.ini not found. Please select a configuration file.")
         
         while True:
-            selected_file = filedialog.askopenfilename(title="Chọn file config.ini", filetypes=[("INI files", "*.ini"), ("All files", "*.*")])
+            selected_file = filedialog.askopenfilename(title="Open config.ini", filetypes=[("INI files", "*.ini"), ("All files", "*.*")])
             if not selected_file:
-                messagebox.showwarning("Hủy bỏ", "Không có file nào được chọn. Chương trình sẽ thoát.")
                 root.destroy()
                 sys.exit()
             
@@ -138,16 +207,29 @@ if __name__ == "__main__":
                 config_path = selected_file
                 break
             else:
-                messagebox.showerror("File không hợp lệ", f"File '{os.path.basename(selected_file)}' không hợp lệ hoặc rỗng. Vui lòng chọn lại.")
+                messagebox.showerror("Invalid File", "Selected file is invalid. Please try again.")
     
     root.deiconify() 
-    root.geometry("1025x535")
+    # Kích thước cố định vừa khít với nội dung (Rộng x Cao)
+    root.geometry("550x430")
     root.resizable(False, False)
 
     style = ttk.Style(root)
-    style.theme_use('clam')
-    style.configure("Accent.TButton", foreground="white", background="dodgerblue")
-    style.configure("Placeholder.TLabel", font=("TkDefaultFont", 9, "italic"), foreground="gray")
+    
+    # Ưu tiên giao diện Vista/Windows 7 nếu có
+    available_themes = style.theme_names()
+    if 'vista' in available_themes:
+        style.theme_use('vista')
+    elif 'xpnative' in available_themes:
+        style.theme_use('xpnative')
+    else:
+        style.theme_use('clam')
+
+    # Cấu hình font chữ chuẩn Windows 7 (Segoe UI)
+    default_font = ("Segoe UI", 9)
+    root.option_add("*Font", default_font)
+    style.configure(".", font=default_font)
+    style.configure("TNotebook.Tab", padding=[10, 2])
 
     app = ConfigEditor(master=root, config_path=config_path)
     app.pack(fill="both", expand=True)

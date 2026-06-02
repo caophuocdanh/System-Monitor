@@ -8,16 +8,116 @@ import requests
 import threading
 import time
 import webbrowser
+import platform
+import psutil
+import ctypes
 from flask import Flask, render_template, jsonify, abort, request
+
+# Kiểm tra nền tảng
+IS_WINDOWS = sys.platform == "win32"
+
+if IS_WINDOWS:
+    import winreg
 
 # --- CẤU HÌNH ỨNG DỤNG ---
 DB_NAME = "system_monitor.db"
+
+# --- HÀM HELPER HỆ THỐNG ---
 
 def get_base_path():
     """Trả về thư mục chứa file .exe hoặc .py đang chạy"""
     if getattr(sys, 'frozen', False):
         return os.path.dirname(sys.executable)  # khi đã đóng gói .exe
     return os.path.dirname(os.path.abspath(__file__))  # khi chạy file .py
+
+def hide_console():
+    """Ẩn cửa sổ console trên Windows."""
+    if IS_WINDOWS:
+        whnd = ctypes.windll.kernel32.GetConsoleWindow()
+        if whnd != 0:
+            ctypes.windll.user32.ShowWindow(whnd, 0)
+
+def manage_autostart():
+    """Thiết lập Windows Registry để dashboard tự động chạy cùng hệ thống (luôn force Enabled nếu là Admin)."""
+    if not IS_WINDOWS:
+        return
+
+    # Xác định đường dẫn thực thi
+    if getattr(sys, 'frozen', False):
+        app_path = f'"{sys.executable}" -minimized'
+    else:
+        app_path = f'"{sys.executable}" "{os.path.abspath(sys.argv[0])}" -minimized'
+
+    reg_path = r"SOFTWARE\Microsoft\Windows\CurrentVersion\Run"
+    approved_path = r"SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run"
+    app_name = "SystemMonitorDashboard"
+
+    try:
+        # 1. Mở key HKLM với quyền ghi và xóa
+        key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, reg_path, 0, winreg.KEY_ALL_ACCESS)
+        
+        # 2. Xóa và ghi lại để đảm bảo entry mới nhất
+        try:
+            winreg.DeleteValue(key, app_name)
+        except FileNotFoundError:
+            pass
+        winreg.SetValueEx(key, app_name, 0, winreg.REG_SZ, app_path)
+        winreg.CloseKey(key)
+
+        # 3. Force Enable: Xóa khỏi StartupApproved nếu user từng disable trong Task Manager
+        try:
+            approved_key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, approved_path, 0, winreg.KEY_ALL_ACCESS)
+            winreg.DeleteValue(approved_key, app_name)
+            winreg.CloseKey(approved_key)
+            print(f"[AUTOSTART] Force enabled: Cleared disabled flag for '{app_name}'")
+        except FileNotFoundError:
+            pass 
+        except Exception:
+            pass
+
+        print(f"[AUTOSTART] Registry refreshed & registered: {app_path}")
+        
+    except PermissionError:
+        print("[AUTOSTART] Skipping Registry update: Not running as Administrator.")
+    except Exception as e:
+        print(f"[AUTOSTART] Error setting autostart: {e}")
+
+def ensure_single_instance():
+    """Kiểm tra và tắt triệt để các bản dashboard cũ đang chạy."""
+    current_pid = os.getpid()
+    exe_name = os.path.basename(sys.executable)
+    
+    print(f"[CLEANUP] Checking for existing instances of '{exe_name}'...")
+    
+    found_other = False
+    for proc in psutil.process_iter(['pid', 'name', 'exe']):
+        try:
+            if proc.info['pid'] == current_pid:
+                continue
+            
+            is_same_app = False
+            if proc.info['name'] == exe_name:
+                is_same_app = True
+            elif proc.info['exe'] and os.path.normpath(proc.info['exe']) == os.path.normpath(sys.executable):
+                is_same_app = True
+                
+            if is_same_app:
+                print(f"[CLEANUP] Found existing instance (PID: {proc.info['pid']}). Terminating...")
+                p = psutil.Process(proc.info['pid'])
+                try:
+                    p.terminate()
+                    p.wait(timeout=3)
+                except psutil.TimeoutExpired:
+                    print(f"[CLEANUP] PID {proc.info['pid']} did not respond to terminate. Killing...")
+                    p.kill()
+                
+                print(f"[CLEANUP] PID {proc.info['pid']} cleaned up.")
+                found_other = True
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.TimeoutExpired):
+            continue
+            
+    if not found_other:
+        print("[CLEANUP] No other instances found.")
 
 base_path = get_base_path()
 app = Flask(
@@ -430,17 +530,29 @@ def prune_offline_clients():
         
 # --- KHỞI CHẠY ỨNG DỤNG ---
 if __name__ == '__main__':
+    # 0. Xử lý tham số ẩn console
+    is_minimized = "-minimized" in sys.argv
+    if is_minimized:
+        hide_console()
+
+    # 1. Đảm bảo chỉ có một instance chạy
+    ensure_single_instance()
+
+    # 2. Xử lý cấu hình autostart cùng hệ thống qua Registry
+    manage_autostart()
+
     config = configparser.ConfigParser()
     config.read('config.ini')
     webserver_host = config['webserver']['server']
     webserver_port = int(config['webserver']['port'])
 
-    # Tự động mở trình duyệt sau 1 giây
-    def open_browser():
-        time.sleep(5)
-        webbrowser.open(f"http://127.0.01:{webserver_port}")
+    # 3. Tự động mở trình duyệt sau 5 giây (chỉ khi không chạy minimized)
+    if not is_minimized:
+        def open_browser():
+            time.sleep(5)
+            # Sử dụng 127.0.0.1 để đảm bảo kết nối local
+            webbrowser.open(f"http://127.0.0.1:{webserver_port}")
+        threading.Thread(target=open_browser, daemon=True).start()
 
-    threading.Thread(target=open_browser).start()
-
-    # debug=True #hữu ích khi phát triển
-    app.run(debug=True, host=webserver_host, port=webserver_port, use_reloader=False)
+    # Chạy Flask app
+    app.run(debug=False, host=webserver_host, port=webserver_port, use_reloader=False)
