@@ -91,6 +91,7 @@ body.theme-modern .component-block {border-color:#2c2c2c; background-color:#1a1a
 .log-pagination-buttons button {background-color:var(--color-primary); color:#fff; border:none; padding:.6rem 1.2rem; border-radius:var(--border-radius); font-weight:600; margin-left:.5rem}
 .log-pagination-buttons button:hover:not(:disabled) {filter:brightness(110%)}
 .log-pagination-buttons button:disabled {background-color:#ccc; cursor:not-allowed; opacity:.7}
+.loading-spinner-container {display:flex; justify-content:center; align-items:center; gap:1rem; padding:3rem; font-size:1.2rem; color:var(--color-text-muted); width:100%}
 .toggle-header {padding:.75rem 1rem; border-radius:var(--border-radius); margin-top:1rem; margin-bottom:.5rem; display:flex; justify-content:space-between; align-items:center}
 .toggle-header::after {content:'▼'; font-size:.8rem; transition:transform .3s}
 .toggle-header.active::after {transform:rotate(180deg)}

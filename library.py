@@ -545,107 +545,116 @@ class WindowsAuditor:
         def __init__(self): self._details: Dict[str, List[Dict[str, Any]]] = {}
         def get_details(self) -> Dict[str, List[Dict[str, Any]]]:
             if self._details: return self._details
-            ps_script = "Get-CimInstance Win32_Service | Where-Object { $_.PathName -and $_.PathName -notlike '*\\Windows\\system32\\*' } | Select-Object Name,DisplayName,State,StartMode,PathName | ConvertTo-Json"
+            
+            # --- CẢI TIẾN: Sử dụng psutil thay vì PowerShell để lấy danh sách services ---
+            # Điều này nhanh hơn và ít bị AV gắn cờ hơn.
+            grouped = {}
             try:
-                raw = _run_powershell(ps_script)
-                raw = [raw] if isinstance(raw, dict) else (raw or [])
-                grouped = {}
-                for s in raw:
-                    status = s.get("State", "Unknown")
-                    if status not in grouped: grouped[status] = []
-                    grouped[status].append(s)
+                for s in psutil.win_service_iter():
+                    try:
+                        info = s.as_dict()
+                        # Lọc bỏ các service hệ thống mặc định nếu muốn (ở đây giữ nguyên logic cũ là lấy hết)
+                        # Logic cũ: Lọc bỏ các service nằm trong system32
+                        path_name = info.get("binpath") or ""
+                        if path_name and "\\Windows\\system32\\" in path_name.lower():
+                            continue
+
+                        status = info.get("status", "Unknown")
+                        if status not in grouped:
+                            grouped[status] = []
+                        
+                        grouped[status].append({
+                            "Name": info.get("name"),
+                            "DisplayName": info.get("display_name"),
+                            "State": status,
+                            "StartMode": info.get("start_type"),
+                            "PathName": path_name
+                        })
+                    except (psutil.NoSuchProcess, psutil.AccessDenied):
+                        continue
                 self._details = grouped
-            except Exception as e: self._details = {"Error": f"Could not get service info: {e}"}
+            except Exception as e:
+                self._details = {"Error": f"Could not get service info via psutil: {e}"}
             return self._details
 
     class _SoftwareAudit:
-        """Một thư viện nhỏ để thu thập và phân loại phần mềm đã cài đặt trên Windows."""
+        """Một thư viện thu thập phần mềm đã cài đặt trên Windows sử dụng winreg (tối ưu hơn PowerShell)."""
         
         def __init__(self):
             self._details: Optional[Dict[str, List]] = None
 
         def get_details(self) -> Dict[str, List]:
-            """
-            Trả về một dictionary chứa thông tin phần mềm đã được phân loại.
-            Kết quả được cache lại sau lần gọi đầu tiên.
-            """
             if self._details is None:
                 self._details = self._fetch_and_process()
             return self._details
 
         def _fetch_and_process(self) -> Dict[str, List]:
-            # ======================== PHẦN SỬA LỖI ========================
-            # Script PowerShell được sửa lại để thu thập kết quả vào biến $apps
-            # trước khi chuyển đổi sang JSON.
-            ps_script = """
-            $paths = @(
-                'HKLM:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*',
-                'HKLM:\\Software\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*',
-                'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*'
-            );
-            $apps = foreach ($path in $paths) {
-                Get-ItemProperty $path -ErrorAction SilentlyContinue |
-                Where-Object { $_.DisplayName } |
-                Select-Object DisplayName, DisplayVersion, Publisher, InstallDate, InstallLocation, EstimatedSize
-            }
-            $apps | ConvertTo-Json -Depth 3 -Compress
-            """
-            # ==============================================================
-            
-            grouped = {"Applications": [], "System": [], "Hotfixes & Updates": [], "Errors": []}
+            grouped = {"Applications": [], "System": [], "Hotfixes & Updates": []}
             seen_apps = set()
             
-            try:
-                si = subprocess.STARTUPINFO(); si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-                completed = subprocess.run(
-                    ["powershell", "-ExecutionPolicy", "Bypass", "-NoProfile", "-Command", ps_script],
-                    capture_output=True, check=True, text=True, encoding='utf-8', errors='ignore',
-                    startupinfo=si, creationflags=subprocess.CREATE_NO_WINDOW
-                )
-                raw_data = json.loads(completed.stdout.strip() or "[]")
-                raw_apps = [raw_data] if isinstance(raw_data, dict) else raw_data
-            except (subprocess.CalledProcessError, FileNotFoundError, json.JSONDecodeError) as e:
-                error_msg = f"Lỗi khi thực thi PowerShell: {e}"
-                if isinstance(e, subprocess.CalledProcessError) and e.stderr:
-                    error_msg += f" | PowerShell Stderr: {e.stderr.strip()}"
-                grouped["Errors"].append(error_msg)
-                return {k: v for k, v in grouped.items() if v}
+            # Các đường dẫn Registry chứa thông tin phần mềm
+            reg_paths = [
+                (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall"),
+                (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"),
+                (winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Uninstall")
+            ]
 
-            # Phần xử lý logic bên dưới giữ nguyên vì nó đã đúng
-            for app in raw_apps:
-                name = (app.get("DisplayName") or "").strip()
-                if not name: continue
-                
-                publisher = (app.get("Publisher") or "").strip()
-                version = app.get("DisplayVersion")
+            for hkey, path in reg_paths:
+                try:
+                    with winreg.OpenKey(hkey, path, 0, winreg.KEY_READ | winreg.KEY_WOW64_64KEY) as key:
+                        for i in range(winreg.QueryInfoKey(key)[0]):
+                            try:
+                                subkey_name = winreg.EnumKey(key, i)
+                                with winreg.OpenKey(key, subkey_name) as subkey:
+                                    # Lấy các giá trị cần thiết
+                                    def get_val(name):
+                                        try: return winreg.QueryValueEx(subkey, name)[0]
+                                        except: return None
 
-                if (name, version, publisher) in seen_apps: continue
-                seen_apps.add((name, version, publisher))
+                                    display_name = get_val("DisplayName")
+                                    if not display_name: continue
+                                    
+                                    display_version = get_val("DisplayVersion")
+                                    publisher = get_val("Publisher") or ""
+                                    install_date = get_val("InstallDate")
+                                    install_location = get_val("InstallLocation")
+                                    estimated_size = get_val("EstimatedSize")
 
-                category = "Applications"
-                if "Microsoft Corporation" in publisher:
-                    category = "Hotfixes & Updates" if re.search(r'\(KB\d+\)', name, re.IGNORECASE) else "System"
+                                    # Tránh trùng lặp
+                                    app_id = (display_name, display_version, publisher)
+                                    if app_id in seen_apps: continue
+                                    seen_apps.add(app_id)
 
-                install_date = None
-                date_str = app.get("InstallDate")
-                if isinstance(date_str, str) and len(date_str) == 8:
-                    try: install_date = datetime.strptime(date_str, "%Y%m%d").strftime("%Y-%m-%d")
-                    except ValueError: pass
+                                    # Phân loại
+                                    category = "Applications"
+                                    if "Microsoft Corporation" in publisher:
+                                        if re.search(r'\(KB\d+\)', display_name, re.IGNORECASE) or subkey_name.startswith("KB"):
+                                            category = "Hotfixes & Updates"
+                                        else:
+                                            category = "System"
 
-                size_bytes = None
-                size_kb = app.get("EstimatedSize")
-                if size_kb is not None:
-                    try: size_bytes = int(size_kb) * 1024
-                    except (ValueError, TypeError): pass
+                                    # Định dạng ngày
+                                    formatted_date = None
+                                    if isinstance(install_date, str) and len(install_date) == 8:
+                                        try: formatted_date = f"{install_date[:4]}-{install_date[4:6]}-{install_date[6:]}"
+                                        except: pass
 
-                grouped[category].append({
-                    "Name": name,
-                    "Version": version,
-                    "Publisher": publisher or None,
-                    "InstallDate": install_date,
-                    "InstallLocation": app.get("InstallLocation"),
-                    "EstimatedSizeByte": size_bytes
-                })
+                                    # Định dạng dung lượng
+                                    size_bytes = None
+                                    if estimated_size is not None:
+                                        try: size_bytes = int(estimated_size) * 1024
+                                        except: pass
+
+                                    grouped[category].append({
+                                        "Name": display_name,
+                                        "Version": display_version,
+                                        "Publisher": publisher or None,
+                                        "InstallDate": formatted_date,
+                                        "InstallLocation": install_location,
+                                        "EstimatedSizeByte": size_bytes
+                                    })
+                            except: continue
+                except: continue
 
             return {k: v for k, v in grouped.items() if v}
 

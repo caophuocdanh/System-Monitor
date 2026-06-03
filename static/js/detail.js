@@ -77,8 +77,92 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     let auditData = {};
+    const loadedModules = new Set(); // Theo dõi các module đã tải
     const charts = {};
     const tableManagers = {}; // Đối tượng để chứa các trình quản lý bảng
+
+    // --- Tab Handling với Lazy Loading ---
+    window.openTab = function(evt, tabName) {
+        document.querySelectorAll('.tab-content').forEach(tc => tc.classList.remove('active'));
+        document.querySelectorAll('.tab-link').forEach(tl => tl.classList.remove('active'));
+        
+        const targetTabContent = document.getElementById(tabName);
+        if (targetTabContent) targetTabContent.classList.add('active');
+        if (evt && evt.currentTarget) evt.currentTarget.classList.add('active');
+
+        // Tự động tải dữ liệu cho tab nếu chưa có
+        ensureTabData(tabName);
+    }
+
+    function ensureTabData(tabName) {
+        const tabToModules = {
+            'basic-info': ['os', 'mainboard', 'cpu', 'ram', 'disk', 'gpu', 'network'],
+            'hardware': ['os', 'cpu', 'mainboard', 'ram', 'gpu'],
+            'disk': ['disk'],
+            'network': ['network'],
+            'peripherals': ['printers'],
+            'security': ['credentials'],
+            'users': ['users'],
+            'history': ['web_history'],
+            'startup': ['startup'],
+            'logs': ['event_log'],
+            'services': ['services'],
+            'runtime': ['processes'],
+            'software': ['software']
+        };
+
+        const modules = tabToModules[tabName] || [];
+        const missingModules = modules.filter(m => !loadedModules.has(m));
+
+        if (missingModules.length > 0) {
+            fetchModuleData(missingModules, tabName);
+        } else {
+            // Dữ liệu đã có, chỉ cần render lại nếu cần (ví dụ cho các tab động)
+            renderTab(tabName);
+        }
+    }
+
+    function fetchModuleData(modules, tabName) {
+        const container = document.getElementById(tabName);
+        const originalContent = container.innerHTML;
+        
+        // Hiển thị trạng thái loading (chỉ khi chưa có dữ liệu)
+        if (!loadedModules.has(modules[0])) {
+            container.innerHTML = `<div class="loading-spinner-container"><i class="fa-solid fa-circle-notch fa-spin"></i> Loading ${modules.join(', ')}...</div>`;
+        }
+
+        fetch(`/api/client_audit_data/${CLIENT_GUID}?module=${modules.join(',')}`)
+            .then(res => res.json())
+            .then(data => {
+                // Trộn dữ liệu mới vào auditData toàn cục
+                Object.assign(auditData, data);
+                modules.forEach(m => loadedModules.add(m));
+                renderTab(tabName);
+            })
+            .catch(err => {
+                console.error(`Failed to fetch modules ${modules}:`, err);
+                container.innerHTML = `<p style="color:red;">Error loading data.</p>` + originalContent;
+            });
+    }
+
+    function renderTab(tabName) {
+        switch(tabName) {
+            case 'basic-info': renderBasicInfo(); break;
+            case 'performance': renderPerformance(); break;
+            case 'hardware': renderHardware(); break;
+            case 'disk': renderDisk(); break;
+            case 'network': renderNetwork(); break;
+            case 'peripherals': renderPeripherals(); break;
+            case 'security': renderSecurity(); break;
+            case 'users': renderUsers(); break;
+            case 'history': renderHistory(); break;
+            case 'startup': renderStartup(); break;
+            case 'logs': renderLogs(); break;
+            case 'services': renderServices(); break;
+            case 'runtime': renderRuntime(); break;
+            case 'software': renderSoftware(); break;
+        }
+    }
 
     // --- Helper Functions ---
     function getUsageLevelClass(percentage) {
@@ -1216,20 +1300,12 @@ document.addEventListener('DOMContentLoaded', () => {
         tableManagers.software.loadData(allSoftwareData);
     }
     
-    // --- Main Fetch and Render Call ---
-    function fetchDataAndRender() {
-        fetch(`/api/client_audit_data/${CLIENT_GUID}`).then(res => res.json()).then(data => {
-            auditData = data;
-            renderBasicInfo(); renderPerformance(); renderHardware(); renderDisk(); renderNetwork(); renderPeripherals();
-            renderSecurity(); renderUsers(); renderSoftware(); renderRuntime(); renderServices(); renderLogs(); renderHistory();renderStartup();
-        }).catch(err => {
-            console.error("Failed to fetch audit data:", err);
-            document.querySelector('.tabs-container').innerHTML = `<p style="color:red;text-align:center;">Error loading client details.</p>`;
-        });
+    // --- Initialization ---
+    // Không gọi fetchDataAndRender() nữa, thay vào đó kích hoạt click vào tab đầu tiên
+    if (document.querySelector('.tab-link')) {
+        document.querySelector('.tab-link').click();
     }
 
-    // --- Initialization ---
-    fetchDataAndRender();
     updateServerStatus();
     setInterval(updateServerStatus, SERVER_STATUS_INTERVAL);
     setInterval(updateRealtimeMetrics, REALTIME_METRICS_INTERVAL);

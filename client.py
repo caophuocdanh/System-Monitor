@@ -157,14 +157,16 @@ CLIENT_GUID = get_machine_id()
 HOSTNAME = socket.gethostname()
 USERNAME = HOSTNAME
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
 # --- Logic Audit được viết lại ---
 
 def run_full_audit_sync():
     """
-    Chạy các module audit được cấu hình trong config.ini.
-    Hàm này là synchronous (blocking).
+    Chạy các module audit được cấu hình trong config.ini bằng ThreadPoolExecutor.
+    Mỗi module có timeout để tránh treo toàn bộ client.
     """
-    print("\n[AUDIT] Starting configured system audit...")
+    print("\n[AUDIT] Starting configured system audit with timeout protection...")
     start_time = time.time()
     
     if platform.system() != "Windows":
@@ -185,17 +187,32 @@ def run_full_audit_sync():
 
     max_event_log = config.getint('client', 'max_event_log', fallback=25)
     history_limit = config.getint('client', 'history_limit', fallback=100)
+    # Timeout mặc định cho mỗi module là 30 giây
+    module_timeout = config.getint('client', 'module_timeout', fallback=30)
 
     auditor = WindowsAuditor(max_events=max_event_log, history_limit_per_profile=history_limit)
     all_results = {}
-    
-    for name in enabled_modules:
-        if name in auditor.auditors:
+
+    # Sử dụng ThreadPoolExecutor để chạy các module song song (giảm tổng thời gian audit)
+    # Tuy nhiên để tránh spike CPU, ta có thể giới hạn max_workers
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        future_to_module = {
+            executor.submit(auditor.auditors[name].get_details): name 
+            for name in enabled_modules if name in auditor.auditors
+        }
+        
+        for future in as_completed(future_to_module):
+            name = future_to_module[future]
             try:
-                print(f"[AUDIT] Running '{name}' module...")
-                result = auditor.auditors[name].get_details()
+                # Chờ kết quả với timeout
+                result = future.result(timeout=module_timeout)
                 all_results[name] = result
+                print(f"[AUDIT] Module '{name}' completed.")
+            except TimeoutError:
+                print(f"[AUDIT] Module '{name}' timed out after {module_timeout}s.")
+                all_results[name] = {"Error": f"Audit module '{name}' timed out."}
             except Exception as e:
+                print(f"[AUDIT] Module '{name}' failed: {e}")
                 all_results[name] = {"Error": f"Audit module '{name}' failed: {e}"}
     
     end_time = time.time()
@@ -268,6 +285,7 @@ async def send_updated_audit_and_info(websocket, initial_audit_data):
     config = configparser.ConfigParser()
     config.read(os.path.join(get_base_path(), 'config.ini'))
     update_interval = int(config['client']['update_info_interval'])
+    access_token = config['server'].get('access_token', fallback="")
     
     # Sử dụng dữ liệu audit đã có từ trước cho lần gửi đầu tiên
     current_audit_data = initial_audit_data
@@ -281,7 +299,8 @@ async def send_updated_audit_and_info(websocket, initial_audit_data):
             info = {
                 "type": "client_info", "guid": CLIENT_GUID, "hostname": HOSTNAME,
                 "username": USERNAME, "local_ip": local_ip, "wan_ip": wan_ip,
-                "enabled_modules": enabled_modules
+                "enabled_modules": enabled_modules,
+                "access_token": access_token
             }
             
             # 2. Chuẩn bị gói tin audit

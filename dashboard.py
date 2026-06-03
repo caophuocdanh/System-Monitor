@@ -217,22 +217,22 @@ def get_dashboard_data():
         db_size_str = "N/A"
 
     # 2. Lấy thông tin chi tiết từng client (với metrics mới nhất)
+    # Tối ưu hóa: Thay thế Window Function bằng Subquery trên Index để nhanh hơn trên bảng lớn
     all_clients_raw = conn.execute("""
         SELECT 
             c.*, 
             ml.cpu_usage, 
             ml.ram_usage, 
-            ml.disk_usage,
+            ml.disk_usage, 
             ml.timestamp as metrics_timestamp
         FROM client c
-        LEFT JOIN (
-            SELECT 
-                guid, cpu_usage, ram_usage, disk_usage, timestamp,
-                ROW_NUMBER() OVER(PARTITION BY guid ORDER BY timestamp DESC) as rn
-            FROM metrics_log
-        ) ml ON c.guid = ml.guid AND ml.rn = 1
+        LEFT JOIN metrics_log ml ON ml.id = (
+            SELECT id FROM metrics_log 
+            WHERE guid = c.guid 
+            ORDER BY timestamp DESC 
+            LIMIT 1
+        )
     """).fetchall()
-
     all_clients = []
     for row in all_clients_raw:
         client_dict = dict(row)
@@ -267,12 +267,23 @@ def get_dashboard_data():
 
 @app.route('/api/client_audit_data/<string:guid>')
 def get_client_audit_data(guid):
-    """API endpoint để lấy tất cả dữ liệu audit của một client."""
+    """API endpoint để lấy dữ liệu audit của một client. Hỗ trợ Lazy Loading qua tham số module."""
+    module = request.args.get('module')
     conn = get_db_conn()
-    audit_rows = conn.execute(
-        'SELECT audit_name, data_json, timestamp FROM audit_data WHERE guid = ? ORDER BY audit_name',
-        (guid,)
-    ).fetchall()
+    
+    if module:
+        # Nếu có tham số module, chỉ lấy dữ liệu của module đó
+        # Chấp nhận danh sách module cách nhau bởi dấu phẩy
+        modules = module.split(',')
+        placeholders = ','.join('?' for _ in modules)
+        query = f'SELECT audit_name, data_json, timestamp FROM audit_data WHERE guid = ? AND audit_name IN ({placeholders})'
+        audit_rows = conn.execute(query, [guid] + modules).fetchall()
+    else:
+        # Nếu không có tham số, lấy tất cả (tương thích ngược)
+        audit_rows = conn.execute(
+            'SELECT audit_name, data_json, timestamp FROM audit_data WHERE guid = ? ORDER BY audit_name',
+            (guid,)
+        ).fetchall()
     conn.close()
 
     audits = {}

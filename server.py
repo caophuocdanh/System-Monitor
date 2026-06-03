@@ -24,6 +24,7 @@ logging.getLogger('http.server').setLevel(logging.WARNING)
 DB_NAME = "system_monitor.db"
 # Hàng đợi để xử lý các yêu cầu ghi vào DB một cách tuần tự
 db_write_queue = asyncio.Queue()
+ACCESS_TOKEN = "" # Sẽ được nạp từ config
 
 # --- HÀM HELPER HỆ THỐNG ---
 
@@ -229,6 +230,14 @@ async def db_log_audit_data(guid, audit_name, data):
     await db_write_queue.put((_execute_db_write, (query, (guid, audit_name, timestamp, data_str))))
     # print(f"Queued audit data for '{audit_name}' from {guid}")
 
+async def db_prune_old_metrics(retention_days):
+    """Xóa các bản ghi metrics cũ hơn số ngày quy định."""
+    cutoff_timestamp = int((datetime.now(timezone.utc) - timedelta(days=retention_days)).timestamp())
+    query = "DELETE FROM metrics_log WHERE timestamp < ?"
+    # Gửi yêu cầu xóa vào hàng đợi để tránh xung đột
+    await db_write_queue.put((_execute_db_write, (query, (cutoff_timestamp,))))
+    print(f"[DB Pruner] Queued pruning of metrics older than {retention_days} days (Before {datetime.fromtimestamp(cutoff_timestamp).strftime('%Y-%m-%d')})")
+
 # Hàm đọc (read) có thể giữ nguyên vì đọc không khóa database như ghi
 def check_client_exists(guid):
     conn = sqlite3.connect(DB_NAME)
@@ -254,6 +263,22 @@ async def database_writer_worker():
             db_write_queue.task_done()
         except Exception as e:
             print(f"[DB Worker] Error processing DB queue: {e}")
+
+async def database_pruning_worker(retention_days):
+    """Tác vụ nền, định kỳ dọn dẹp dữ liệu cũ (mỗi 12 giờ)."""
+    if retention_days <= 0:
+        print("[DB Pruner] Pruning disabled (retention_days <= 0).")
+        return
+
+    print(f"[DB Pruner] Database pruning worker started (Retention: {retention_days} days).")
+    while True:
+        try:
+            await db_prune_old_metrics(retention_days)
+            # Chờ 12 giờ trước lần dọn dẹp tiếp theo
+            await asyncio.sleep(12 * 3600)
+        except Exception as e:
+            print(f"[DB Pruner] Error in pruning worker: {e}")
+            await asyncio.sleep(3600) # Thử lại sau 1 giờ nếu lỗi
 
 # --- SETUP DB BAN ĐẦU ---
 def setup_database():
@@ -302,6 +327,11 @@ def setup_database():
         FOREIGN KEY (guid) REFERENCES client(guid) ON DELETE CASCADE,
         UNIQUE(guid, audit_name)
     );''')
+    
+    # --- THÊM INDEX ĐỂ TỐI ƯU TRUY VẤN ---
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_metrics_log_guid_timestamp ON metrics_log (guid, timestamp);")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_active_connections_guid ON active_connections (guid);")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_audit_data_guid ON audit_data (guid);")
     cursor.execute("PRAGMA table_info(client)")
     columns = [info[1] for info in cursor.fetchall()]
     if 'enabled_modules' not in columns:
@@ -343,6 +373,13 @@ async def websocket_handler(websocket):
             timestamp_str = datetime.now().strftime('%H:%M:%S')
             msg_type = data.get('type')
             guid = data.get('guid')
+            token = data.get('access_token')
+
+            # --- KIỂM TRA TOKEN XÁC THỰC ---
+            if ACCESS_TOKEN and token != ACCESS_TOKEN:
+                print(f"[{timestamp_str}] [Auth Failed] Invalid token from {client_address}. Closing.")
+                await websocket.close(code=4001, reason="Invalid access token")
+                return
 
             if msg_type != 'client_info' or not guid:
                 print(f"First message from {client_address} was not 'client_info' or missing GUID. Closing connection.")
@@ -441,6 +478,7 @@ async def websocket_handler(websocket):
 
 # --- HÀM MAIN KHỞI CHẠY SERVER ---
 async def main():
+    global ACCESS_TOKEN
     base_path = get_base_path()
     config_path = os.path.join(base_path, "config.ini")
 
@@ -450,6 +488,8 @@ async def main():
     server_host = config['server']['host']
     server_port = int(config['server']['port'])
     health_check_port = int(config['server']['health_check_port'])
+    retention_days = int(config['server'].get('retention_days', fallback=7))
+    ACCESS_TOKEN = config['server'].get('access_token', fallback="")
 
     # Áp dụng cấu hình GUI và xử lý tham số -minimized
     gui_enabled = config.getboolean('server', 'gui', fallback=True)
@@ -468,6 +508,9 @@ async def main():
 
     # Khởi tạo worker ghi DB để nó chạy nền
     asyncio.create_task(database_writer_worker())
+    
+    # Khởi tạo worker dọn dẹp DB
+    asyncio.create_task(database_pruning_worker(retention_days))
 
     async with websockets.serve(websocket_handler, server_host, server_port):
         if "-minimized" not in sys.argv and gui_enabled:
