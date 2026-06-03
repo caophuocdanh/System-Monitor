@@ -1,6 +1,7 @@
 import sqlite3
 import uuid
 import random
+import time
 from faker import Faker
 from datetime import datetime, timedelta
 import os
@@ -17,12 +18,18 @@ def get_db_conn():
                                 "Vui lòng chạy server.py và dashboard.py trước.")
     conn = sqlite3.connect(DB_NAME)
     conn.execute("PRAGMA foreign_keys = ON")
+    conn.execute("PRAGMA journal_mode = WAL") # Bật chế độ WAL để giảm lock
     return conn
 
 def create_sample_clients(num_clients, log_callback):
     fake = Faker()
     clients = []
     log_callback(f"\nBắt đầu tạo {num_clients} client mẫu...")
+    
+    conn = get_db_conn()
+    cursor = conn.cursor()
+    
+    success_count = 0
     for i in range(num_clients):
         hostname_base = fake.word().capitalize()
         client = {
@@ -32,33 +39,38 @@ def create_sample_clients(num_clients, log_callback):
             "local_ip": fake.ipv4_private(), "wan_ip": fake.ipv4(),
             "enabled_modules": '["cpu", "ram", "disk", "network", "os", "gpu", "mainboard", "printers", "processes", "software", "startup", "users", "credentials", "event_log", "web_history"]'
         }
-        clients.append(client)
-        if (i + 1) % (num_clients // 10 or 1) == 0:
-            log_callback(f"  Đã chuẩn bị {i+1}/{num_clients} clients...")
-    
-    conn = get_db_conn()
-    cursor = conn.cursor()
-    try:
-        cursor.executemany("INSERT INTO client (guid, hostname, username, local_ip, wan_ip, enabled_modules) VALUES (:guid, :hostname, :username, :local_ip, :wan_ip, :enabled_modules)", clients)
-        conn.commit()
-        log_callback(f"-> Đã tạo thành công {len(clients)} client vào DB.")
-        return clients
-    except Exception as e:
-        log_callback(f"Lỗi khi chèn client: {e}")
-        conn.rollback()
-        return []
-    finally:
-        conn.close()
+        
+        try:
+            cursor.execute("INSERT INTO client (guid, hostname, username, local_ip, wan_ip, enabled_modules) VALUES (:guid, :hostname, :username, :local_ip, :wan_ip, :enabled_modules)", client)
+            conn.commit()
+            clients.append(client)
+            success_count += 1
+            log_callback(f"  [Client {i+1}/{num_clients}] Đã chèn: {client['hostname']}")
+            time.sleep(0.3) # Delay 0.5s theo yêu cầu
+        except Exception as e:
+            log_callback(f"  ❌ Lỗi khi chèn client {i+1}: {e}")
+            conn.rollback()
+
+    conn.close()
+    log_callback(f"-> Đã tạo thành công {success_count} client vào DB.")
+    return clients
 
 def create_sample_audit_data(clients, template_data, log_callback):
     if not clients:
         return
     log_callback("\nBắt đầu tạo dữ liệu audit chi tiết...")
-    all_audit_records = []
     
+    conn = get_db_conn()
+    cursor = conn.cursor()
+    
+    success_count = 0
+    total_records = len(clients) * len(template_data)
+    
+    current_idx = 0
     for client in clients:
         log_callback(f"  Đang xử lý audit cho client {client['hostname']}...")
         for audit_name, audit_content in template_data.items():
+            current_idx += 1
             personalized_data = json.loads(json.dumps(audit_content['data']))
 
             if audit_name == 'system_id':
@@ -75,23 +87,23 @@ def create_sample_audit_data(clients, template_data, log_callback):
                 "timestamp": int(datetime.now().timestamp()),
                 "data_json": json.dumps(personalized_data)
             }
-            all_audit_records.append(record)
+            
+            try:
+                cursor.execute("""
+                    INSERT INTO audit_data (guid, audit_name, timestamp, data_json)
+                    VALUES (:guid, :audit_name, :timestamp, :data_json)
+                """, record)
+                conn.commit()
+                success_count += 1
+                if current_idx % 5 == 0 or current_idx == total_records:
+                     log_callback(f"    - Đã chèn {current_idx}/{total_records} bản ghi audit...")
+                time.sleep(0.5) # Delay 0.5s theo yêu cầu
+            except Exception as e:
+                log_callback(f"    ❌ Lỗi khi chèn audit {audit_name}: {e}")
+                conn.rollback()
 
-    log_callback("-> Đang chèn dữ liệu audit vào database...")
-    conn = get_db_conn()
-    cursor = conn.cursor()
-    try:
-        cursor.executemany("""
-            INSERT INTO audit_data (guid, audit_name, timestamp, data_json)
-            VALUES (:guid, :audit_name, :timestamp, :data_json)
-        """, all_audit_records)
-        conn.commit()
-        log_callback(f"-> Đã tạo thành công {len(all_audit_records)} bản ghi audit.")
-    except Exception as e:
-        log_callback(f"Lỗi khi chèn dữ liệu audit: {e}")
-        conn.rollback()
-    finally:
-        conn.close()
+    conn.close()
+    log_callback(f"-> Đã tạo thành công {success_count} bản ghi audit.")
 
 def create_sample_records(client_guids, num_records_per_client, log_callback):
     if not client_guids:
@@ -100,12 +112,19 @@ def create_sample_records(client_guids, num_records_per_client, log_callback):
 
     log_callback(f"\nBắt đầu tạo {num_records_per_client} record metrics cho mỗi trong số {len(client_guids)} client...")
     
-    all_records = []
     end_time = datetime.now()
     total_clients = len(client_guids)
-
+    total_needed = total_clients * num_records_per_client
+    
+    conn = get_db_conn()
+    cursor = conn.cursor()
+    
+    success_count = 0
+    current_idx = 0
+    
     for idx, guid in enumerate(client_guids):
         for i in range(num_records_per_client):
+            current_idx += 1
             timestamp = end_time - timedelta(seconds=i * 5)
             record = {
                 "guid": guid,
@@ -116,29 +135,23 @@ def create_sample_records(client_guids, num_records_per_client, log_callback):
                 "local_ip": None,
                 "wan_ip": None
             }
-            all_records.append(record)
-        log_callback(f"  Đã chuẩn bị records cho client {idx + 1}/{total_clients}...")
+            
+            try:
+                cursor.execute("""
+                    INSERT INTO metrics_log (guid, timestamp, cpu_usage, ram_usage, disk_usage, local_ip, wan_ip)
+                    VALUES (:guid, :timestamp, :cpu_usage, :ram_usage, :disk_usage, :local_ip, :wan_ip)
+                """, record)
+                conn.commit()
+                success_count += 1
+                if current_idx % 20 == 0 or current_idx == total_needed:
+                    log_callback(f"  Đã chèn {current_idx}/{total_needed} records...")
+                time.sleep(0.5) # Delay 0.5s theo yêu cầu
+            except Exception as e:
+                log_callback(f"  ❌ Lỗi khi chèn record tại {current_idx}: {e}")
+                conn.rollback()
         
-    log_callback("-> Đang chèn records vào database (có thể mất một lúc)...")
-    conn = get_db_conn()
-    cursor = conn.cursor()
-    
-    try:
-        cursor.execute("PRAGMA journal_mode = OFF;")
-        cursor.execute("PRAGMA synchronous = 0;")
-        cursor.executemany("""
-            INSERT INTO metrics_log (guid, timestamp, cpu_usage, ram_usage, disk_usage, local_ip, wan_ip)
-            VALUES (:guid, :timestamp, :cpu_usage, :ram_usage, :disk_usage, :local_ip, :wan_ip)
-        """, all_records)
-        conn.commit()
-        cursor.execute("PRAGMA journal_mode = WAL;")
-        cursor.execute("PRAGMA synchronous = 2;")
-        log_callback(f"-> Đã tạo thành công {len(all_records)} record metrics vào DB.")
-    except Exception as e:
-        log_callback(f"Lỗi khi chèn records: {e}")
-        conn.rollback()
-    finally:
-        conn.close()
+    conn.close()
+    log_callback(f"-> Đã tạo thành công {success_count} record metrics vào DB.")
 
 # --- GUI ---
 class SampleDataGeneratorApp:

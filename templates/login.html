@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+
+{% block title %}Đăng nhập - System Monitor{% endblock %}
+
+{% block head_css %}
+<style>
+    .login-container {
+        max-width: 400px;
+        margin: 100px auto;
+        padding: 30px;
+        background: var(--color-surface);
+        border-radius: 12px;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        text-align: center;
+        border: 1px solid var(--color-bg);
+    }
+    .login-container h2 {
+        margin-bottom: 20px;
+        color: var(--color-text);
+    }
+    .login-form input[type="password"] {
+        width: 100%;
+        padding: 12px;
+        margin-bottom: 20px;
+        border: 1px solid var(--color-bg);
+        border-radius: 6px;
+        background: var(--color-bg);
+        color: var(--color-text);
+        box-sizing: border-box;
+    }
+    .login-form button {
+        width: 100%;
+        padding: 12px;
+        background: var(--color-primary);
+        color: white;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        font-weight: bold;
+        transition: opacity 0.2s;
+    }
+    .login-form button:hover {
+        opacity: 0.9;
+    }
+    .flash-messages {
+        margin-bottom: 20px;
+        color: #ff4d4d;
+        font-size: 0.9rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="login-container">
+    <i class="fa-solid fa-lock" style="font-size: 3rem; color: var(--color-primary); margin-bottom: 20px;"></i>
+    <h2>Yêu cầu xác thực</h2>
+    
+    {% with messages = get_flashed_messages() %}
+      {% if messages %}
+        <div class="flash-messages">
+          {% for message in messages %}
+            <p>{{ message }}</p>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    <form class="login-form" method="POST">
+        <input type="password" name="password" placeholder="Nhập mật khẩu quản trị..." required autofocus>
+        <button type="submit" class="btn-login-submit">Đăng nhập</button>
+    </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<style>
+    .btn-login-submit {
+        width: 100%;
+        padding: 14px;
+        background-color: var(--color-primary);
+        color: #ffffff !important;
+        border: none;
+        border-radius: var(--border-radius);
+        font-size: 1.1rem;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    }
+    .btn-login-submit:hover {
+        opacity: 0.9;
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+    }
+</style>
+{% endblock %}

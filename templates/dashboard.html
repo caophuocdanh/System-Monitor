@@ -82,7 +82,16 @@
         </div>
     </div>
     
-    <h2>Monitored Clients</h2>
+    <div class="section-header">
+        <div class="header-left">
+            <h2>Monitored Clients</h2>
+        </div>
+        <div class="minimal-pagination" id="dashboard-pagination" style="display: none;">
+            <!-- JS sẽ render nội dung << 1/10 >> vào đây -->
+        </div>
+        <span id="total-clients-num" style="display:none">0</span>
+    </div>
+
     <div id="clients-grid" class="clients-grid">
         <!-- Client cards will be injected here by JS -->
     </div>

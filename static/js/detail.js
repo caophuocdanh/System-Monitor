@@ -401,17 +401,22 @@ document.addEventListener('DOMContentLoaded', () => {
             
             const paginationContainer = document.getElementById(this.paginationContainerId);
             if (paginationContainer) {
-                const startItem = startIndex + 1;
-                const endItem = Math.min(startIndex + this.itemsPerPage, filteredData.length);
-                const infoText = filteredData.length > 0 ? `Showing ${startItem}-${endItem} of ${filteredData.length}` : 'No items to display.';
-                
-                paginationContainer.innerHTML = `
-                    <div class="log-pagination-info">Page ${this.currentPage} of ${totalPages || 1} | ${infoText}</div>
-                    <div class="log-pagination-buttons">
-                        <button id="${this.prevBtnId}" ${this.currentPage === 1 ? 'disabled' : ''}>Previous</button>
-                        <button id="${this.nextBtnId}" ${this.currentPage >= totalPages ? 'disabled' : ''}>Next</button>
-                    </div>
-                `;
+                if (totalPages <= 1) {
+                    paginationContainer.style.display = 'none';
+                } else {
+                    paginationContainer.style.display = 'flex';
+                    const startItem = startIndex + 1;
+                    const endItem = Math.min(startIndex + this.itemsPerPage, filteredData.length);
+                    const infoText = filteredData.length > 0 ? `Showing ${startItem}-${endItem} of ${filteredData.length}` : 'No items to display.';
+                    
+                    paginationContainer.innerHTML = `
+                        <div class="log-pagination-info">Page ${this.currentPage} of ${totalPages || 1} | ${infoText}</div>
+                        <div class="log-pagination-buttons">
+                            <button id="${this.prevBtnId}" ${this.currentPage === 1 ? 'disabled' : ''}>Previous</button>
+                            <button id="${this.nextBtnId}" ${this.currentPage >= totalPages ? 'disabled' : ''}>Next</button>
+                        </div>
+                    `;
+                }
             }
         }
     
@@ -676,8 +681,17 @@ document.addEventListener('DOMContentLoaded', () => {
         const headersToDisplay = [{ key: 'Target', displayName: 'Target' }, { key: 'Type', displayName: 'Type' }, { key: 'User', displayName: 'User' }, { key: 'Group', displayName: 'Group' }];
         const gridTemplateColumns = "5% 40% 20% 20% 15%";
         const headerHtml = `<div class="grid-header"><div class="grid-cell col-no">No.</div>${headersToDisplay.map(h => `<div class="grid-cell">${h.displayName}</div>`).join('')}</div>`;
-        const bodyHtml = dataArray.map((row, index) => `<div class="grid-row"><div class="grid-cell col-no">${index + 1}</div>${headersToDisplay.map(header => `<div class="grid-cell">${formatValue(header.key, row[header.key])}</div>`).join('')}</div>`).join('');
-        const titleHtml = title ? `<h3>${title}</h3>` : '';
+        const bodyHtml = dataArray.map((row, index) => {
+            const cells = headersToDisplay.map(header => {
+                let value = formatValue(header.key, row[header.key]);
+                // Bảo mật: Mask trường User bằng CSS blur, click để hiện
+                if (header.key === 'User' && value && value !== 'Unknown' && value !== 'N/A') {
+                    return `<div class="grid-cell"><span class="privacy-mask" title="Click to reveal" onclick="this.classList.toggle('revealed')">${value}</span></div>`;
+                }
+                return `<div class="grid-cell">${value}</div>`;
+            }).join('');
+            return `<div class="grid-row"><div class="grid-cell col-no">${index + 1}</div>${cells}</div>`;
+        }).join('');
         return `<div class="table-responsive"><div class="data-grid" style="grid-template-columns: ${gridTemplateColumns};">${headerHtml}${bodyHtml}</div></div>`;
     }
     

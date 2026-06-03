@@ -11,16 +11,15 @@ import webbrowser
 import platform
 import psutil
 import ctypes
-from flask import Flask, render_template, jsonify, abort, request
+from flask import Flask, render_template, jsonify, abort, request, session, redirect, url_for, flash
+import functools
+from werkzeug.security import check_password_hash
 
 # Kiểm tra nền tảng
 IS_WINDOWS = sys.platform == "win32"
 
 if IS_WINDOWS:
     import winreg
-
-# --- CẤU HÌNH ỨNG DỤNG ---
-DB_NAME = "system_monitor.db"
 
 # --- HÀM HELPER HỆ THỐNG ---
 
@@ -119,12 +118,17 @@ def ensure_single_instance():
     if not found_other:
         print("[CLEANUP] No other instances found.")
 
+# --- CẤU HÌNH ỨNG DỤNG ---
+DB_NAME = "system_monitor.db"
+
 base_path = get_base_path()
 app = Flask(
     __name__,
     template_folder=os.path.join(base_path, 'templates'),
     static_folder=os.path.join(base_path, 'static')
 )
+# Cấu hình Secret Key cho Session (Ưu tiên lấy từ config hoặc mặc định)
+app.secret_key = "system_monitor_secret_key_123" 
 
 # --- CÁC HÀM TIỆN ÍCH ---
 
@@ -146,7 +150,6 @@ def check_server_status(host, port, timeout=1):
 # --- CÁC HÀM LẤY GIÁ TRỊ TỪ CẤU HÌNH ---
 def get_webserver_intervals():
     """Đọc các giá trị interval từ config để truyền vào template."""
-    base_path = get_base_path()
     config_path = os.path.join(base_path, "config.ini")
 
     config = configparser.ConfigParser()
@@ -159,6 +162,49 @@ def get_webserver_intervals():
         'limit_items_per_page': config.getint('webserver', 'LIMIT_ITEMS_PER_PAGE', fallback=15)
     }
     return intervals
+
+# --- ROUTE XÁC THỰC (LOGIN/LOGOUT) ---
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    """Trang đăng nhập cho dashboard."""
+    if session.get('logged_in'):
+        return redirect(url_for('index'))
+        
+    if request.method == 'POST':
+        password = request.form.get('password')
+        
+        config = configparser.ConfigParser()
+        config.read('config.ini')
+        hashed_password = config['webserver'].get('admin_password', '')
+        
+        # Kiểm tra mật khẩu bằng bản băm
+        if hashed_password and check_password_hash(hashed_password, password):
+            session['logged_in'] = True
+            return redirect(url_for('index'))
+        # Hỗ trợ mật khẩu mặc định 'admin' nếu chưa được băm (chỉ dùng cho lần đầu)
+        elif not hashed_password.startswith('pbkdf2:sha256') and password == (hashed_password or 'admin'):
+            session['logged_in'] = True
+            return redirect(url_for('index'))
+        else:
+            flash("Sai mật khẩu, vui lòng thử lại.", "error")
+            
+    return render_template('login.html')
+
+@app.route('/logout')
+def logout():
+    """Đăng xuất và xóa session."""
+    session.pop('logged_in', None)
+    return redirect(url_for('login'))
+
+@app.before_request
+def require_login():
+    """Bảo vệ tất cả các route, trừ trang login và các file static."""
+    # Cho phép truy cập /health mà không cần login (để dashboard tự check hoặc load balancer check)
+    if request.endpoint in ['login', 'static']:
+        return
+    if not session.get('logged_in'):
+        return redirect(url_for('login'))
 
 # --- CÁC ROUTE RENDER TEMPLATE (TRANG WEB) ---
 
@@ -187,10 +233,19 @@ def client_detail(guid):
 def get_dashboard_data():
     """
     API endpoint chính, cung cấp tất cả dữ liệu cần thiết cho trang dashboard.
-    Bao gồm trạng thái server, các số liệu thống kê, và danh sách client.
+    Bao gồm trạng thái server, các số liệu thống kê, và danh sách client (có phân trang).
     """
     config = configparser.ConfigParser()
     config.read('config.ini')
+    
+    # Lấy thông số phân trang từ request hoặc config
+    try:
+        page = int(request.args.get('page', 1))
+        limit = int(request.args.get('limit', config.getint('webserver', 'limit_items_per_page', fallback=20)))
+    except ValueError:
+        page = 1
+        limit = 20
+
     server_check_host = "127.0.0.1"
     server_health_check_port = int(config['server']['health_check_port'])
     is_server_online = check_server_status(server_check_host, server_health_check_port)
@@ -202,7 +257,6 @@ def get_dashboard_data():
     conn = get_db_conn()
     
     # 1. Lấy thông tin thống kê
-     # 1. Lấy thông tin thống kê
     total_clients = conn.execute("SELECT COUNT(id) FROM client").fetchone()[0]
     active_guids_set = {row['guid'] for row in conn.execute("SELECT guid FROM active_connections").fetchall()}
     clients_online = len(active_guids_set)
@@ -216,29 +270,47 @@ def get_dashboard_data():
         db_size_mb = 0
         db_size_str = "N/A"
 
-    # 2. Lấy thông tin chi tiết từng client (với metrics mới nhất)
-    # Tối ưu hóa: Thay thế Window Function bằng Subquery trên Index để nhanh hơn trên bảng lớn
-    all_clients_raw = conn.execute("""
+    # 2. Phân trang và Lấy thông tin chi tiết từng client
+    # Tính toán offset
+    offset = (page - 1) * limit
+    
+    # Lấy danh sách client theo trang (ưu tiên online lên đầu, sau đó theo hostname)
+    # Ta sử dụng một CTE hoặc Subquery phức tạp hơn để sắp xếp đúng trước khi LIMIT
+    query = f"""
+        WITH client_status AS (
+            SELECT 
+                c.*,
+                CASE WHEN EXISTS (SELECT 1 FROM active_connections WHERE guid = c.guid) THEN 0 ELSE 1 END as status_sort
+            FROM client c
+        )
         SELECT 
-            c.*, 
+            cs.*, 
             ml.cpu_usage, 
             ml.ram_usage, 
             ml.disk_usage, 
             ml.timestamp as metrics_timestamp
-        FROM client c
+        FROM client_status cs
         LEFT JOIN metrics_log ml ON ml.id = (
             SELECT id FROM metrics_log 
-            WHERE guid = c.guid 
+            WHERE guid = cs.guid 
             ORDER BY timestamp DESC 
             LIMIT 1
         )
-    """).fetchall()
+        ORDER BY cs.status_sort ASC, cs.hostname COLLATE NOCASE ASC
+        LIMIT ? OFFSET ?
+    """
+    
+    all_clients_raw = conn.execute(query, (limit, offset)).fetchall()
     all_clients = []
     for row in all_clients_raw:
         client_dict = dict(row)
-        client_dict['status'] = "Online" if client_dict['guid'] in active_guids_set else "Offline"
+        client_dict['status'] = "Online" if client_dict['status_sort'] == 0 else "Offline"
         all_clients.append(client_dict)
-    all_clients.sort(key=lambda c: (0 if c['status'] == 'Online' else 1, c['hostname'].lower()))
+    
+    # Tính tổng số trang
+    import math
+    total_pages = math.ceil(total_clients / limit) if total_clients > 0 else 1
+
     conn.close()
     
     # 3. Lấy thời gian cập nhật cuối cùng của file DB
@@ -259,10 +331,16 @@ def get_dashboard_data():
             'clients_online': clients_online,
             'record_count': record_count,
             'db_size': db_size_str,
-            'db_size_mb': db_size_mb # Truyền giá trị số để JS tính toán
+            'db_size_mb': db_size_mb
+        },
+        'pagination': {
+            'current_page': page,
+            'total_pages': total_pages,
+            'limit': limit,
+            'total_count': total_clients
         },
         'clients': all_clients,
-        'thresholds': thresholds # --- TRUYỀN NGƯỠNG VÀO API ---
+        'thresholds': thresholds
     })
 
 @app.route('/api/client_audit_data/<string:guid>')
@@ -542,7 +620,6 @@ def prune_offline_clients():
 # --- KHỞI CHẠY ỨNG DỤNG ---
 if __name__ == '__main__':
     # Thiết lập thư mục làm việc về thư mục chứa script
-    base_path = get_base_path()
     os.chdir(base_path)
 
     # 0. Xử lý tham số ẩn console

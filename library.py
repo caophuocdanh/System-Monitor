@@ -11,8 +11,18 @@ import platform
 import psutil
 import subprocess
 import time
+import hashlib
+import base64
 from datetime import datetime, timedelta
 from typing import Dict, Any, List, Optional, Union
+
+try:
+    from Crypto.Cipher import AES
+    from Crypto.Util.Padding import pad, unpad
+    from Crypto.Protocol.KDF import PBKDF2
+    HAS_CRYPTO = True
+except ImportError:
+    HAS_CRYPTO = False
 
 # --- Added for self-containment of inner classes ---
 import socket
@@ -67,11 +77,68 @@ def _parse_dotnet_json_date(date_obj: Any) -> Optional[datetime]:
     return None
 
 class WindowsAuditor:
+    """Thư viện thu thập thông tin hệ thống Windows."""
+
+    class _Crypto:
+        """Cung cấp các hàm mã hóa AES-256 để bảo vệ dữ liệu nhạy cảm."""
+        
+        @staticmethod
+        def _get_derived_key(password: str, salt: bytes):
+            # Sử dụng PBKDF2 để tạo key 32 bytes (256-bit) từ password
+            return PBKDF2(password, salt, dkLen=32, count=1000)
+
+        @staticmethod
+        def encrypt(data_json: str, password: str) -> str:
+            """Mã hóa chuỗi JSON sang dạng Base64 (AES-256-CBC)."""
+            if not HAS_CRYPTO or not password:
+                return data_json 
+            
+            try:
+                salt = os.urandom(16)
+                key = WindowsAuditor._Crypto._get_derived_key(password, salt)
+                cipher = AES.new(key, AES.MODE_CBC)
+                iv = cipher.iv
+                
+                encrypted_bytes = cipher.encrypt(pad(data_json.encode('utf-8'), AES.block_size))
+                
+                # Gói tin: salt(16) + iv(16) + encrypted_data
+                combined = salt + iv + encrypted_bytes
+                return base64.b64encode(combined).decode('utf-8')
+            except Exception as e:
+                print(f"[Crypto Error] Encryption failed: {e}")
+                return data_json
+
+        @staticmethod
+        def decrypt(encrypted_base64: str, password: str) -> str:
+            """Giải mã chuỗi Base64 về JSON gốc."""
+            if not HAS_CRYPTO or not password:
+                return encrypted_base64
+            
+            try:
+                combined = base64.b64decode(encrypted_base64)
+                if len(combined) < 33: return encrypted_base64
+                
+                salt = combined[:16]
+                iv = combined[16:32]
+                encrypted_bytes = combined[32:]
+                
+                key = WindowsAuditor._Crypto._get_derived_key(password, salt)
+                cipher = AES.new(key, AES.MODE_CBC, iv)
+                
+                decrypted_bytes = unpad(cipher.decrypt(encrypted_bytes), AES.block_size)
+                return decrypted_bytes.decode('utf-8')
+            except Exception as e:
+                return encrypted_base64
+
     class _Usage:
 
         _disk_name_cache = None
+        # Biến lưu trữ trạng thái để tính toán tốc độ I/O không dùng sleep
+        _last_disk_io = {}
+        _last_disk_time = 0
+        _last_net_io = {}
+        _last_net_time = 0
 
-        @staticmethod
         @staticmethod
         def _get_disk_model_map():
             if WindowsAuditor._Usage._disk_name_cache is not None:
@@ -93,7 +160,6 @@ class WindowsAuditor:
                         physical_name_from_audit = device_id_raw.rsplit('\\', 1)[-1]
                         
                         # --- CẢI TIẾN QUAN TRỌNG: Chuẩn hóa key về chữ thường ---
-                        # Điều này loại bỏ các vấn đề về case-sensitivity
                         standardized_key = physical_name_from_audit.lower()
                         
                         if model.strip():
@@ -119,7 +185,6 @@ class WindowsAuditor:
             try:
                 total_percent = 0.0
                 count = 0
-                # all=False lọc các ổ đĩa vật lý/cố định trên Windows
                 for part in psutil.disk_partitions(all=False):
                     if not part.fstype: continue
                     try:
@@ -135,82 +200,79 @@ class WindowsAuditor:
         def get_disk_io_per_disk():
             """
             Trả về tốc độ đọc/ghi (bytes/s) cho TẤT CẢ các ổ đĩa vật lý,
-            sử dụng tên hiển thị dạng [index] Model Name.
+            sử dụng cơ chế delta-time không gây treo (no sleep).
             """
-            # Lấy map từ key chuẩn hóa sang tên model
-            # Ví dụ: {'physicaldrive0': 'Model A', 'physicaldrive1': 'Model B'}
             disk_name_map = WindowsAuditor._Usage._get_disk_model_map()
+            current_io = psutil.disk_io_counters(perdisk=True)
+            current_time = time.time()
             
-            disk_io_start = psutil.disk_io_counters(perdisk=True)
-            time.sleep(2)
-            disk_io_end = psutil.disk_io_counters(perdisk=True)
+            last_io = WindowsAuditor._Usage._last_disk_io
+            last_time = WindowsAuditor._Usage._last_disk_time
+            
+            # Cập nhật trạng thái cho lần gọi sau
+            WindowsAuditor._Usage._last_disk_io = current_io
+            WindowsAuditor._Usage._last_disk_time = current_time
 
             results = {}
             
-            # Sắp xếp các key từ cache để đảm bảo thứ tự [0], [1], [2]... là nhất quán
-            # Ví dụ: ['physicaldrive0', 'physicaldrive1', 'physicaldrive10']
-            sorted_standardized_keys = sorted(disk_name_map.keys(), key=lambda x: int(''.join(filter(str.isdigit, x))))
+            # Nếu là lần gọi đầu tiên, trả về 0 cho tất cả nhưng vẫn lưu state
+            if not last_io:
+                return {f"DISK {i}: {disk_name_map.get(k, 'Unknown')}": {"read_bytes_per_sec": 0, "write_bytes_per_sec": 0} 
+                        for i, k in enumerate(sorted(disk_name_map.keys()))}
+
+            interval = current_time - last_time
+            if interval <= 0: interval = 1 # Tránh chia cho 0
+
+            sorted_keys = sorted(disk_name_map.keys(), key=lambda x: int(''.join(filter(str.isdigit, x))))
             
-            # Lặp qua danh sách các key đã được sắp xếp
-            for i, standardized_key in enumerate(sorted_standardized_keys):
-                
-                # Lấy tên model từ map
+            for i, standardized_key in enumerate(sorted_keys):
                 model_name = disk_name_map.get(standardized_key, "Unknown Model")
-                
-                # --- LOGIC MỚI: TẠO TÊN HIỂN THỊ THEO ĐỊNH DẠNG MỚI ---
                 display_name = f"DISK {i}: {model_name}"
 
-                # Tra cứu thông tin I/O từ psutil bằng key không phân biệt chữ hoa/thường
-                physical_name_from_psutil = None
-                for psutil_key in disk_io_end.keys():
-                    if psutil_key.lower() == standardized_key:
-                        physical_name_from_psutil = psutil_key
-                        break
+                # Tìm key trong psutil
+                psutil_key = next((k for k in current_io.keys() if k.lower() == standardized_key), None)
 
-                read_bps = 0
-                write_bps = 0
+                read_bps, write_bps = 0, 0
+                if psutil_key and psutil_key in last_io:
+                    read_bps = (current_io[psutil_key].read_bytes - last_io[psutil_key].read_bytes) / interval
+                    write_bps = (current_io[psutil_key].write_bytes - last_io[psutil_key].write_bytes) / interval
                 
-                if physical_name_from_psutil:
-                    start_io = disk_io_start.get(physical_name_from_psutil)
-                    end_io = disk_io_end.get(physical_name_from_psutil)
-
-                    if start_io and end_io:
-                        read_bps = (end_io.read_bytes - start_io.read_bytes) / 2
-                        write_bps = (end_io.write_bytes - start_io.write_bytes) / 2
-                
-                # Sử dụng display_name mới làm key
                 results[display_name] = {
-                    "read_bytes_per_sec": read_bps if read_bps > 0 else 0, 
-                    "write_bytes_per_sec": write_bps if write_bps > 0 else 0
+                    "read_bytes_per_sec": max(0, read_bps), 
+                    "write_bytes_per_sec": max(0, write_bps)
                 }
             return results 
             
         @staticmethod
         def get_network_io_per_nic():
-            """Trả về lưu lượng mạng (bits/s) cho tất cả các card mạng vật lý đang bật."""
+            """Trả về lưu lượng mạng (bits/s) sử dụng cơ chế delta-time không sleep."""
             nic_stats = psutil.net_if_stats()
-            net_io_start = psutil.net_io_counters(pernic=True)
-            time.sleep(2)
-            net_io_end = psutil.net_io_counters(pernic=True)
+            current_io = psutil.net_io_counters(pernic=True)
+            current_time = time.time()
+
+            last_io = WindowsAuditor._Usage._last_net_io
+            last_time = WindowsAuditor._Usage._last_net_time
+
+            WindowsAuditor._Usage._last_net_io = current_io
+            WindowsAuditor._Usage._last_net_time = current_time
 
             results = {}
-            # Lặp qua tất cả các NIC đang bật và không phải loopback
+            if not last_io:
+                return {n: {"upload_bits_per_sec": 0, "download_bits_per_sec": 0} for n, s in nic_stats.items() if s.isup}
+
+            interval = current_time - last_time
+            if interval <= 0: interval = 1
+
             for nic_name, stats in nic_stats.items():
                 if stats.isup and "loopback" not in nic_name.lower():
-                    start_io = net_io_start.get(nic_name)
-                    end_io = net_io_end.get(nic_name)
+                    upload_bps, download_bps = 0, 0
+                    if nic_name in current_io and nic_name in last_io:
+                        upload_bps = (current_io[nic_name].bytes_sent - last_io[nic_name].bytes_sent) * 8 / interval
+                        download_bps = (current_io[nic_name].bytes_recv - last_io[nic_name].bytes_recv) * 8 / interval
                     
-                    upload_bps = 0
-                    download_bps = 0
-
-                    if start_io and end_io:
-                        upload_bps = (end_io.bytes_sent - start_io.bytes_sent) * 8 / 2
-                        download_bps = (end_io.bytes_recv - start_io.bytes_recv) * 8 / 2
-                    
-                    # Luôn trả về kết quả cho NIC này
                     results[nic_name] = {
-                        "upload_bits_per_sec": upload_bps if upload_bps > 0 else 0, 
-                        "download_bits_per_sec": download_bps if download_bps > 0 else 0
+                        "upload_bits_per_sec": max(0, upload_bps), 
+                        "download_bits_per_sec": max(0, download_bps)
                     }
             return results
 

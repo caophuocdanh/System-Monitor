@@ -79,7 +79,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (clearRecordsBtn) {
         clearRecordsBtn.addEventListener('click', () => {
-            if (confirm('Are you sure you want to delete ALL metric records? This action cannot be undone.')) {
+            if (confirm('Bạn có chắc chắn muốn xóa TẤT CẢ các bản ghi metrics? Hành động này không thể hoàn tác.')) {
                 fetch('/api/clear_records', { method: 'POST' })
                     .then(res => res.json())
                     .then(data => {
@@ -96,19 +96,19 @@ document.addEventListener('DOMContentLoaded', () => {
                             // --- KẾT THÚC LOGIC CẬP NHẬT ---
 
                         } else {
-                            alert('Error: ' + data.message);
+                            alert('Lỗi: ' + data.message);
                         }
                     })
                     .catch(err => {
-                        console.error('Error clearing records:', err);
-                        alert('An error occurred while clearing records.');
+                        console.error('Lỗi khi xóa bản ghi:', err);
+                        alert('Đã xảy ra lỗi khi xóa các bản ghi.');
                     });
             }
         });
     }
     if (pruneOfflineBtn) {
         pruneOfflineBtn.addEventListener('click', () => {
-            if (confirm('Are you sure you want to delete ALL OFFLINE clients and all of their associated data (audits, metrics, etc)? This action is irreversible.')) {
+            if (confirm('Bạn có chắc chắn muốn xóa TẤT CẢ các client NGOẠI TUYẾN và tất cả dữ liệu liên quan (audit, metrics, v.v.)? Hành động này không thể đảo ngược.')) {
                 fetch('/api/prune_offline_clients', { method: 'POST' })
                     .then(res => res.json())
                     .then(data => {
@@ -120,12 +120,12 @@ document.addEventListener('DOMContentLoaded', () => {
                                 location.reload();
                             }
                         } else {
-                            alert('Error: ' + data.message);
+                            alert('Lỗi: ' + data.message);
                         }
                     })
                     .catch(err => {
-                        console.error('Error pruning offline clients:', err);
-                        alert('An error occurred while pruning offline clients.');
+                        console.error('Lỗi khi dọn dẹp client ngoại tuyến:', err);
+                        alert('Đã xảy ra lỗi khi dọn dẹp các client ngoại tuyến.');
                     });
             }
         });

@@ -51,6 +51,12 @@
                     <i class="fa-solid fa-eraser"></i>
                     <span>Clear Records</span>
                 </button>
+                {% if session.get('logged_in') %}
+                <a href="{{ url_for('logout') }}" id="btn-logout" class="header-control-item btn-action btn-header-action">
+                    <i class="fa-solid fa-right-from-bracket"></i>
+                    <span>Logout</span>
+                </a>
+                {% endif %}
             </div>
         </section>
     </header>
@@ -63,7 +69,7 @@
     <footer class="site-footer">
         <div class="footer-credit">
                 <div><i class="fa-solid fa-heart"></i> System Monitor Dashboard © 2026</div>
-                <div><i class="fa-solid fa-code-branch"></i> v2.26 build 6.2.16 by danhcp</div>
+                <div><i class="fa-solid fa-code-branch"></i> v2.26 build 6.3.16 by danhcp</div>
         </div>
     </footer>
 

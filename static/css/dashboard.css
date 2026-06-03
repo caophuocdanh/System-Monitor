@@ -67,6 +67,75 @@
 .btn-icon.btn-refresh{background-color:#6c757d}
 .btn-icon.btn-delete{background-color:var(--color-danger)}
 
+.section-header {
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important; /* Chuyển sang center để cân đối trọng tâm */
+    margin-bottom: 1.5rem !important;
+    padding-bottom: 0.5rem !important;
+    border-bottom: 2px solid var(--color-bg) !important;
+}
+
+.header-left h2 {
+    margin: 0 !important;
+    font-size: 1.5rem !important;
+    font-weight: 700 !important;
+    line-height: 1.2 !important;
+}
+
+/* PHÂN TRANG CỰC KỲ TỐI GIẢN ◀ 1/10 ▶ */
+.minimal-pagination {
+    display: flex;
+    align-items: center; /* Căn giữa các con */
+    gap: 0.2rem;
+    font-family: var(--font-mono);
+    font-weight: 700;
+    font-size: 0.85rem;
+    background: none;
+    padding: 0;
+    user-select: none;
+    line-height: 1;
+}
+
+.btn-minimal {
+    background: none !important;
+    border: none !important;
+    color: var(--color-text-muted) !important;
+    cursor: pointer !important;
+    font-weight: 900 !important;
+    font-size: 0.9rem !important;
+    padding: 0 4px !important;
+    transition: color 0.2s !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    height: 100% !important;
+    line-height: 1 !important;
+    opacity: 0.8 !important;
+}
+
+.btn-minimal:hover:not(:disabled) {
+    color: var(--color-text) !important;
+    opacity: 1 !important;
+}
+
+.btn-minimal:disabled {
+    color: #ccc !important;
+    cursor: not-allowed !important;
+    opacity: 0.3 !important;
+}
+
+.page-info {
+    color: var(--color-text) !important;
+    padding: 0 4px !important;
+    letter-spacing: -1px !important;
+    display: flex !important;
+    align-items: center !important;
+    height: 100% !important;
+    line-height: 1 !important;
+    transform: translateY(1px); /* Nhích nhẹ xuống dưới để cân đối với tam giác */
+}
+
 @keyframes border-flow{
 from{height:0%}
 to{height:100%}

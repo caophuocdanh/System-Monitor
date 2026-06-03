@@ -12,6 +12,7 @@ import sys
 import ctypes
 import psutil
 import platform
+from library import WindowsAuditor
 
 # Kiểm tra nền tảng
 IS_WINDOWS = sys.platform == "win32"
@@ -148,27 +149,9 @@ def run_health_check_server(host, port):
     httpd.serve_forever()
 
 # --- CÁC HÀM TƯƠNG TÁC VỚI DATABASE (ĐƯỢC TÁI CẤU TRÚC) ---
-# Hàm này giờ là hàm đồng bộ (synchronous) bình thường, sẽ được gọi bởi worker
-def _execute_db_write(query, params=()):
-    try:
-        # Sử dụng timeout để tránh bị lock vô hạn nếu có vấn đề
-        conn = sqlite3.connect(DB_NAME, timeout=10) 
-        # Bật các PRAGMA quan trọng cho mỗi kết nối ghi
-        conn.execute("PRAGMA foreign_keys = ON")
-        conn.execute("PRAGMA journal_mode=WAL") # Cải thiện hiệu suất đồng thời
-        
-        conn.execute(query, params)
-        conn.commit()
-        conn.close()
-    except sqlite3.OperationalError as e:
-        print(f"[DB Worker Error] Database locked or other operational error: {e}")
-        # Có thể thêm logic retry hoặc ghi log chi tiết hơn ở đây
-    except Exception as e:
-        print(f"[DB Worker Error] Failed to execute DB write: {e}")
 
-# Các hàm này giờ chỉ đưa yêu cầu vào hàng đợi
+# Các hàm này giờ chỉ đưa yêu cầu vào hàng đợi dưới dạng (query, params)
 async def db_upsert_client_static_info(guid, hostname, username, local_ip, wan_ip, enabled_modules_json):
-    # Dùng ON CONFLICT để gộp INSERT và UPDATE thành 1 lệnh, an toàn và hiệu quả hơn
     sql_script = """
         INSERT INTO client (guid, hostname, username, local_ip, wan_ip, enabled_modules)
         VALUES (?, ?, ?, ?, ?, ?)
@@ -178,26 +161,23 @@ async def db_upsert_client_static_info(guid, hostname, username, local_ip, wan_i
         wan_ip=excluded.wan_ip,
         enabled_modules=excluded.enabled_modules;
     """
-    await db_write_queue.put(
-        (_execute_db_write, (sql_script, (guid, hostname, username, local_ip, wan_ip, enabled_modules_json)))
-    )
+    await db_write_queue.put((sql_script, (guid, hostname, username, local_ip, wan_ip, enabled_modules_json)))
 
 async def db_add_active_connection(guid, client_address):
-    # Dùng now(timezone.utc) để lấy thời gian UTC hiện tại
     timestamp = int(datetime.now(timezone.utc).timestamp()) 
     address_str = f"{client_address[0]}:{client_address[1]}"
     query = "INSERT INTO active_connections (guid, connection_start_time, client_address) VALUES (?, ?, ?)"
-    await db_write_queue.put((_execute_db_write, (query, (guid, timestamp, address_str))))
+    await db_write_queue.put((query, (guid, timestamp, address_str)))
 
 async def db_remove_active_connection(guid, client_address):
     address_str = f"{client_address[0]}:{client_address[1]}"
     query = "DELETE FROM active_connections WHERE guid = ? AND client_address = ?"
-    await db_write_queue.put((_execute_db_write, (query, (guid, address_str))))
+    await db_write_queue.put((query, (guid, address_str)))
     print(f"Queued removal of active connection for {guid} from {address_str}")
 
 async def db_clear_client_audit_data(guid):
     query = "DELETE FROM audit_data WHERE guid = ?"
-    await db_write_queue.put((_execute_db_write, (query, (guid,))))
+    await db_write_queue.put((query, (guid,)))
 
 async def db_log_metrics(guid, data):
     timestamp = int(datetime.now(timezone.utc).timestamp())
@@ -217,7 +197,7 @@ async def db_log_metrics(guid, data):
         json.dumps(data.get('disk_io', {})),
         json.dumps(data.get('network_io', {}))
     )
-    await db_write_queue.put((_execute_db_write, (query, params)))
+    await db_write_queue.put((query, params))
 
 async def db_log_audit_data(guid, audit_name, data):
     timestamp = int(datetime.now(timezone.utc).timestamp())
@@ -227,42 +207,57 @@ async def db_log_audit_data(guid, audit_name, data):
         ON CONFLICT(guid, audit_name) DO UPDATE SET
         timestamp=excluded.timestamp, data_json=excluded.data_json
     """
-    await db_write_queue.put((_execute_db_write, (query, (guid, audit_name, timestamp, data_str))))
-    # print(f"Queued audit data for '{audit_name}' from {guid}")
+    await db_write_queue.put((query, (guid, audit_name, timestamp, data_str)))
 
 async def db_prune_old_metrics(retention_days):
     """Xóa các bản ghi metrics cũ hơn số ngày quy định."""
+    from datetime import timedelta
     cutoff_timestamp = int((datetime.now(timezone.utc) - timedelta(days=retention_days)).timestamp())
     query = "DELETE FROM metrics_log WHERE timestamp < ?"
-    # Gửi yêu cầu xóa vào hàng đợi để tránh xung đột
-    await db_write_queue.put((_execute_db_write, (query, (cutoff_timestamp,))))
-    print(f"[DB Pruner] Queued pruning of metrics older than {retention_days} days (Before {datetime.fromtimestamp(cutoff_timestamp).strftime('%Y-%m-%d')})")
+    await db_write_queue.put((query, (cutoff_timestamp,)))
+    print(f"[DB Pruner] Queued pruning of metrics older than {retention_days} days.")
 
 # Hàm đọc (read) có thể giữ nguyên vì đọc không khóa database như ghi
 def check_client_exists(guid):
-    conn = sqlite3.connect(DB_NAME)
-    conn.execute("PRAGMA foreign_keys = ON")
-    cursor = conn.cursor()
-    cursor.execute("SELECT 1 FROM client WHERE guid = ?", (guid,))
-    exists = cursor.fetchone() is not None
-    conn.close()
-    return exists
+    try:
+        conn = sqlite3.connect(DB_NAME, timeout=5)
+        cursor = conn.cursor()
+        cursor.execute("SELECT 1 FROM client WHERE guid = ?", (guid,))
+        exists = cursor.fetchone() is not None
+        conn.close()
+        return exists
+    except Exception: return False
 
 # --- DATABASE WORKER ---
 async def database_writer_worker():
-    """Tác vụ nền, lấy yêu cầu từ hàng đợi và ghi vào DB."""
-    print("[DB Worker] Database writer worker started.")
-    while True:
-        try:
-            func, args = await db_write_queue.get()
-            
-            # Chạy hàm ghi DB trong một executor để không block vòng lặp sự kiện
-            loop = asyncio.get_running_loop()
-            await loop.run_in_executor(None, func, *args)
-
-            db_write_queue.task_done()
-        except Exception as e:
-            print(f"[DB Worker] Error processing DB queue: {e}")
+    """Tác vụ nền, duy trì một kết nối duy nhất để ghi vào DB hiệu quả hơn."""
+    print("[DB Worker] Database writer worker started with persistent connection.")
+    
+    try:
+        # Mở kết nối duy nhất cho toàn bộ vòng đời của worker
+        conn = sqlite3.connect(DB_NAME, timeout=30)
+        conn.execute("PRAGMA foreign_keys = ON")
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA synchronous=NORMAL")
+        
+        while True:
+            query, params = await db_write_queue.get()
+            try:
+                conn.execute(query, params)
+                conn.commit()
+            except sqlite3.OperationalError as e:
+                print(f"[DB Worker Error] Operational error: {e}")
+                if "locked" in str(e).lower():
+                    await asyncio.sleep(0.2)
+                    # Retry once for locked db
+                    try: conn.execute(query, params); conn.commit()
+                    except: pass
+            except Exception as e:
+                print(f"[DB Worker Error] Write failed: {e}")
+            finally:
+                db_write_queue.task_done()
+    except Exception as e:
+        print(f"[DB Worker] Fatal error: {e}")
 
 async def database_pruning_worker(retention_days):
     """Tác vụ nền, định kỳ dọn dẹp dữ liệu cũ (mỗi 12 giờ)."""
@@ -458,7 +453,17 @@ async def websocket_handler(websocket):
             
             elif msg_type == 'full_audit':
                 print(f"[{timestamp_str}] [Audit Data] Queueing full audit from {guid}.")
-                for audit_name, audit_result in data['data'].items():
+                audit_results = data.get('data', {})
+                for audit_name, audit_result in audit_results.items():
+                    # Giải mã nếu module nhạy cảm bị mã hóa
+                    if isinstance(audit_result, dict) and audit_result.get('encrypted'):
+                        print(f"  -> Decrypting module '{audit_name}'...")
+                        decrypted_json = WindowsAuditor._Crypto.decrypt(audit_result.get('payload'), ACCESS_TOKEN)
+                        try:
+                            audit_result = json.loads(decrypted_json)
+                        except json.JSONDecodeError:
+                            print(f"  -> Error: Decryption failed for '{audit_name}'. Storing raw payload.")
+                    
                     await db_log_audit_data(guid, audit_name, audit_result)
                 print(f"  -> Finished queueing audit for {guid}.")
             

@@ -4,3 +4,4 @@ psutil
 PySide6
 requests
 Flask
+pycryptodome

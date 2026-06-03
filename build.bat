@@ -46,6 +46,7 @@ copy config.ini "source\client\config.ini" /Y
 
 move /Y "source\System Monitor Dashboard.exe" "source\server\"
 move /Y "source\System Monitor Server.exe" "source\server\"
+move /Y "source\Audit Data Sample.exe" "source\server\"
 move /Y "source\System Monitor Client.exe" "source\client\"
 
 copy "requirements\kill_all.bat" "source\kill_all.bat" /Y

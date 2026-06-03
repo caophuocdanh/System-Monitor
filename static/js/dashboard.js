@@ -44,6 +44,15 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+    // --- PHÂN TRANG BIẾN TOÀN CỤC ---
+    let currentPage = 1;
+    let totalPages = 1;
+    const btnPrev = document.getElementById('btn-prev-page');
+    const btnNext = document.getElementById('btn-next-page');
+    const spanCurrentPage = document.getElementById('current-page-num');
+    const spanTotalPages = document.getElementById('total-pages-num');
+    const spanTotalClients = document.getElementById('total-clients-num'); // Vẫn giữ để cập nhật ngầm nếu cần
+
     // ... (code getUsageLevelClass và timeAgo không đổi) ...
     function getUsageLevelClass(percentage) {
         if (percentage < 35) return 'level-low';
@@ -144,8 +153,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ... (các hàm còn lại updateDashboard, disableEditing, saveUsername, event listeners không đổi) ...
-    function updateDashboard() {
-        fetch('/api/dashboard_data')
+    function updateDashboard(page = null) {
+        if (page !== null) currentPage = page;
+        
+        fetch(`/api/dashboard_data?page=${currentPage}`)
             .then(response => {
                 if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                 return response.json();
@@ -195,6 +206,34 @@ document.addEventListener('DOMContentLoaded', () => {
                 statElements.dbsize.progress.style.width = `${dbPercent}%`;
                 statElements.dbsize.subtext.textContent = `Limit: ${thresholds.db_size} MB`;
 
+                // --- CẬP NHẬT PHÂN TRANG ---
+                const pagin = data.pagination;
+                currentPage = pagin.current_page;
+                totalPages = pagin.total_pages;
+
+                const paginationContainer = document.getElementById('dashboard-pagination');
+                if (paginationContainer) {
+                    if (totalPages <= 1) {
+                        paginationContainer.style.display = 'none';
+                    } else {
+                        paginationContainer.style.display = 'flex';
+                        // ÉP BUỘC ĐỊNH DẠNG ◀ 1/10 ▶ QUA JS ĐỂ TRÁNH TEMPLATE CŨ
+                        paginationContainer.innerHTML = `
+                            <button id="btn-prev-page" class="btn-minimal" ${currentPage <= 1 ? 'disabled' : ''}>&#9664;</button>
+                            <span class="page-info">
+                                <span id="current-page-num">${currentPage}</span>/<span id="total-pages-num">${totalPages}</span>
+                            </span>
+                            <button id="btn-next-page" class="btn-minimal" ${currentPage >= totalPages ? 'disabled' : ''}>&#9654;</button>
+                        `;
+                        
+                        // Gán lại sự kiện vì innerHTML đã làm mất listener cũ
+                        const newBtnPrev = paginationContainer.querySelector('#btn-prev-page');
+                        const newBtnNext = paginationContainer.querySelector('#btn-next-page');
+                        newBtnPrev.onclick = () => { if (currentPage > 1) updateDashboard(currentPage - 1); };
+                        newBtnNext.onclick = () => { if (currentPage < totalPages) updateDashboard(currentPage + 1); };
+                    }
+                }
+
                 const receivedGuids = new Set(data.clients.map(c => c.guid));
                 
                 data.clients.forEach(client => {
@@ -230,6 +269,23 @@ document.addEventListener('DOMContentLoaded', () => {
                     statusBar.innerHTML = '<span id="server-status-text">Could not connect to the backend. Is the Flask server running?</span>';
                  }
             });
+    }
+
+    // Xử lý sự kiện nút phân trang
+    if (btnPrev) {
+        btnPrev.addEventListener('click', () => {
+            if (currentPage > 1) {
+                updateDashboard(currentPage - 1);
+            }
+        });
+    }
+
+    if (btnNext) {
+        btnNext.addEventListener('click', () => {
+            if (currentPage < totalPages) {
+                updateDashboard(currentPage + 1);
+            }
+        });
     }
 
     function disableEditing(inputElement, buttonElement) {
