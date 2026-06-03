@@ -172,13 +172,14 @@ update_info_interval = 3600
 
 ## 🤝 Đóng góp
 
-Chúng tôi *không* hoan nghênh mọi sự đóng góp để cải thiện dự án! Nếu bạn có ý tưởng hoặc muốn vá lỗi, vui lòng tạo một "Issue" hoặc "Pull Request".
+Chúng tôi *không* hoan nghênh mọi sự đóng góp để cải thiện dự án! Nếu bạn có ý tưởng hoặc muốn vá lỗi vui lòng clone về tự chỉnh sửa.
 
 ## ✍️ Tác giả
 
 -   **Cao Phước Danh** - *Kịch bản - Biên kịch - Đạo diễn*
 -   **AI studio - Google** - *Diễn viên - Phát triển code*
 -   **ChatGPT** - *Hậu kì - Thằng trên code ngu thì thằng này sửa lại*
+-   **Gemini CLI** - *Cập nhật, nâng cấp ứng dụng*
 
 
 ## 📄 Giấy phép
