@@ -66,11 +66,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const past = new Date(timestamp * 1000);
         const seconds = Math.floor((now - past) / 1000);
 
-        if (seconds < 5) return "vừa xong";
-        if (seconds < 60) return `${seconds} giây trước`;
-        if (seconds < 3600) return `${Math.floor(seconds / 60)} phút trước`;
-        if (seconds < 86400) return `${Math.floor(seconds / 3600)} giờ trước`;
-        return `${Math.floor(seconds / 86400)} ngày trước`;
+        if (seconds < 5) return "just now";
+        if (seconds < 60) return `${seconds}s ago`;
+        if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+        if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+        return `${Math.floor(seconds / 86400)}d ago`;
     }
 
     function createClientCard(client) {
@@ -105,7 +105,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="username-wrapper">
                         <i class="icon fa-solid fa-user"></i>
                         <input type="text" class="username-input ip-font" value="${client.username}" readonly data-guid="${client.guid}">
-                        <button class="edit-username-btn" title="Sửa tên người dùng">
+                        <button class="edit-username-btn" title="Edit Username">
                             <i class="fa-solid fa-pencil"></i>
                         </button>
                     </div>
@@ -135,16 +135,16 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
             <div class="client-card-footer-wrapper">
                 <div class="client-card-status">
-                    <span>Cập nhật: ${lastUpdate}</span>
+                    <span>Last update: ${lastUpdate}</span>
                 </div>
                 <div class="client-card-actions">
-                    <a href="/client/${client.guid}" class="btn-icon btn-detail" title="Xem chi tiết">
+                    <a href="/client/${client.guid}" class="btn-icon btn-detail" title="View Details">
                         <i class="fa-solid fa-info"></i>
                     </a>
-                    <button class="btn-icon btn-refresh" data-guid="${client.guid}" title="Làm mới dữ liệu">
+                    <button class="btn-icon btn-refresh" data-guid="${client.guid}" title="Refresh Data">
                         <i class="fa-solid fa-sync-alt"></i>
                     </button>
-                    <button class="btn-icon btn-delete" data-guid="${client.guid}" title="Xóa Client">
+                    <button class="btn-icon btn-delete" data-guid="${client.guid}" title="Delete Client">
                         <i class="fa-solid fa-trash-alt"></i>
                     </button>
                 </div>
@@ -166,10 +166,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 const statusText = document.getElementById('server-status-text');
                 if (data.server_status.is_online) {
                     statusBar.className = 'server-status-bar online';
-                    statusText.textContent = 'Máy chủ Trực tuyến';
+                    sstatusText.textContent = 'Server is Online';
                 } else {
                     statusBar.className = 'server-status-bar offline';
-                    statusText.textContent = `Máy chủ Ngoại tuyến. Dữ liệu cuối nhận lúc ${data.server_status.last_data_update}`;
+                    statusText.textContent = `Server is Offline. Last data received at ${data.server_status.last_data_update}`;
                 }
 
                 // CẬP NHẬT DỮ LIỆU CHO STATS-GRID MỚI
@@ -186,25 +186,25 @@ document.addEventListener('DOMContentLoaded', () => {
                 const totalClientsPercent = calculatePercent(stats.total_clients, thresholds.clients);
                 statElements.total.value.textContent = stats.total_clients;
                 statElements.total.progress.style.width = `${totalClientsPercent}%`;
-                statElements.total.subtext.textContent = `${stats.total_clients} / ${thresholds.clients} đã đăng ký`;
+                statElements.total.subtext.textContent = `${stats.total_clients} / ${thresholds.clients} registered`;
                 
                 // Card 2: Clients Online
                 const onlinePercent = stats.total_clients > 0 ? (stats.clients_online / stats.total_clients) * 100 : 0;
                 statElements.online.value.textContent = stats.clients_online;
                 statElements.online.progress.style.width = `${onlinePercent}%`;
-                statElements.online.subtext.textContent = `${stats.clients_online}/${stats.total_clients} đang hoạt động`;
+                statElements.online.subtext.textContent = `${stats.clients_online}/${stats.total_clients} active`;
 
                 // Card 3: Metrics Logged
                 const recordsPercent = calculatePercent(stats.record_count, thresholds.records);
                 statElements.records.value.textContent = stats.record_count.toLocaleString();
                 statElements.records.progress.style.width = `${recordsPercent}%`;
-                statElements.records.subtext.textContent = `${stats.record_count.toLocaleString()} / ${thresholds.records.toLocaleString()} bản ghi`;
+                statElements.records.subtext.textContent = `${stats.record_count.toLocaleString()} / ${thresholds.records.toLocaleString()} entries`;
 
                 // Card 4: Database Size
                 const dbPercent = calculatePercent(stats.db_size_mb, thresholds.db_size);
                 statElements.dbsize.value.textContent = stats.db_size;
                 statElements.dbsize.progress.style.width = `${dbPercent}%`;
-                statElements.dbsize.subtext.textContent = `Giới hạn: ${thresholds.db_size} MB`;
+                statElements.dbsize.subtext.textContent = `Limit: ${thresholds.db_size} MB`;
 
                 // --- CẬP NHẬT PHÂN TRANG ---
                 const pagin = data.pagination;
@@ -254,7 +254,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 
                 if (clientsGrid.children.length === 0 && !clientsGrid.querySelector('.no-clients-message')) {
-                     clientsGrid.innerHTML = '<p class="no-clients-message">Không tìm thấy client nào.</p>';
+                     clientsGrid.innerHTML = '<p class="no-clients-message">No clients found.</p>';
                 } else if (clientsGrid.children.length > 0) {
                     const noClientsMessage = clientsGrid.querySelector('.no-clients-message');
                     if (noClientsMessage) noClientsMessage.remove();
@@ -266,7 +266,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const statusBar = document.getElementById('server-status-bar');
                  if(statusBar) {
                     statusBar.className = 'server-status-bar offline';
-                    statusBar.innerHTML = '<span id="server-status-text">Không thể kết nối với máy chủ. Flask server đã chạy chưa?</span>';
+                    statusBar.innerHTML = '<span id="server-status-text">Could not connect to the backend. Is the Flask server running?</span>';
                  }
             });
     }
@@ -291,7 +291,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function disableEditing(inputElement, buttonElement) {
         inputElement.setAttribute('readonly', true);
         buttonElement.classList.remove('editing');
-        buttonElement.title = "Sửa tên người dùng";
+        buttonElement.title = "Edit Username";
         buttonElement.innerHTML = '<i class="fa-solid fa-pencil"></i>';
     }
 
@@ -313,7 +313,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 alert('Lỗi cập nhật tên người dùng: ' + data.message);
             }
         })
-        .catch(error => alert('Đã xảy ra lỗi khi lưu.'));
+        .catch(error => alert('An error occurred while saving.'));
     }
 
     clientsGrid.addEventListener('click', function(e) {
@@ -326,7 +326,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (input.hasAttribute('readonly')) {
                 input.removeAttribute('readonly');
                 editBtn.classList.add('editing');
-                editBtn.title = "Lưu tên người dùng";
+                editBtn.title = "Save Username";
                 editBtn.innerHTML = '<i class="fa-solid fa-check"></i>';
                 input.focus();
                 input.select();
@@ -335,7 +335,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } else if (deleteBtn) {
             const guid = deleteBtn.dataset.guid;
-            if (confirm(`Bạn có chắc chắn muốn xóa client ${guid}? Hành động này không thể hoàn tác.`)) {
+            if (confirm(`Are you sure you want to delete client ${guid}? This action cannot be undone.`)) {
                 fetch('/api/client/delete', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
