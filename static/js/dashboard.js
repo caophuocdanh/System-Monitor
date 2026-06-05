@@ -166,7 +166,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const statusText = document.getElementById('server-status-text');
                 if (data.server_status.is_online) {
                     statusBar.className = 'server-status-bar online';
-                    sstatusText.textContent = 'Server is Online';
+                    statusText.textContent = 'Server is Online';
                 } else {
                     statusBar.className = 'server-status-bar offline';
                     statusText.textContent = `Server is Offline. Last data received at ${data.server_status.last_data_update}`;

@@ -143,10 +143,13 @@ class HealthCheckHandler(BaseHTTPRequestHandler):
             self.end_headers()
 
 def run_health_check_server(host, port):
-    server_address = (host, port)
-    httpd = HTTPServer(server_address, HealthCheckHandler)
-    print(f"[Server] Health check server started at http://{host}:{port}/health")
-    httpd.serve_forever()
+    try:
+        server_address = (host, port)
+        httpd = HTTPServer(server_address, HealthCheckHandler)
+        print(f"[Server] Health check server started at http://{host}:{port}/health")
+        httpd.serve_forever()
+    except Exception as e:
+        print(f"[Server] Health check server failed to start: {e}")
 
 # --- CÁC HÀM TƯƠNG TÁC VỚI DATABASE (ĐƯỢC TÁI CẤU TRÚC) ---
 

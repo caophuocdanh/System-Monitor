@@ -235,19 +235,28 @@ def get_dashboard_data():
     API endpoint chính, cung cấp tất cả dữ liệu cần thiết cho trang dashboard.
     Bao gồm trạng thái server, các số liệu thống kê, và danh sách client (có phân trang).
     """
+    config_path = os.path.join(base_path, 'config.ini')
     config = configparser.ConfigParser()
-    config.read('config.ini')
+    config.read(config_path)
     
     # Lấy thông số phân trang từ request hoặc config
     try:
         page = int(request.args.get('page', 1))
         limit = int(request.args.get('limit', config.getint('webserver', 'limit_items_per_page', fallback=20)))
-    except ValueError:
+    except (ValueError, configparser.NoSectionError, configparser.NoOptionError, KeyError):
         page = 1
         limit = 20
 
-    server_check_host = "127.0.0.1"
-    server_health_check_port = int(config['server']['health_check_port'])
+    # Lấy cấu hình check host, nếu là 0.0.0.0 thì dùng 127.0.0.1 để check nội bộ
+    server_check_host = config['server'].get('host', '127.0.0.1')
+    if server_check_host == '0.0.0.0':
+        server_check_host = '127.0.0.1'
+    
+    try:
+        server_health_check_port = int(config['server']['health_check_port'])
+    except (KeyError, ValueError):
+        server_health_check_port = 7410 # Default fallback
+    
     is_server_online = check_server_status(server_check_host, server_health_check_port)
     thresholds = {
             'clients': int(config['webserver'].get('CLIENTS', 100)),
