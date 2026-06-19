@@ -29,6 +29,7 @@
             <button class="tab-link" onclick="openTab(event, 'services')"><span class="tab-icon">⚙️</span> Services</button>
             <button class="tab-link" onclick="openTab(event, 'logs')"><span class="tab-icon">🧾</span> Logs</button>
             <button class="tab-link" onclick="openTab(event, 'history')"><span class="tab-icon">🌍</span> Web History</button>
+            <button class="tab-link" onclick="openTab(event, 'remote-control')"><span class="tab-icon">🎮</span> Remote Control</button>
 
         </nav>
 
@@ -48,6 +49,7 @@
             <div id="services" class="tab-content"></div>
             <div id="logs" class="tab-content"></div>
             <div id="history" class="tab-content"></div>
+            <div id="remote-control" class="tab-content"></div>
         </div>
     </div>
 {% endblock %}
@@ -62,6 +64,9 @@
         const SERVER_STATUS_INTERVAL = {{ intervals.server_status }};
         const REALTIME_METRICS_INTERVAL = {{ intervals.client_metrics }};
         const ITEMS_PER_PAGE = {{ intervals.limit_items_per_page }}; 
+        const WS_URL = "{{ ws_url }}";
+        const ACCESS_TOKEN = "{{ access_token }}";
     </script>
     <script src="{{ url_for('static', filename='js/detail.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/remote_control.js') }}"></script>
 {% endblock %}

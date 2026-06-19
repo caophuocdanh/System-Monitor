@@ -223,6 +223,50 @@ def run_full_audit_sync():
 
 # FILE: client.py
 
+async def listen_for_remote_commands(websocket):
+    """Lắng nghe các lệnh điều khiển từ xa từ server."""
+    try:
+        async for message in websocket:
+            try:
+                data = json.loads(message)
+                if data.get('type') == 'remote_command':
+                    command_type = data.get('command')
+                    print(f"[REMOTE] Received command: {command_type}")
+                    
+                    response_data = {"type": "remote_response", "command": command_type, "guid": CLIENT_GUID}
+                    
+                    if command_type == 'terminal':
+                        cmd = data.get('payload', '')
+                        shell = data.get('shell', 'cmd')
+                        result = WindowsAuditor._RemoteControl.execute_command(cmd, shell)
+                        response_data["result"] = result
+                        
+                    elif command_type == 'process_list':
+                        response_data["result"] = WindowsAuditor._RemoteControl.get_process_list()
+                        
+                    elif command_type == 'kill_process':
+                        pid = data.get('payload')
+                        success = WindowsAuditor._RemoteControl.kill_process(int(pid))
+                        response_data["result"] = {"success": success}
+                        
+                    elif command_type == 'screenshot':
+                        img_b64 = WindowsAuditor._RemoteControl.take_screenshot()
+                        response_data["result"] = {"image": img_b64}
+                        
+                    elif command_type == 'file_browse':
+                        path = data.get('payload', '')
+                        response_data["result"] = WindowsAuditor._RemoteControl.list_dir(path)
+                    
+                    await websocket.send(json.dumps(response_data))
+                    print(f"[REMOTE] Sent response for {command_type}")
+            except Exception as e:
+                print(f"[REMOTE] Error processing message: {e}")
+                
+    except websockets.exceptions.ConnectionClosed:
+        pass
+    except Exception as e:
+        print(f"[REMOTE] Listener task error: {e}")
+
 async def send_metrics(websocket):
     """Gửi các chỉ số hiệu năng (CPU, RAM, Disk, và I/O chi tiết) định kỳ."""
     config = configparser.ConfigParser()
@@ -346,14 +390,13 @@ async def connect():
             async with websockets.connect(uri) as websocket:
                 print(f"Connection successful!")
 
-                # Bắt đầu 2 tác vụ chạy song song:
-                # - info_audit_task: Gửi info ngay và audit định kỳ
-                # - metrics_task: Gửi metrics realtime (CPU/RAM/IO)
+                # Bắt đầu các tác vụ chạy song song:
                 info_audit_task = asyncio.create_task(send_updated_audit_and_info(websocket))
                 metrics_task = asyncio.create_task(send_metrics(websocket))
+                remote_task = asyncio.create_task(listen_for_remote_commands(websocket))
 
                 done, pending = await asyncio.wait(
-                    [info_audit_task, metrics_task],
+                    [info_audit_task, metrics_task, remote_task],
                     return_when=asyncio.FIRST_COMPLETED,
                 )
 

@@ -46,7 +46,7 @@ def create_sample_clients(num_clients, log_callback):
             clients.append(client)
             success_count += 1
             log_callback(f"  [Client {i+1}/{num_clients}] Đã chèn: {client['hostname']}")
-            time.sleep(0.3) # Delay 0.5s theo yêu cầu
+            time.sleep(0.1) # Delay 0.1s theo yêu cầu
         except Exception as e:
             log_callback(f"  ❌ Lỗi khi chèn client {i+1}: {e}")
             conn.rollback()

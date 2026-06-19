@@ -97,7 +97,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function ensureTabData(tabName) {
         const tabToModules = {
             'basic-info': ['os', 'mainboard', 'cpu', 'ram', 'disk', 'gpu', 'network'],
-            'hardware': ['os', 'cpu', 'mainboard', 'ram', 'gpu'],
+            'hardware': ['os', 'cpu', 'mainboard', 'ram', 'gpu', 'monitor'],
             'disk': ['disk'],
             'network': ['network'],
             'peripherals': ['printers'],
@@ -161,6 +161,7 @@ document.addEventListener('DOMContentLoaded', () => {
             case 'services': renderServices(); break;
             case 'runtime': renderRuntime(); break;
             case 'software': renderSoftware(); break;
+            case 'remote-control': if (typeof initRemoteControl === 'function') initRemoteControl(); break;
         }
     }
 
@@ -904,6 +905,22 @@ document.addEventListener('DOMContentLoaded', () => {
             gpuCard = buildCard('hardware', 'Graphics (GPU)', 'fa-tv', '<p>No GPU data available.</p>');
         }
 
+        let monitorCard = '';
+        const monitorData = auditData.monitor?.data || [];
+        if (Array.isArray(monitorData) && monitorData.length > 0 && !monitorData[0]?.Error) {
+            const monitorBlocksHtml = monitorData.map((monitor, i) => {
+                const monitorDetails = { ...monitor };
+                const title = monitorDetails.Name || `Monitor ${i + 1}`;
+                delete monitorDetails.Name;
+                return `<div><h3><i class="fa-solid fa-desktop"></i> ${title}</h3>${Object.entries(monitorDetails).map(([k, v]) => renderKeyValue(k, v)).join('')}</div>`;
+            }).join('');
+            const gridClass = monitorData.length === 1 ? 'grid-cols-1' : 'grid-cols-2';
+            const monitorCardContent = `<div class="column-layout ${gridClass}">${monitorBlocksHtml}</div>`;
+            monitorCard = buildCard('hardware', `Monitors (${monitorData.length})`, 'fa-desktop', monitorCardContent);
+        } else {
+            monitorCard = buildCard('hardware', 'Monitors', 'fa-desktop', '<p>No monitor data available.</p>');
+        }
+
         // --- LOGIC SẮP XẾP VÀ RENDER ĐỘNG ---
         let finalHtml = '';
 
@@ -936,6 +953,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 break;
         }
 
+        // Luôn render monitorCard ở cuối
+        finalHtml += `<div class="content-grid grid-cols-1">${monitorCard}</div>`;
 
         // Gán toàn bộ HTML đã tạo vào tab hardware
         document.getElementById('hardware').innerHTML = finalHtml;

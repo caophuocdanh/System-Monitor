@@ -222,10 +222,22 @@ def client_detail(guid):
     conn.close()
     if client is None:
         abort(404, description="Client not found")
+
+    # Lấy URL WebSocket từ config
+    config = configparser.ConfigParser()
+    config.read('config.ini')
+    ws_host = config['server'].get('host', '127.0.0.1')
+    if ws_host == '0.0.0.0': ws_host = '127.0.0.1'
+    ws_port = config['server'].get('port', '9630')
+    ws_url = f"ws://{ws_host}:{ws_port}"
+    access_token = config['server'].get('access_token', '')
+
     # Truyền dữ liệu client và các giá trị interval vào template
     return render_template('client_detail.html', 
                            client=dict(client), 
-                           intervals=get_webserver_intervals())
+                           intervals=get_webserver_intervals(),
+                           ws_url=ws_url,
+                           access_token=access_token)
 
 # --- CÁC API ENDPOINT (CUNG CẤP DỮ LIỆU JSON) ---
 

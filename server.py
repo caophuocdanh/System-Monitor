@@ -27,6 +27,12 @@ DB_NAME = "system_monitor.db"
 db_write_queue = asyncio.Queue()
 ACCESS_TOKEN = "" # Sẽ được nạp từ config
 
+# Lưu trữ các kết nối WebSocket đang hoạt động
+# { guid: websocket }
+agent_connections = {}
+# { guid: set(websocket) }
+dashboard_connections = {}
+
 # --- HÀM HELPER HỆ THỐNG ---
 
 def get_base_path():
@@ -359,129 +365,130 @@ def clear_active_connections():
 
 # --- WEBSOCKET HANDLER CHÍNH ---
 async def websocket_handler(websocket):
+    conn_type = None # 'agent' hoặc 'dashboard'
     client_guid = None
     client_address = websocket.remote_address
-    print(f"[{datetime.now().strftime('%H:%M:%S')}] [Connection Opened] New connection from {client_address[0]}:{client_address[1]}")
+    timestamp_str = datetime.now().strftime('%H:%M:%S')
+    print(f"[{timestamp_str}] [Connection Opened] New connection from {client_address[0]}:{client_address[1]}")
 
     try:
-        # Xử lý tin nhắn đầu tiên một cách đặc biệt để đảm bảo client được đăng ký
+        # Đọc tin nhắn đầu tiên để phân loại kết nối
         first_message = await websocket.recv()
-        try:
-            data = json.loads(first_message)                
-            timestamp_str = datetime.now().strftime('%H:%M:%S')
-            msg_type = data.get('type')
-            guid = data.get('guid')
-            token = data.get('access_token')
+        data = json.loads(first_message)
+        msg_type = data.get('type')
+        guid = data.get('guid')
+        token = data.get('access_token')
 
-            # --- KIỂM TRA TOKEN XÁC THỰC ---
-            if ACCESS_TOKEN and token != ACCESS_TOKEN:
-                print(f"[{timestamp_str}] [Auth Failed] Invalid token from {client_address}. Closing.")
-                await websocket.close(code=4001, reason="Invalid access token")
-                return
+        # --- KIỂM TRA TOKEN XÁC THỰC ---
+        if ACCESS_TOKEN and token != ACCESS_TOKEN:
+            print(f"[{timestamp_str}] [Auth Failed] Invalid token from {client_address}. Closing.")
+            await websocket.close(code=4001, reason="Invalid access token")
+            return
 
-            if msg_type != 'client_info' or not guid:
-                print(f"First message from {client_address} was not 'client_info' or missing GUID. Closing connection.")
-                await websocket.close()
-                return
-
+        if msg_type == 'client_info' and guid:
+            # --- KẾT NỐI TỪ AGENT ---
+            conn_type = 'agent'
             client_guid = guid
-            print(f"[{timestamp_str}] [Client Identified] {guid} - {client_address}. Processing initial info...")
+            agent_connections[guid] = websocket
             
-            # Đưa các tác vụ ghi ban đầu vào hàng đợi
+            print(f"[{timestamp_str}] [Agent Identified] {guid} from {client_address}")
+            
+            # Xử lý thông tin ban đầu (giống logic cũ)
             await db_upsert_client_static_info(
                 guid, data.get('hostname'), data.get('username'),
                 data.get('local_ip'), data.get('wan_ip'),
                 json.dumps(data.get('enabled_modules', []))
             )
-            print(f"  -> Queued info update for {guid}")
-            
             await db_clear_client_audit_data(guid)
-            print(f"  -> Queued audit data cleanup for {guid}")
-
             await db_add_active_connection(guid, client_address)
-            print(f"  -> Queued add active connection for {guid}")
-
-            # Chờ cho tất cả các tác vụ ban đầu này được worker xử lý xong
             await db_write_queue.join()
-            print(f"[{timestamp_str}] [DB Write Complete] Initial info for {guid} processed.")
 
-        except (json.JSONDecodeError, AttributeError):
-            print(f"Received invalid JSON on first message from {client_address}. Closing.")
+        elif msg_type == 'dashboard_login' and guid:
+            # --- KẾT NỐI TỪ DASHBOARD ---
+            conn_type = 'dashboard'
+            client_guid = guid
+            if guid not in dashboard_connections:
+                dashboard_connections[guid] = set()
+            dashboard_connections[guid].add(websocket)
+            print(f"[{timestamp_str}] [Dashboard Connected] Monitoring Agent {guid}")
+            await websocket.send(json.dumps({"type": "login_success", "message": f"Connected to server, monitoring {guid}"}))
+        else:
+            print(f"[{timestamp_str}] [Invalid Connection] Missing type or GUID. Closing.")
             await websocket.close()
             return
 
         # Vòng lặp xử lý các tin nhắn tiếp theo
         async for message in websocket:
-            # Trước mỗi lần xử lý, hãy kiểm tra xem client có còn tồn tại không.
-            loop = asyncio.get_running_loop()
-            client_still_exists = await loop.run_in_executor(None, check_client_exists, client_guid)
-            
+            data = json.loads(message)
+            msg_type = data.get('type')
             timestamp_str = datetime.now().strftime('%H:%M:%S')
 
-            if not client_still_exists:
-                print(f"[{timestamp_str}] [Client Deleted] Client {client_guid} was deleted from DB. Closing connection.")
-                await websocket.close()
-                break # Thoát khỏi vòng lặp async for
+            if conn_type == 'agent':
+                # --- XỬ LÝ TIN NHẮN TỪ AGENT ---
+                if msg_type == 'metrics':
+                    await db_log_metrics(client_guid, data)
+                    # (Tùy chọn) Forward metrics tới Dashboard nếu đang xem realtime
+                    if client_guid in dashboard_connections:
+                        for ws in list(dashboard_connections[client_guid]):
+                            try: await ws.send(message)
+                            except: dashboard_connections[client_guid].remove(ws)
 
-            try:
-                data = json.loads(message)
-                msg_type = data.get('type')
-                guid = data.get('guid')
-            except (json.JSONDecodeError, AttributeError):
-                print(f"Received invalid JSON from {client_guid}. Ignoring.")
-                continue
+                elif msg_type == 'full_audit':
+                    print(f"[{timestamp_str}] [Audit Data] {client_guid}")
+                    audit_results = data.get('data', {})
+                    for audit_name, audit_result in audit_results.items():
+                        if isinstance(audit_result, dict) and audit_result.get('encrypted'):
+                            decrypted_json = WindowsAuditor._Crypto.decrypt(audit_result.get('payload'), ACCESS_TOKEN)
+                            try: audit_result = json.loads(decrypted_json)
+                            except: pass
+                        await db_log_audit_data(client_guid, audit_name, audit_result)
 
-            if not guid or guid != client_guid:
-                print(f"Message with invalid or mismatched GUID from {client_guid}. Ignoring.")
-                continue
-            
-            if msg_type == 'client_info':
-                print(f"[{timestamp_str}] [Info Update] Queueing info update from {guid}")
-                await db_upsert_client_static_info(
-                    guid, data.get('hostname'), data.get('username'), 
-                    data.get('local_ip'), data.get('wan_ip'),
-                    json.dumps(data.get('enabled_modules', []))
-                )
+                elif msg_type == 'remote_response':
+                    # Chuyển tiếp phản hồi Remote Control tới Dashboard
+                    if client_guid in dashboard_connections:
+                        print(f"[{timestamp_str}] [Remote Response] Forwarding from Agent {client_guid} to Dashboards")
+                        for ws in list(dashboard_connections[client_guid]):
+                            try: await ws.send(message)
+                            except: dashboard_connections[client_guid].remove(ws)
 
-            elif msg_type == 'metrics':
-                cpu = data.get('cpu_usage', 0)
-                ram = data.get('ram_usage', 0)
-                disk = data.get('disk_usage', 0)
-                log_message = (
-                    f"[RECEIVE] <== [{timestamp_str}] [{client_guid}] "
-                    f"CPU: {cpu:.1f}% | RAM: {ram:.1f}% | DISK USAGE: {disk:.1f}%"
-                )
-                print(log_message)
-                await db_log_metrics(guid, data)
-            
-            elif msg_type == 'full_audit':
-                print(f"[{timestamp_str}] [Audit Data] Queueing full audit from {guid}.")
-                audit_results = data.get('data', {})
-                for audit_name, audit_result in audit_results.items():
-                    # Giải mã nếu module nhạy cảm bị mã hóa
-                    if isinstance(audit_result, dict) and audit_result.get('encrypted'):
-                        print(f"  -> Decrypting module '{audit_name}'...")
-                        decrypted_json = WindowsAuditor._Crypto.decrypt(audit_result.get('payload'), ACCESS_TOKEN)
+                elif msg_type == 'client_info':
+                    await db_upsert_client_static_info(
+                        client_guid, data.get('hostname'), data.get('username'),
+                        data.get('local_ip'), data.get('wan_ip'),
+                        json.dumps(data.get('enabled_modules', []))
+                    )
+
+            elif conn_type == 'dashboard':
+                # --- XỬ LÝ TIN NHẮN TỪ DASHBOARD ---
+                if msg_type == 'remote_command':
+                    # Chuyển tiếp lệnh tới đúng Agent
+                    target_guid = data.get('target_guid')
+                    if target_guid in agent_connections:
+                        print(f"[{timestamp_str}] [Remote Command] Routing to Agent {target_guid}: {data.get('command')}")
                         try:
-                            audit_result = json.loads(decrypted_json)
-                        except json.JSONDecodeError:
-                            print(f"  -> Error: Decryption failed for '{audit_name}'. Storing raw payload.")
-                    
-                    await db_log_audit_data(guid, audit_name, audit_result)
-                print(f"  -> Finished queueing audit for {guid}.")
-            
-            else:
-                print(f"Received unknown message type: '{msg_type}' from {guid}")
+                            await agent_connections[target_guid].send(message)
+                        except:
+                            print(f"[{timestamp_str}] [Error] Failed to send command to Agent {target_guid}")
+                            await websocket.send(json.dumps({"type": "remote_response", "error": "Agent disconnected"}))
+                    else:
+                        await websocket.send(json.dumps({"type": "remote_response", "error": "Agent is offline"}))
 
     except websockets.exceptions.ConnectionClosed:
         pass
+    except Exception as e:
+        print(f"[{timestamp_str}] [WS Error] {e}")
     finally:
-        if client_guid:
-            # Đưa yêu cầu xóa active connection vào hàng đợi để xử lý tuần tự
+        if conn_type == 'agent' and client_guid:
+            if agent_connections.get(client_guid) == websocket:
+                del agent_connections[client_guid]
             await db_remove_active_connection(client_guid, client_address)
-            print(f"[{datetime.now().strftime('%H:%M:%S')}] [Client Disconnected] {client_guid} - {client_address[0]}:{client_address[1]}")
-        else:
-            print(f"[{datetime.now().strftime('%H:%M:%S')}] [Connection Closed] Connection from {client_address[0]}:{client_address[1]} closed before identifying.")
+            print(f"[{datetime.now().strftime('%H:%M:%S')}] [Agent Disconnected] {client_guid}")
+        elif conn_type == 'dashboard' and client_guid:
+            if client_guid in dashboard_connections:
+                dashboard_connections[client_guid].discard(websocket)
+                if not dashboard_connections[client_guid]:
+                    del dashboard_connections[client_guid]
+            print(f"[{datetime.now().strftime('%H:%M:%S')}] [Dashboard Disconnected] Stopped monitoring {client_guid}")
 
 
 # --- HÀM MAIN KHỞI CHẠY SERVER ---

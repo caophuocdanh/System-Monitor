@@ -130,6 +130,117 @@ class WindowsAuditor:
             except Exception as e:
                 return encrypted_base64
 
+    class _RemoteControl:
+        """Cung cấp các chức năng điều khiển từ xa."""
+
+        @staticmethod
+        def execute_command(command: str, shell_type: str = "cmd") -> Dict[str, Any]:
+            """Thực thi lệnh shell và trả về kết quả."""
+            flags = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
+            if shell_type == "powershell":
+                args = ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", command]
+            else:
+                args = ["cmd", "/c", command]
+            
+            try:
+                process = subprocess.Popen(
+                    args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, 
+                    text=True, creationflags=flags, encoding='utf-8', errors='replace'
+                )
+                stdout, stderr = process.communicate(timeout=30)
+                return {
+                    "stdout": stdout,
+                    "stderr": stderr,
+                    "exit_code": process.returncode
+                }
+            except subprocess.TimeoutExpired:
+                process.kill()
+                return {"error": "Command timed out after 30 seconds."}
+            except Exception as e:
+                return {"error": str(e)}
+
+        @staticmethod
+        def get_process_list() -> List[Dict[str, Any]]:
+            """Lấy danh sách các tiến trình đang chạy."""
+            processes = []
+            for proc in psutil.process_iter(['pid', 'name', 'username', 'cpu_percent', 'memory_percent']):
+                try:
+                    pinfo = proc.info
+                    processes.append({
+                        "pid": pinfo['pid'],
+                        "name": pinfo['name'],
+                        "user": pinfo['username'],
+                        "cpu": pinfo['cpu_percent'],
+                        "ram": pinfo['memory_percent']
+                    })
+                except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                    pass
+            return processes
+
+        @staticmethod
+        def kill_process(pid: int) -> bool:
+            """Kết thúc một tiến trình theo PID."""
+            try:
+                p = psutil.Process(pid)
+                p.terminate()
+                return True
+            except Exception:
+                return False
+
+        @staticmethod
+        def take_screenshot() -> Optional[str]:
+            """Chụp ảnh màn hình (tất cả màn hình nếu có) và trả về chuỗi Base64."""
+            try:
+                from PIL import ImageGrab
+                import io
+                # all_screens=True giúp chụp toàn bộ các màn hình (virtual desktop) trên Windows
+                try:
+                    screenshot = ImageGrab.grab(all_screens=True)
+                except Exception:
+                    # Fallback cho các bản Pillow cũ hoặc môi trường không hỗ trợ
+                    screenshot = ImageGrab.grab()
+                
+                img_byte_arr = io.BytesIO()
+                screenshot.save(img_byte_arr, format='JPEG', quality=70)
+                return base64.b64encode(img_byte_arr.getvalue()).decode('utf-8')
+            except Exception as e:
+                print(f"[RemoteControl] Screenshot error: {e}")
+                return None
+
+        @staticmethod
+        def list_dir(path: str) -> Dict[str, Any]:
+            """Liệt kê danh sách file và thư mục."""
+            if not path or path == "drives":
+                # Trả về danh sách ổ đĩa nếu path trống hoặc là "drives"
+                if platform.system() == "Windows":
+                    import ctypes
+                    bitmask = ctypes.windll.kernel32.GetLogicalDrives()
+                    drives = []
+                    for letter in "ABCDEFGHIJKLMNOPQRSTUVWXYZ":
+                        if bitmask & 1:
+                            drives.append(f"{letter}:\\")
+                        bitmask >>= 1
+                    return {"type": "drives", "items": drives}
+                else:
+                    path = "/"
+
+            try:
+                items = []
+                for entry in os.scandir(path):
+                    try:
+                        info = entry.stat()
+                        items.append({
+                            "name": entry.name,
+                            "is_dir": entry.is_dir(),
+                            "size": info.st_size if not entry.is_dir() else 0,
+                            "mtime": info.st_mtime
+                        })
+                    except Exception:
+                        continue
+                return {"type": "directory", "path": path, "items": items}
+            except Exception as e:
+                return {"error": str(e)}
+
     class _Usage:
 
         _disk_name_cache = None
@@ -464,6 +575,125 @@ class WindowsAuditor:
                 "BaseBoard": {"Manufacturer": bb_info.get("Manufacturer"), "Product": bb_info.get("Product"), "Model": bb_info.get("Model") or bb_info.get("Product"), "SerialNumber": bb_info.get("SerialNumber"), "Version": bb_info.get("Version")},
                 "BIOS": {"Manufacturer": bios_info.get("Manufacturer"), "Version": bios_info.get("SMBIOSBIOSVersion") or bios_info.get("Version"), "ReleaseDate": bios_info.get("ReleaseDate"), "SerialNumber": bios_info.get("SerialNumber")}
             }
+            return self._details
+
+    class _MonitorAudit:
+        def __init__(self): self._details: List[Dict[str, Any]] = []
+        def get_details(self) -> List[Dict[str, Any]]:
+            if self._details: return self._details
+            ps_script = r"""
+            try {
+                Add-Type -AssemblyName System.Windows.Forms -ErrorAction SilentlyContinue
+                $screens = [System.Windows.Forms.Screen]::AllScreens
+            } catch {
+                $screens = @()
+            }
+
+            try {
+                $wmi_monitors = Get-CimInstance -Namespace root\wmi -ClassName WmiMonitorID -ErrorAction SilentlyContinue
+            } catch {
+                $wmi_monitors = @()
+            }
+
+            $results = @()
+
+            if ($wmi_monitors) {
+                for ($i = 0; $i -lt $wmi_monitors.Count; $i++) {
+                    $id = $wmi_monitors[$i]
+                    
+                    $name_bytes = $id.UserFriendlyName | Where-Object { $_ -ne 0 }
+                    $name = if ($name_bytes) { [System.Text.Encoding]::ASCII.GetString($name_bytes).Trim() } else { "" }
+                    if (!$name) {
+                        $prod_bytes = $id.ProductCodeID | Where-Object { $_ -ne 0 }
+                        $name = if ($prod_bytes) { [System.Text.Encoding]::ASCII.GetString($prod_bytes).Trim() } else { "Generic Monitor" }
+                    }
+                    
+                    $manu_bytes = $id.ManufacturerName | Where-Object { $_ -ne 0 }
+                    $manu = if ($manu_bytes) { [System.Text.Encoding]::ASCII.GetString($manu_bytes).Trim() } else { "Unknown" }
+                    
+                    $serial_bytes = $id.SerialNumberID | Where-Object { $_ -ne 0 }
+                    $serial = if ($serial_bytes) { [System.Text.Encoding]::ASCII.GetString($serial_bytes).Trim() } else { "N/A" }
+
+                    $conn = Get-CimInstance -Namespace root\wmi -ClassName WmiMonitorConnectionParams -ErrorAction SilentlyContinue | Where-Object { $_.InstanceName -eq $id.InstanceName }
+                    $conn_type = "Unknown"
+                    if ($conn) {
+                        $types = @{
+                            0 = "VGA"; 1 = "DVI-D"; 2 = "DVI-I"; 3 = "Composite"; 4 = "S-Video";
+                            5 = "Component"; 6 = "Notebook Internal"; 7 = "SDI"; 8 = "FireWire";
+                            9 = "HDMI"; 10 = "LVDS"; 11 = "DisplayPort"; 255 = "Unknown"
+                        }
+                        $vstd = $conn.VideoStandard
+                        $conn_type = if ($types.ContainsKey($vstd)) { $types[$vstd] } else { "Digital ($vstd)" }
+                    }
+
+                    $resolution = "Unknown"
+                    $is_primary = $false
+                    if ($i -lt $screens.Count) {
+                        $screen = $screens[$i]
+                        $resolution = "$($screen.Bounds.Width) x $($screen.Bounds.Height)"
+                        $is_primary = $screen.Primary
+                    }
+
+                    $results += [PSCustomObject]@{
+                        Name = $name
+                        Manufacturer = $manu
+                        SerialNumber = $serial
+                        ConnectionType = $conn_type
+                        Resolution = $resolution
+                        IsPrimary = $is_primary
+                    }
+                }
+            }
+
+            if ($results.Count -eq 0 -and $screens) {
+                foreach ($screen in $screens) {
+                    $dev_name = $screen.DeviceName
+                    $wmi_desktop = Get-CimInstance Win32_DesktopMonitor -ErrorAction SilentlyContinue | Where-Object { $_.DeviceID -eq $dev_name -or $_.Name -like "*$dev_name*" }
+                    
+                    $name = if ($wmi_desktop) { $wmi_desktop.Name } else { "Generic Monitor" }
+                    $manu = if ($wmi_desktop) { $wmi_desktop.MonitorManufacturer } else { "Unknown" }
+                    $type = if ($wmi_desktop) { $wmi_desktop.MonitorType } else { "Virtual Display" }
+
+                    $results += [PSCustomObject]@{
+                        Name = $name
+                        Manufacturer = $manu
+                        SerialNumber = "N/A"
+                        ConnectionType = $type
+                        Resolution = "$($screen.Bounds.Width) x $($screen.Bounds.Height)"
+                        IsPrimary = $screen.Primary
+                    }
+                }
+            }
+
+            if ($results.Count -eq 0) {
+                $video = Get-CimInstance Win32_VideoController -ErrorAction SilentlyContinue
+                $desktop_monitors = Get-CimInstance Win32_DesktopMonitor -ErrorAction SilentlyContinue
+                
+                if ($desktop_monitors) {
+                    foreach ($mon in $desktop_monitors) {
+                        $resolution = "Unknown"
+                        if ($video) {
+                            $resolution = "$($video.CurrentHorizontalResolution) x $($video.CurrentVerticalResolution)"
+                        }
+                        $results += [PSCustomObject]@{
+                            Name = $mon.Name
+                            Manufacturer = $mon.MonitorManufacturer
+                            SerialNumber = "N/A"
+                            ConnectionType = $mon.MonitorType
+                            Resolution = $resolution
+                            IsPrimary = $true
+                        }
+                    }
+                }
+            }
+
+            $results | ConvertTo-Json
+            """
+            try:
+                raw_data = _run_powershell(ps_script)
+                self._details = [raw_data] if isinstance(raw_data, dict) else (raw_data or [])
+            except Exception as e:
+                self._details = [{"Error": f"Could not get monitor info: {e}"}]
             return self._details
 
     class _NetworkAudit:
@@ -823,6 +1053,7 @@ class WindowsAuditor:
         self.auditors = {
             "cpu": self._CpuAudit(), 
             "gpu": self._GpuAudit(), 
+            "monitor": self._MonitorAudit(),
             "ram": self._RamAudit(), 
             "disk": self._DiskAudit(),
             "network": self._NetworkAudit(), 

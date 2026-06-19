@@ -39,4 +39,5 @@ startup = true
 software = true
 processes = true
 web_history = true
+monitor = true
 
