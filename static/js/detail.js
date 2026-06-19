@@ -100,6 +100,7 @@ document.addEventListener('DOMContentLoaded', () => {
             'hardware': ['os', 'cpu', 'mainboard', 'ram', 'gpu', 'monitor'],
             'disk': ['disk'],
             'network': ['network'],
+            'active-connections': ['connections'],
             'peripherals': ['printers'],
             'security': ['credentials'],
             'users': ['users'],
@@ -152,6 +153,7 @@ document.addEventListener('DOMContentLoaded', () => {
             case 'hardware': renderHardware(); break;
             case 'disk': renderDisk(); break;
             case 'network': renderNetwork(); break;
+            case 'active-connections': renderActiveConnections(); break;
             case 'peripherals': renderPeripherals(); break;
             case 'security': renderSecurity(); break;
             case 'users': renderUsers(); break;
@@ -1331,6 +1333,68 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         allSoftwareData.sort((a, b) => (a.Name || '').toLowerCase().localeCompare((b.Name || '').toLowerCase()));
         tableManagers.software.loadData(allSoftwareData);
+    }
+
+    function renderActiveConnections() {
+        const connections = auditData.connections?.data || [];
+        const tab = document.getElementById('active-connections');
+        if (connections.length === 0 || (connections.length > 0 && connections[0].Error)) {
+            tab.innerHTML = buildCard('connections', 'Active Socket Connections', 'fa-network-wired', '<p>No active connections data available.</p>');
+            return;
+        }
+        
+        connections.sort((a, b) => {
+            if (a.status === 'ESTABLISHED' && b.status !== 'ESTABLISHED') return -1;
+            if (a.status !== 'ESTABLISHED' && b.status === 'ESTABLISHED') return 1;
+            return a.process_name.localeCompare(b.process_name);
+        });
+        
+        const rowsHtml = connections.map(conn => `
+            <tr class="connection-row">
+                <td style="padding:10px; border-bottom:1px solid #eee;">${conn.pid}</td>
+                <td style="padding:10px; border-bottom:1px solid #eee; font-weight:600;">${conn.process_name}</td>
+                <td style="padding:10px; border-bottom:1px solid #eee; font-family:monospace;">${conn.local_address}</td>
+                <td style="padding:10px; border-bottom:1px solid #eee; font-family:monospace;">${conn.remote_address}</td>
+                <td style="padding:10px; border-bottom:1px solid #eee;"><span class="status-badge" style="padding: 2px 6px; border-radius: 4px; font-size: 0.8rem; background-color: ${conn.status === 'ESTABLISHED' ? '#28a745' : '#6c757d'}; color: white;">${conn.status}</span></td>
+                <td style="padding:10px; border-bottom:1px solid #eee;">${conn.type}</td>
+                <td style="padding:10px; border-bottom:1px solid #eee;">${conn.family}</td>
+            </tr>
+        `).join('');
+        
+        const tableHtml = `
+            <div style="margin-bottom: 1rem; display: flex; gap: 0.5rem;">
+                <input type="text" id="connections-search" placeholder="Filter by PID/Process/IP/Status..." style="flex-grow:1; padding:0.5rem; border-radius:4px; border:1px solid #ccc;" oninput="filterConnectionsTable(this.value)">
+            </div>
+            <div class="table-responsive" style="max-height: 600px; overflow-y: auto;">
+                <table style="width: 100%; border-collapse: collapse;">
+                    <thead style="position: sticky; top: 0; background: #fff; z-index: 10;">
+                        <tr style="border-bottom: 2px solid #ddd; text-align: left;">
+                            <th style="padding: 10px;">PID</th>
+                            <th style="padding: 10px;">Process Name</th>
+                            <th style="padding: 10px;">Local Address</th>
+                            <th style="padding: 10px;">Remote Address</th>
+                            <th style="padding: 10px;">Status</th>
+                            <th style="padding: 10px;">Type</th>
+                            <th style="padding: 10px;">Family</th>
+                        </tr>
+                    </thead>
+                    <tbody id="connections-table-body">
+                        ${rowsHtml}
+                    </tbody>
+                </table>
+            </div>
+        `;
+        
+        tab.innerHTML = buildCard('connections', 'Active Socket Connections', 'fa-network-wired', tableHtml);
+    }
+    
+    window.filterConnectionsTable = function(val) {
+        const term = val.toLowerCase();
+        const rows = document.querySelectorAll('.connection-row');
+        rows.forEach(row => {
+            const text = row.innerText.toLowerCase();
+            row.style.display = text.includes(term) ? '' : 'none';
+        });
     }
     
     // --- Initialization ---

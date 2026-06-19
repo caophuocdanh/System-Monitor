@@ -637,6 +637,82 @@ def prune_offline_clients():
         return jsonify({'status': 'error', 'message': str(e)}), 500
     finally:
         conn.close()
+
+@app.context_processor
+def inject_global_vars():
+    """Tự động truyền ws_url và access_token của server WebSocket vào tất cả các template."""
+    config = configparser.ConfigParser()
+    config.read('config.ini')
+    ws_host = config['server'].get('host', '127.0.0.1')
+    if ws_host == '0.0.0.0': ws_host = '127.0.0.1'
+    ws_port = config['server'].get('port', '9630')
+    ws_url = f"ws://{ws_host}:{ws_port}"
+    access_token = config['server'].get('access_token', '')
+    return dict(global_ws_url=ws_url, global_access_token=access_token)
+
+@app.route('/logs')
+def system_logs_page():
+    """Render trang nhật ký hệ thống riêng biệt."""
+    return render_template('logs.html', intervals=get_webserver_intervals())
+
+@app.route('/api/system_logs')
+def get_system_logs():
+    """API endpoint để lấy lịch sử sự kiện và cảnh báo hệ thống hỗ trợ phân trang."""
+    try:
+        page = int(request.args.get('page', 1))
+        limit = int(request.args.get('limit', 20))
+    except ValueError:
+        page = 1
+        limit = 20
+        
+    offset = (page - 1) * limit
+    
+    conn = get_db_conn()
+    total_count = conn.execute("SELECT COUNT(id) FROM system_logs").fetchone()[0]
+    
+    query = """
+        SELECT sl.*, c.hostname, c.username 
+        FROM system_logs sl 
+        LEFT JOIN client c ON sl.guid = c.guid 
+        ORDER BY sl.timestamp DESC 
+        LIMIT ? OFFSET ?
+    """
+    logs_raw = conn.execute(query, (limit, offset)).fetchall()
+    conn.close()
+    
+    import math
+    total_pages = math.ceil(total_count / limit) if total_count > 0 else 1
+    
+    logs = []
+    for row in logs_raw:
+        log_dict = dict(row)
+        log_dict['formatted_time'] = datetime.fromtimestamp(log_dict['timestamp']).strftime('%Y-%m-%d %H:%M:%S')
+        logs.append(log_dict)
+        
+    return jsonify({
+        'logs': logs,
+        'pagination': {
+            'current_page': page,
+            'total_pages': total_pages,
+            'limit': limit,
+            'total_count': total_count
+        }
+    })
+
+@app.route('/api/clear_system_logs', methods=['POST'])
+def clear_system_logs():
+    """API để xóa sạch toàn bộ log hệ thống."""
+    conn = get_db_conn()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM system_logs")
+        conn.commit()
+        return jsonify({'status': 'success', 'message': 'Đã xóa toàn bộ nhật ký hệ thống.'})
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+    finally:
+        conn.close()
         
 # --- KHỞI CHẠY ỨNG DỤNG ---
 if __name__ == '__main__':

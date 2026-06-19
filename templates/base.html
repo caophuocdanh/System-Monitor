@@ -26,7 +26,7 @@
                 <!-- Contact -->
                 <div class="header-control-item social"><a href="http://danhcp.dssddns.net/" target="_blank" rel="noopener noreferrer"><i class="fa fa-globe"></i></a></div>
                 <div class="header-control-item social"><a href="https://github.com/caophuocdanh/System-Monitor" target="_blank" rel="noopener noreferrer"><i class="fa-brands fa-github"></i></a></div>
-                
+                <div class="header-control-item social" title="Xem lịch sử cảnh báo hệ thống (System Logs)"><a href="/logs"><i class="fa-solid fa-clipboard-list"></i></a></div>
                 
                 <!-- Trạng thái Server -->
                 <div id="server-status-bar" class="header-control-item server-status-bar">
@@ -42,11 +42,11 @@
                     </select>
                 </div>
 
-                <!-- Nút hành động -->
-                 <button id="btn-prune-offline" class="header-control-item btn-action btn-header-action" title="Xóa tất cả client offline và dữ liệu của họ">
-                    <i class="fa-solid fa-user-slash"></i>
-                    <span>Prune Offline</span>
-                </button>
+                 <!-- Nút hành động -->
+                  <button id="btn-prune-offline" class="header-control-item btn-action btn-header-action" title="Xóa tất cả client offline và dữ liệu của họ">
+                     <i class="fa-solid fa-user-slash"></i>
+                     <span>Prune Offline</span>
+                 </button>
                 <button id="btn-clear-records" class="header-control-item btn-action btn-header-action">
                     <i class="fa-solid fa-eraser"></i>
                     <span>Clear Records</span>
@@ -73,9 +73,110 @@
         </div>
     </footer>
 
+    <!-- Toast Notification Container -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- Modal Lịch Sử Cảnh Báo Hệ Thống đã được chuyển sang trang /logs -->
+
     {% block vendor_scripts %}{% endblock %}
     <script src="{{ url_for('static', filename='js/common.js') }}"></script>
     {% block scripts %}{% endblock %}
 
+    <script>
+        // WebSocket toàn cục lắng nghe cảnh báo hệ thống
+        const GLOBAL_WS_URL = "{{ global_ws_url }}";
+        const GLOBAL_ACCESS_TOKEN = "{{ global_access_token }}";
+
+        if (GLOBAL_WS_URL) {
+            let globalWs = null;
+            function connectGlobalWS() {
+                if (globalWs) globalWs.close();
+                globalWs = new WebSocket(GLOBAL_WS_URL);
+
+                globalWs.onopen = () => {
+                    console.log("[Global WS] Connected");
+                    globalWs.send(JSON.stringify({
+                        type: "dashboard_global_login",
+                        access_token: GLOBAL_ACCESS_TOKEN
+                    }));
+                };
+
+                globalWs.onmessage = (event) => {
+                    try {
+                        const data = JSON.parse(event.data);
+                        if (data.type === 'event_alert') {
+                            showToast(data.message, data.event, data.guid);
+                            
+                            // Nếu đang ở trang chủ, tự động cập nhật dashboard sau 1.5s để hiện trạng thái mới
+                            if (typeof updateDashboard === 'function') {
+                                setTimeout(updateDashboard, 1500);
+                            }
+                        }
+                    } catch (e) {
+                        console.error("[Global WS] Msg parse error:", e);
+                    }
+                };
+
+                globalWs.onclose = () => {
+                    console.log("[Global WS] Disconnected. Reconnecting in 10s...");
+                    setTimeout(connectGlobalWS, 10000);
+                };
+
+                globalWs.onerror = (err) => {
+                    console.error("[Global WS] Connection error:", err);
+                };
+            }
+
+            function showToast(message, eventType, guid) {
+                const container = document.getElementById('toast-container');
+                if (!container) return;
+
+                const toast = document.createElement('div');
+                toast.className = `toast-message toast-${eventType}`;
+                
+                let icon = 'fa-bell';
+                if (eventType === 'connect') icon = 'fa-plug';
+                else if (eventType === 'disconnect') icon = 'fa-plug-circle-xmark';
+                else if (eventType.includes('alert')) icon = 'fa-triangle-exclamation';
+
+                let formattedMessage = message;
+                if (guid) {
+                    // Match pattern: "Máy trạm User (DESKTOP-123) đã..." hoặc "Máy trạm User (DESKTOP-123) có..."
+                    const match = message.match(/Máy trạm (.*?) (đã|có)/);
+                    if (match && match[1]) {
+                        const clientName = match[1];
+                        formattedMessage = message.replace(clientName, `<a href="/client/${guid}" style="color: var(--color-primary); text-decoration: none; font-weight: 600;">${clientName}</a>`);
+                    }
+                }
+
+                toast.innerHTML = `
+                    <div class="toast-icon"><i class="fa-solid ${icon}"></i></div>
+                    <div class="toast-content">
+                        <div class="toast-title">${eventType.toUpperCase()} EVENT</div>
+                        <div class="toast-body">${formattedMessage}</div>
+                    </div>
+                    <button class="toast-close-btn">&times;</button>
+                `;
+
+                container.appendChild(toast);
+
+                // Tự động xóa sau 5s
+                const timeoutId = setTimeout(() => {
+                    toast.classList.add('toast-fadeout');
+                    toast.addEventListener('animationend', () => toast.remove());
+                }, 5000);
+
+                toast.querySelector('.toast-close-btn').onclick = () => {
+                    clearTimeout(timeoutId);
+                    toast.remove();
+                };
+            }
+
+            // Kích hoạt kết nối khi tài liệu sẵn sàng
+            document.addEventListener('DOMContentLoaded', connectGlobalWS);
+        }
+
+        // openSystemLogsModal đã được chuyển hướng sang trang /logs
+    </script>
 </body>
 </html>

@@ -1,0 +1,252 @@
+{% extends "base.html" %}
+
+{% block title %}System Logs - System Monitor{% endblock %}
+
+{% block head_css %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+    <style>
+        .logs-page-container {
+            background-color: var(--color-surface);
+            border-radius: var(--border-radius);
+            box-shadow: var(--box-shadow);
+            padding: 2rem;
+            margin-top: 1rem;
+        }
+        .logs-toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+        .toolbar-left {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+        }
+        .limit-selector {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .limit-selector select {
+            padding: 0.4rem 0.8rem;
+            border-radius: var(--border-radius);
+            border: 1px solid var(--color-bg);
+            background-color: var(--color-bg);
+            color: var(--color-text);
+            font-family: var(--font-primary);
+            font-weight: 600;
+            outline: none;
+            cursor: pointer;
+        }
+        .logs-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+        }
+        .logs-table th {
+            padding: 12px;
+            border-bottom: 2px solid var(--color-bg);
+            text-align: left;
+            color: var(--color-text-muted);
+            font-weight: 600;
+            font-size: 0.95em;
+        }
+        .logs-table td {
+            padding: 12px;
+            border-bottom: 1px solid var(--color-bg);
+            color: var(--color-text);
+            font-size: 0.95em;
+        }
+        .logs-table tbody tr:hover {
+            background-color: rgba(0,0,0,0.02);
+        }
+        .client-link {
+            color: var(--color-primary);
+            text-decoration: none;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .client-link:hover {
+            text-decoration: underline;
+        }
+        .pagination-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+        .btn-minimal {
+            background: none;
+            border: 1px solid var(--color-bg);
+            padding: 0.5rem 1rem;
+            border-radius: var(--border-radius);
+            cursor: pointer;
+            color: var(--color-text);
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+        .btn-minimal:hover:not(:disabled) {
+            background-color: var(--color-bg);
+        }
+        .btn-minimal:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .page-info {
+            font-weight: 600;
+        }
+    </style>
+{% endblock %}
+
+{% block content %}
+    <div class="detail-header" style="margin-bottom: 1.5rem; display: flex; justify-content: space-between; align-items: center;">
+        <h1><i class="fa-solid fa-clipboard-list" style="color: var(--color-primary);"></i> System Activity Logs</h1>
+        <a href="/" class="back-link" style="text-decoration: none; color: var(--color-text-muted); font-weight: 600;"><i class="fa-solid fa-arrow-left"></i> Quay lại Dashboard</a>
+    </div>
+
+    <div class="logs-page-container">
+        <div class="logs-toolbar">
+            <div class="toolbar-left">
+                <div class="limit-selector">
+                    <label for="limit-select">Hiển thị:</label>
+                    <select id="limit-select" onchange="changeLimit(this.value)">
+                        <option value="10">10 bản ghi</option>
+                        <option value="20" selected>20 bản ghi</option>
+                        <option value="50">50 bản ghi</option>
+                        <option value="100">100 bản ghi</option>
+                    </select>
+                </div>
+            </div>
+            
+            <button id="btn-clear-logs" class="btn-header-action" style="background-color: var(--color-danger); border-color: var(--color-danger); color: white; display: flex; align-items: center; gap: 0.5rem;" title="Xóa toàn bộ log hệ thống">
+                <i class="fa-solid fa-eraser"></i>
+                <span>Xóa sạch nhật ký</span>
+            </button>
+        </div>
+
+        <div class="table-responsive">
+            <table class="logs-table">
+                <thead>
+                    <tr>
+                        <th style="width: 20%;">Thời gian</th>
+                        <th style="width: 15%;">Loại sự kiện</th>
+                        <th style="width: 25%;">Máy trạm</th>
+                        <th style="width: 40%;">Nội dung thông điệp</th>
+                    </tr>
+                </thead>
+                <tbody id="logs-table-body">
+                    <tr><td colspan="4" style="text-align: center; padding: 2rem;">Đang tải...</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="pagination-container" id="logs-pagination" style="display: none;">
+            <!-- JS render pagination -->
+        </div>
+    </div>
+{% endblock %}
+
+{% block scripts %}
+    <script>
+        let currentPage = 1;
+        let currentLimit = 20;
+
+        function loadLogs(page = 1) {
+            currentPage = page;
+            const tbody = document.getElementById('logs-table-body');
+            tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; padding: 2rem;"><i class="fa-solid fa-circle-notch fa-spin"></i> Đang tải dữ liệu...</td></tr>`;
+
+            fetch(`/api/system_logs?page=${currentPage}&limit=${currentLimit}`)
+                .then(res => res.json())
+                .then(data => {
+                    const logs = data.logs;
+                    const pagin = data.pagination;
+                    
+                    if (logs.length === 0) {
+                        tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; padding: 2rem; color: var(--color-text-muted);">Không tìm thấy nhật ký hoạt động nào.</td></tr>`;
+                        document.getElementById('logs-pagination').style.display = 'none';
+                        return;
+                    }
+
+                    tbody.innerHTML = logs.map(log => {
+                        let badgeColor = '#6c757d';
+                        if (log.event_type === 'connect') badgeColor = '#28a745';
+                        else if (log.event_type === 'disconnect') badgeColor = '#dc3545';
+                        else if (log.event_type.includes('alert')) badgeColor = '#ffc107';
+
+                        let clientColumn = 'N/A';
+                        if (log.guid) {
+                            const displayName = log.username && log.username !== 'Unknown' ? `${log.username} (${log.hostname})` : (log.hostname || log.guid.substring(0, 8));
+                            clientColumn = `<a href="/client/${log.guid}" class="client-link"><i class="fa-solid fa-desktop" style="font-size: 0.85em;"></i> ${displayName}</a>`;
+                        }
+
+                        return `
+                            <tr>
+                                <td style="font-family: monospace; font-size: 0.9em; white-space: nowrap; color: var(--color-text-muted);">${log.formatted_time}</td>
+                                <td>
+                                    <span class="status-badge" style="background-color: ${badgeColor}; margin-left: 0; padding: 0.25rem 0.5rem; text-transform: uppercase; font-size: 0.75rem; border-radius: 4px; color: white;">${log.event_type}</span>
+                                </td>
+                                <td>${clientColumn}</td>
+                                <td>${log.message}</td>
+                            </tr>
+                        `;
+                    }).join('');
+
+                    renderPagination(pagin.current_page, pagin.total_pages);
+                })
+                .catch(err => {
+                    console.error("Lỗi tải nhật ký:", err);
+                    tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; padding: 2rem; color: var(--color-danger);">Đã xảy ra lỗi khi tải nhật ký hoạt động.</td></tr>`;
+                });
+        }
+
+        function changeLimit(limit) {
+            currentLimit = parseInt(limit);
+            loadLogs(1);
+        }
+
+        function renderPagination(current, total) {
+            const pagination = document.getElementById('logs-pagination');
+            if (total <= 1) {
+                pagination.style.display = 'none';
+                return;
+            }
+
+            pagination.style.display = 'flex';
+            pagination.innerHTML = `
+                <button class="btn-minimal" ${current <= 1 ? 'disabled' : ''} onclick="loadLogs(${current - 1})">&#9664; Trang trước</button>
+                <span class="page-info">Trang ${current} / ${total}</span>
+                <button class="btn-minimal" ${current >= total ? 'disabled' : ''} onclick="loadLogs(${current + 1})">Trang sau &#9654;</button>
+            `;
+        }
+
+        document.getElementById('btn-clear-logs').addEventListener('click', () => {
+            if (confirm('Bạn có chắc chắn muốn xóa TOÀN BỘ nhật ký hệ thống? Hành động này không thể hoàn tác.')) {
+                fetch('/api/clear_system_logs', { method: 'POST' })
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.status === 'success') {
+                            alert(data.message);
+                            loadLogs(1);
+                        } else {
+                            alert('Lỗi: ' + data.message);
+                        }
+                    })
+                    .catch(err => {
+                        console.error('Lỗi xóa nhật ký:', err);
+                        alert('Đã xảy ra lỗi khi xóa nhật ký.');
+                    });
+            }
+        });
+
+        document.addEventListener('DOMContentLoaded', () => {
+            loadLogs(1);
+        });
+    </script>
+{% endblock %}

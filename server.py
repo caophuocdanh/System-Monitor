@@ -32,6 +32,26 @@ ACCESS_TOKEN = "" # Sẽ được nạp từ config
 agent_connections = {}
 # { guid: set(websocket) }
 dashboard_connections = {}
+# Lưu trữ kết nối Dashboard nhận sự kiện toàn hệ thống
+global_dashboards = set()
+# Trạng thái cảnh báo của từng client
+client_alert_status = {} # { guid: { "cpu": 0, "ram": 0, "disk": 0 } }
+# Cache thông tin client
+client_info_cache = {} # { guid: { "hostname": hostname, "username": username } }
+
+async def broadcast_to_global_dashboards(message):
+    message_str = json.dumps(message)
+    for ws in list(global_dashboards):
+        try:
+            await ws.send(message_str)
+        except Exception:
+            global_dashboards.discard(ws)
+
+async def db_log_system_event(guid, event_type, message):
+    import time
+    timestamp = int(time.time())
+    query = "INSERT INTO system_logs (guid, event_type, message, timestamp) VALUES (?, ?, ?, ?)"
+    await db_write_queue.put((query, (guid, event_type, message, timestamp)))
 
 # --- HÀM HELPER HỆ THỐNG ---
 
@@ -284,6 +304,103 @@ async def database_pruning_worker(retention_days):
             print(f"[DB Pruner] Error in pruning worker: {e}")
             await asyncio.sleep(3600) # Thử lại sau 1 giờ nếu lỗi
 
+def downsample_metrics_data(retention_hours=24):
+    """Gộp dữ liệu metrics cũ hơn retention_hours thành dữ liệu trung bình theo giờ."""
+    import sqlite3
+    import time
+    
+    conn = None
+    try:
+        conn = sqlite3.connect(DB_NAME, timeout=30)
+        conn.execute("PRAGMA foreign_keys = ON")
+        conn.execute("PRAGMA journal_mode=WAL")
+        
+        # Mốc thời gian: cũ hơn retention_hours trước
+        cutoff = int(time.time()) - retention_hours * 3600
+        
+        cursor = conn.cursor()
+        
+        # Bắt đầu transaction
+        cursor.execute("BEGIN TRANSACTION")
+        
+        # 1. Tìm các nhóm (guid, hour) cũ hơn cutoff mà có nhiều hơn 1 bản ghi
+        cursor.execute("""
+            SELECT guid, (timestamp / 3600) * 3600 AS hour_ts, COUNT(*)
+            FROM metrics_log
+            WHERE timestamp < ?
+            GROUP BY guid, (timestamp / 3600) * 3600
+            HAVING COUNT(*) > 1
+        """, (cutoff,))
+        groups = cursor.fetchall()
+        
+        if not groups:
+            cursor.execute("COMMIT")
+            return 0
+            
+        downsampled_count = 0
+        for guid, hour_ts, count in groups:
+            # 2. Tính trung bình cộng của các cột cho nhóm này
+            cursor.execute("""
+                SELECT 
+                    AVG(cpu_usage), AVG(ram_usage), AVG(disk_usage),
+                    MAX(local_ip), MAX(wan_ip)
+                FROM metrics_log
+                WHERE guid = ? AND (timestamp / 3600) * 3600 = ?
+            """, (guid, hour_ts))
+            avg_cpu, avg_ram, avg_disk, local_ip, wan_ip = cursor.fetchone()
+            
+            # Lấy disk_io_json và network_io_json của bản ghi cuối cùng trong giờ đó
+            cursor.execute("""
+                SELECT disk_io_json, network_io_json
+                FROM metrics_log
+                WHERE guid = ? AND (timestamp / 3600) * 3600 = ?
+                ORDER BY timestamp DESC LIMIT 1
+            """, (guid, hour_ts))
+            row = cursor.fetchone()
+            disk_io = row[0] if row else '{}'
+            net_io = row[1] if row else '{}'
+            
+            # 3. Xóa tất cả bản ghi chi tiết của nhóm này
+            cursor.execute("""
+                DELETE FROM metrics_log
+                WHERE guid = ? AND (timestamp / 3600) * 3600 = ?
+            """, (guid, hour_ts))
+            
+            # 4. Chèn bản ghi đã được downsample vào
+            cursor.execute("""
+                INSERT INTO metrics_log 
+                (guid, timestamp, cpu_usage, ram_usage, disk_usage, local_ip, wan_ip, disk_io_json, network_io_json)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (guid, hour_ts, avg_cpu, avg_ram, avg_disk, local_ip, wan_ip, disk_io, net_io))
+            
+            downsampled_count += count
+            
+        cursor.execute("COMMIT")
+        print(f"[DB Downsampler] Compressed {downsampled_count} rows into {len(groups)} hourly averages.")
+        return len(groups)
+        
+    except Exception as e:
+        if conn:
+            try: conn.execute("ROLLBACK")
+            except: pass
+        print(f"[DB Downsampler Error] Downsampling failed: {e}")
+        return 0
+    finally:
+        if conn:
+            conn.close()
+
+async def database_downsampling_worker():
+    """Tác vụ nền, định kỳ gộp dữ liệu metrics cũ (mỗi 1 giờ)."""
+    print("[DB Downsampler] Database downsampling worker started (Interval: 1 hour).")
+    while True:
+        try:
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(None, downsample_metrics_data, 24)
+            await asyncio.sleep(3600)
+        except Exception as e:
+            print(f"[DB Downsampler] Error in downsampling worker: {e}")
+            await asyncio.sleep(300)
+
 # --- SETUP DB BAN ĐẦU ---
 def setup_database():
     conn = sqlite3.connect(DB_NAME, check_same_thread=False)
@@ -331,11 +448,20 @@ def setup_database():
         FOREIGN KEY (guid) REFERENCES client(guid) ON DELETE CASCADE,
         UNIQUE(guid, audit_name)
     );''')
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS system_logs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        guid TEXT,
+        event_type TEXT NOT NULL,
+        message TEXT NOT NULL,
+        timestamp INTEGER NOT NULL
+    );''')
     
     # --- THÊM INDEX ĐỂ TỐI ƯU TRUY VẤN ---
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_metrics_log_guid_timestamp ON metrics_log (guid, timestamp);")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_active_connections_guid ON active_connections (guid);")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_audit_data_guid ON audit_data (guid);")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_system_logs_timestamp ON system_logs (timestamp);")
     cursor.execute("PRAGMA table_info(client)")
     columns = [info[1] for info in cursor.fetchall()]
     if 'enabled_modules' not in columns:
@@ -393,15 +519,31 @@ async def websocket_handler(websocket):
             
             print(f"[{timestamp_str}] [Agent Identified] {guid} from {client_address}")
             
+            hostname = data.get('hostname', 'Unknown')
+            username = data.get('username', 'Unknown')
+            client_info_cache[guid] = {"hostname": hostname, "username": username}
+            
             # Xử lý thông tin ban đầu (giống logic cũ)
             await db_upsert_client_static_info(
-                guid, data.get('hostname'), data.get('username'),
+                guid, hostname, username,
                 data.get('local_ip'), data.get('wan_ip'),
                 json.dumps(data.get('enabled_modules', []))
             )
             await db_clear_client_audit_data(guid)
             await db_add_active_connection(guid, client_address)
             await db_write_queue.join()
+            
+            # Broadcast cảnh báo kết nối
+            alert_msg = f"Máy trạm {username} ({hostname}) đã kết nối."
+            await db_log_system_event(guid, "connect", alert_msg)
+            await broadcast_to_global_dashboards({
+                "type": "event_alert",
+                "event": "connect",
+                "guid": guid,
+                "hostname": hostname,
+                "username": username,
+                "message": alert_msg
+            })
 
         elif msg_type == 'dashboard_login' and guid:
             # --- KẾT NỐI TỪ DASHBOARD ---
@@ -412,6 +554,13 @@ async def websocket_handler(websocket):
             dashboard_connections[guid].add(websocket)
             print(f"[{timestamp_str}] [Dashboard Connected] Monitoring Agent {guid}")
             await websocket.send(json.dumps({"type": "login_success", "message": f"Connected to server, monitoring {guid}"}))
+            
+        elif msg_type == 'dashboard_global_login':
+            # --- KẾT NỐI LẮNG NGHE TOÀN CỤC TỪ DASHBOARD ---
+            conn_type = 'dashboard_global'
+            global_dashboards.add(websocket)
+            print(f"[{timestamp_str}] [Global Dashboard Connected] Lắng nghe sự kiện hệ thống")
+            await websocket.send(json.dumps({"type": "login_success", "message": "Connected to global alerts stream"}))
         else:
             print(f"[{timestamp_str}] [Invalid Connection] Missing type or GUID. Closing.")
             await websocket.close()
@@ -432,6 +581,47 @@ async def websocket_handler(websocket):
                         for ws in list(dashboard_connections[client_guid]):
                             try: await ws.send(message)
                             except: dashboard_connections[client_guid].remove(ws)
+                    
+                    # --- KIỂM TRA SỰ CỐ HIỆU NĂNG ---
+                    cpu_usage = data.get('cpu_usage', 0)
+                    ram_usage = data.get('ram_usage', 0)
+                    
+                    import time
+                    current_time = time.time()
+                    if client_guid not in client_alert_status:
+                        client_alert_status[client_guid] = {"cpu": 0, "ram": 0}
+                    
+                    info = client_info_cache.get(client_guid, {"hostname": "Unknown", "username": "Unknown"})
+                    hostname = info["hostname"]
+                    username = info["username"]
+                    
+                    if cpu_usage > 90 and current_time - client_alert_status[client_guid]["cpu"] > 300:
+                        alert_msg = f"Máy trạm {username} ({hostname}) có mức sử dụng CPU quá cao ({cpu_usage:.1f}%)."
+                        await db_log_system_event(client_guid, "cpu_alert", alert_msg)
+                        await broadcast_to_global_dashboards({
+                            "type": "event_alert",
+                            "event": "performance",
+                            "subtype": "cpu",
+                            "guid": client_guid,
+                            "hostname": hostname,
+                            "username": username,
+                            "message": alert_msg
+                        })
+                        client_alert_status[client_guid]["cpu"] = current_time
+                        
+                    if ram_usage > 95 and current_time - client_alert_status[client_guid]["ram"] > 300:
+                        alert_msg = f"Máy trạm {username} ({hostname}) có mức sử dụng RAM quá cao ({ram_usage:.1f}%)."
+                        await db_log_system_event(client_guid, "ram_alert", alert_msg)
+                        await broadcast_to_global_dashboards({
+                            "type": "event_alert",
+                            "event": "performance",
+                            "subtype": "ram",
+                            "guid": client_guid,
+                            "hostname": hostname,
+                            "username": username,
+                            "message": alert_msg
+                        })
+                        client_alert_status[client_guid]["ram"] = current_time
 
                 elif msg_type == 'full_audit':
                     print(f"[{timestamp_str}] [Audit Data] {client_guid}")
@@ -452,8 +642,11 @@ async def websocket_handler(websocket):
                             except: dashboard_connections[client_guid].remove(ws)
 
                 elif msg_type == 'client_info':
+                    hostname = data.get('hostname', 'Unknown')
+                    username = data.get('username', 'Unknown')
+                    client_info_cache[client_guid] = {"hostname": hostname, "username": username}
                     await db_upsert_client_static_info(
-                        client_guid, data.get('hostname'), data.get('username'),
+                        client_guid, hostname, username,
                         data.get('local_ip'), data.get('wan_ip'),
                         json.dumps(data.get('enabled_modules', []))
                     )
@@ -483,12 +676,29 @@ async def websocket_handler(websocket):
                 del agent_connections[client_guid]
             await db_remove_active_connection(client_guid, client_address)
             print(f"[{datetime.now().strftime('%H:%M:%S')}] [Agent Disconnected] {client_guid}")
+            
+            info = client_info_cache.get(client_guid, {"hostname": "Unknown", "username": "Unknown"})
+            hostname = info["hostname"]
+            username = info["username"]
+            alert_msg = f"Máy trạm {username} ({hostname}) đã ngắt kết nối."
+            await db_log_system_event(client_guid, "disconnect", alert_msg)
+            await broadcast_to_global_dashboards({
+                "type": "event_alert",
+                "event": "disconnect",
+                "guid": client_guid,
+                "hostname": hostname,
+                "username": username,
+                "message": alert_msg
+            })
         elif conn_type == 'dashboard' and client_guid:
             if client_guid in dashboard_connections:
                 dashboard_connections[client_guid].discard(websocket)
                 if not dashboard_connections[client_guid]:
                     del dashboard_connections[client_guid]
             print(f"[{datetime.now().strftime('%H:%M:%S')}] [Dashboard Disconnected] Stopped monitoring {client_guid}")
+        elif conn_type == 'dashboard_global':
+            global_dashboards.discard(websocket)
+            print(f"[{datetime.now().strftime('%H:%M:%S')}] [Global Dashboard Disconnected]")
 
 
 # --- HÀM MAIN KHỞI CHẠY SERVER ---
@@ -526,6 +736,9 @@ async def main():
     
     # Khởi tạo worker dọn dẹp DB
     asyncio.create_task(database_pruning_worker(retention_days))
+
+    # Khởi tạo worker gộp dữ liệu cũ (Downsampling)
+    asyncio.create_task(database_downsampling_worker())
 
     async with websockets.serve(websocket_handler, server_host, server_port):
         if "-minimized" not in sys.argv and gui_enabled:

@@ -1069,4 +1069,42 @@ class WindowsAuditor:
             "software": self._SoftwareAudit(),
             "event_log": self._EventLogAudit(max_events=max_events),
             "web_history": self._WebHistoryAudit(limit_per_profile=history_limit_per_profile),
+            "connections": self._ConnectionsAudit(),
         }
+
+    class _ConnectionsAudit:
+        def __init__(self):
+            self._details = []
+
+        def get_details(self):
+            import psutil
+            import socket
+            connections = []
+            try:
+                for conn in psutil.net_connections(kind='inet'):
+                    laddr_str = f"{conn.laddr.ip}:{conn.laddr.port}" if conn.laddr else "-"
+                    raddr_str = f"{conn.raddr.ip}:{conn.raddr.port}" if conn.raddr else "-"
+                    status = conn.status
+                    pid = conn.pid
+                    proc_name = "-"
+                    if pid:
+                        try:
+                            proc = psutil.Process(pid)
+                            proc_name = proc.name()
+                        except (psutil.NoSuchProcess, psutil.AccessDenied):
+                            proc_name = "Unknown"
+                    conn_type = "TCP" if conn.type == socket.SOCK_STREAM else "UDP"
+                    family = "IPv4" if conn.family == socket.AF_INET else "IPv6"
+                    connections.append({
+                        "pid": pid or 0,
+                        "process_name": proc_name,
+                        "local_address": laddr_str,
+                        "remote_address": raddr_str,
+                        "status": status,
+                        "type": conn_type,
+                        "family": family
+                    })
+                self._details = connections
+            except Exception as e:
+                self._details = [{"Error": f"Could not get connections: {e}"}]
+            return self._details

