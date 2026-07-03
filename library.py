@@ -9,6 +9,7 @@ import getpass
 import winreg
 import platform
 import psutil
+psutil.cpu_percent(interval=None)  # Khởi tạo mốc đo CPU usage realtime lần đầu
 import subprocess
 import time
 import hashlib
@@ -284,10 +285,37 @@ class WindowsAuditor:
 
         @staticmethod
         def get_cpu_usage():
-            return psutil.cpu_percent(interval=0.1)
+            # Sử dụng interval=None (non-blocking) để psutil tự động so sánh thời gian
+            # kể từ lần gọi get_cpu_usage trước đó, giúp phản ánh chính xác tải CPU
+            # trung bình trong chu kỳ realtime gửi metrics và không gây block event loop.
+            return psutil.cpu_percent(interval=None)
 
         @staticmethod
         def get_ram_usage():
+            # Trên Windows, sử dụng GlobalMemoryStatusEx để lấy tỷ lệ phần trăm RAM sử dụng
+            # chính xác nhất (khớp 100% với Task Manager và hệ điều hành báo cáo).
+            if platform.system() == "Windows":
+                try:
+                    import ctypes
+                    class MEMORYSTATUSEX(ctypes.Structure):
+                        _fields_ = [
+                            ("dwLength", ctypes.c_ulong),
+                            ("dwMemoryLoad", ctypes.c_ulong),
+                            ("ullTotalPhys", ctypes.c_ulonglong),
+                            ("ullAvailPhys", ctypes.c_ulonglong),
+                            ("ullTotalPageFile", ctypes.c_ulonglong),
+                            ("ullAvailPageFile", ctypes.c_ulonglong),
+                            ("ullTotalVirtual", ctypes.c_ulonglong),
+                            ("ullAvailVirtual", ctypes.c_ulonglong),
+                            ("ullAvailExtendedVirtual", ctypes.c_ulonglong),
+                        ]
+                    stat = MEMORYSTATUSEX()
+                    stat.dwLength = ctypes.sizeof(stat)
+                    if ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(stat)):
+                        return float(stat.dwMemoryLoad)
+                except Exception:
+                    pass
+            # Fallback về psutil nếu không phải Windows hoặc gặp lỗi
             return psutil.virtual_memory().percent
         
         @staticmethod
@@ -349,8 +377,8 @@ class WindowsAuditor:
                     write_bps = (current_io[psutil_key].write_bytes - last_io[psutil_key].write_bytes) / interval
                 
                 results[display_name] = {
-                    "read_bytes_per_sec": max(0, read_bps), 
-                    "write_bytes_per_sec": max(0, write_bps)
+                    "read_bytes_per_sec": int(max(0, read_bps)), 
+                    "write_bytes_per_sec": int(max(0, write_bps))
                 }
             return results 
             
@@ -369,7 +397,8 @@ class WindowsAuditor:
 
             results = {}
             if not last_io:
-                return {n: {"upload_bits_per_sec": 0, "download_bits_per_sec": 0} for n, s in nic_stats.items() if s.isup}
+                return {n: {"upload_bits_per_sec": 0, "download_bits_per_sec": 0} for n, s in nic_stats.items() 
+                        if s.isup and "loopback" not in n.lower()}
 
             interval = current_time - last_time
             if interval <= 0: interval = 1
@@ -382,8 +411,8 @@ class WindowsAuditor:
                         download_bps = (current_io[nic_name].bytes_recv - last_io[nic_name].bytes_recv) * 8 / interval
                     
                     results[nic_name] = {
-                        "upload_bits_per_sec": max(0, upload_bps), 
-                        "download_bits_per_sec": max(0, download_bps)
+                        "upload_bits_per_sec": int(max(0, upload_bps)), 
+                        "download_bits_per_sec": int(max(0, download_bps))
                     }
             return results
 

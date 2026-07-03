@@ -414,8 +414,6 @@ async def send_metrics(websocket):
     metrics_send_interval = int(config['client']['refesh_interval'])
     try:
         while True:
-            await asyncio.sleep(metrics_send_interval)
-            
             # Thu thập các metrics cơ bản
             cpu_usage = WindowsAuditor._Usage.get_cpu_usage()
             ram_usage = WindowsAuditor._Usage.get_ram_usage()
@@ -445,7 +443,9 @@ async def send_metrics(websocket):
                 f"Disk I/O points: {len(disk_io)} | Net I/O points: {len(network_io)}"
             )
             # print(json.dumps(metrics, indent=4))
-
+            
+            # Đợi cho chu kỳ gửi tiếp theo
+            await asyncio.sleep(metrics_send_interval)
             
     except asyncio.CancelledError:
         print("Metrics sending task cancelled.")
