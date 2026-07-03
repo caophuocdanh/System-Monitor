@@ -1,14 +1,14 @@
 @echo off
 echo Killing running processes...
-taskkill /f /im "System Monitor Server.exe" >nul 2>&1
-taskkill /f /im "System Monitor Client.exe" >nul 2>&1
-taskkill /f /im "System Monitor Dashboard.exe" >nul 2>&1
+taskkill /f /im "SM Server.exe" >nul 2>&1
+taskkill /f /im "smchost.exe" >nul 2>&1
+taskkill /f /im "SM Dashboard.exe" >nul 2>&1
 
 cd "server"
-start "System Monitor Dashboard" "System Monitor Dashboard.exe"
-start "System Monitor Server" "System Monitor Server.exe"
+start "SM Dashboard" "SM Dashboard.exe"
+start "SM Server" "SM Server.exe"
 
 
 echo Starting programs...
 cd "..\client"
-start "System Monitor Client" "System Monitor Client.exe"
+start "smchost" "smchost.exe"

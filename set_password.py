@@ -1,9 +1,16 @@
-import configparser
 import os
 import sys
 from werkzeug.security import generate_password_hash
+from library import load_config, save_config
 
 def set_admin_password():
+    # Cấu hình encoding cho stdout/stderr để tránh lỗi Unicode trên Windows Console
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+        sys.stderr.reconfigure(encoding='utf-8')
+    except Exception:
+        pass
+
     print("--- System Monitor: Dashboard Password Setup ---")
     password = input("Nhập mật khẩu mới cho Dashboard: ").strip()
     
@@ -19,15 +26,18 @@ def set_admin_password():
     # Tạo bản băm bảo mật (Sử dụng pbkdf2:sha256 mặc định của Werkzeug)
     hashed_password = generate_password_hash(password)
 
-    config = configparser.ConfigParser()
     config_path = 'config.ini'
     
+    is_encrypted = False
     if os.path.exists(config_path):
-        config.read(config_path)
-    else:
-        print(f"Cảnh báo: Không tìm thấy file {config_path}. Sẽ tạo file mới.")
-        if 'webserver' not in config:
-            config['webserver'] = {}
+        try:
+            with open(config_path, "r", encoding="utf-8") as f:
+                if f.read().strip().startswith("ENC:"):
+                    is_encrypted = True
+        except Exception:
+            pass
+
+    config = load_config(config_path)
 
     if 'webserver' not in config:
         config['webserver'] = {}
@@ -35,11 +45,13 @@ def set_admin_password():
     # Lưu bản băm vào config thay vì plain text
     config['webserver']['admin_password'] = hashed_password
 
-    with open(config_path, 'w', encoding='utf-8') as configfile:
-        config.write(configfile)
+    success = save_config(config_path, config, encrypt=is_encrypted)
 
-    print("\n[Thành công] Mật khẩu đã được băm và lưu vào config.ini.")
-    print("Bản băm hiện tại: " + hashed_password)
+    if success:
+        print("\n[Thành công] Mật khẩu đã được băm và lưu vào config.ini.")
+        print("Bản băm hiện tại: " + hashed_password)
+    else:
+        print("\nLỗi: Không thể lưu mật khẩu vào file cấu hình.")
 
 if __name__ == "__main__":
     try:

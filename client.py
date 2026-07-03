@@ -8,7 +8,7 @@ import configparser
 import platform
 import hashlib
 import psutil
-from library import WindowsAuditor
+from library import WindowsAuditor, load_config
 import time 
 
 # --- Quản lý Autostart qua Registry ---
@@ -24,7 +24,7 @@ def hide_console():
             ctypes.windll.user32.ShowWindow(whnd, 0)
 
 def manage_autostart():
-    """Thiết lập Windows Registry để client tự động chạy cùng hệ thống (luôn force Enabled nếu là Admin)."""
+    """Thiết lập Windows Registry để client tự động chạy cùng hệ thống (luôn force Enabled nếu là Admin, fallback HKCU nếu không có Admin)."""
     if platform.system() != "Windows":
         return
 
@@ -36,13 +36,11 @@ def manage_autostart():
 
     reg_path = r"SOFTWARE\Microsoft\Windows\CurrentVersion\Run"
     approved_path = r"SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run"
-    app_name = "SystemMonitorClient"
+    app_name = "smchost"
 
+    # 1. Thử ghi vào HKEY_LOCAL_MACHINE (áp dụng cho tất cả users)
     try:
-        # 1. Mở key HKLM với quyền ghi và xóa
         key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, reg_path, 0, winreg.KEY_ALL_ACCESS)
-        
-        # 2. Xóa và ghi lại để đảm bảo entry mới nhất
         try:
             winreg.DeleteValue(key, app_name)
         except FileNotFoundError:
@@ -50,23 +48,46 @@ def manage_autostart():
         winreg.SetValueEx(key, app_name, 0, winreg.REG_SZ, app_path)
         winreg.CloseKey(key)
 
-        # 3. Force Enable: Xóa khỏi StartupApproved nếu user từng disable trong Task Manager
         try:
             approved_key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, approved_path, 0, winreg.KEY_ALL_ACCESS)
             winreg.DeleteValue(approved_key, app_name)
             winreg.CloseKey(approved_key)
-            print(f"[AUTOSTART] Force enabled: Cleared disabled flag for '{app_name}'")
+            print(f"[AUTOSTART] Force enabled (HKLM): Cleared disabled flag for '{app_name}'")
         except FileNotFoundError:
-            pass # Chưa từng bị disable
+            pass
         except Exception:
             pass
 
-        print(f"[AUTOSTART] Registry refreshed & registered: {app_path}")
-        
+        print(f"[AUTOSTART] Registry HKLM refreshed & registered: {app_path}")
+        return
     except PermissionError:
-        print("[AUTOSTART] Skipping Registry update: Not running as Administrator.")
+        print("[AUTOSTART] Skipping HKLM update: Not running as Administrator. Trying HKCU fallback...")
     except Exception as e:
-        print(f"[AUTOSTART] Error setting autostart: {e}")
+        print(f"[AUTOSTART] HKLM update failed: {e}. Trying HKCU fallback...")
+
+    # 2. Fallback ghi vào HKEY_CURRENT_USER (áp dụng cho user hiện tại, không cần quyền Admin)
+    try:
+        key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, reg_path, 0, winreg.KEY_ALL_ACCESS)
+        try:
+            winreg.DeleteValue(key, app_name)
+        except FileNotFoundError:
+            pass
+        winreg.SetValueEx(key, app_name, 0, winreg.REG_SZ, app_path)
+        winreg.CloseKey(key)
+
+        try:
+            approved_key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, approved_path, 0, winreg.KEY_ALL_ACCESS)
+            winreg.DeleteValue(approved_key, app_name)
+            winreg.CloseKey(approved_key)
+            print(f"[AUTOSTART] Force enabled (HKCU): Cleared disabled flag for '{app_name}'")
+        except FileNotFoundError:
+            pass
+        except Exception:
+            pass
+
+        print(f"[AUTOSTART] Registry HKCU refreshed & registered: {app_path}")
+    except Exception as e:
+        print(f"[AUTOSTART] Error setting HKCU autostart: {e}")
 
 # --- Các hàm helper không đổi ---
 def get_machine_id():
@@ -100,13 +121,15 @@ def get_base_path():
         return os.path.dirname(sys.executable)  # khi đã đóng gói .exe
     return os.path.dirname(os.path.abspath(__file__))  # khi chạy file .py
 
+def load_config_file(config_path):
+    return load_config(config_path)
+
 def get_enabled_modules_from_config():
     """Đọc config và trả về danh sách các module audit được bật."""
     base_path = get_base_path()
     config_path = os.path.join(base_path, "config.ini")
 
-    config = configparser.ConfigParser()
-    config.read(config_path)
+    config = load_config_file(config_path)
 
     enabled_modules = []
     if 'audit_modules' in config:
@@ -182,8 +205,7 @@ def run_full_audit_sync():
 
     base_path = get_base_path()
     config_path = os.path.join(base_path, "config.ini")
-    config = configparser.ConfigParser()
-    config.read(config_path)
+    config = load_config_file(config_path)
 
     max_event_log = config.getint('client', 'max_event_log', fallback=25)
     history_limit = config.getint('client', 'history_limit', fallback=100)
@@ -388,8 +410,7 @@ async def listen_for_remote_commands(websocket):
 
 async def send_metrics(websocket):
     """Gửi các chỉ số hiệu năng (CPU, RAM, Disk, và I/O chi tiết) định kỳ."""
-    config = configparser.ConfigParser()
-    config.read(os.path.join(get_base_path(), 'config.ini'))
+    config = load_config_file(os.path.join(get_base_path(), 'config.ini'))
     metrics_send_interval = int(config['client']['refesh_interval'])
     try:
         while True:
@@ -438,8 +459,7 @@ async def send_updated_audit_and_info(websocket):
     Tác vụ chạy nền để gửi lại thông tin và dữ liệu audit định kỳ.
     Ưu tiên gửi info trước để server nhận diện, sau đó mới chạy audit nặng.
     """
-    config = configparser.ConfigParser()
-    config.read(os.path.join(get_base_path(), 'config.ini'))
+    config = load_config_file(os.path.join(get_base_path(), 'config.ini'))
     update_interval = int(config['client']['update_info_interval'])
     access_token = config['server'].get('access_token', fallback="")
 
@@ -496,8 +516,7 @@ async def connect():
     Vòng lặp chính để kết nối và quản lý các tác vụ của client.
     Không còn nhận dữ liệu audit ban đầu để tránh blocking startup.
     """
-    config = configparser.ConfigParser()
-    config.read(os.path.join(get_base_path(), 'config.ini'))
+    config = load_config_file(os.path.join(get_base_path(), 'config.ini'))
     server_host = config['client']['server']
     server_port = int(config['server']['port'])
     retry_interval = int(config['client']['retry_interval'])

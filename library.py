@@ -1108,3 +1108,65 @@ class WindowsAuditor:
             except Exception as e:
                 self._details = [{"Error": f"Could not get connections: {e}"}]
             return self._details
+
+
+def load_config(config_path):
+    """Nạp file config, hỗ trợ giải mã tự động nếu file được mã hóa (bắt đầu bằng ENC:)."""
+    import base64
+    import configparser
+    config = configparser.ConfigParser()
+    if not os.path.exists(config_path):
+        return config
+    
+    try:
+        with open(config_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        
+        def xor_crypt(data: str, key: str = "SM-Key-2026") -> str:
+            key_len = len(key)
+            return "".join(chr(ord(c) ^ ord(key[i % key_len])) for i, c in enumerate(data))
+
+        content_stripped = content.strip()
+        if content_stripped.startswith("ENC:"):
+            b64_data = content_stripped[4:]
+            encrypted_xor = base64.b64decode(b64_data).decode('utf-8')
+            decrypted_content = xor_crypt(encrypted_xor)
+            config.read_string(decrypted_content)
+        else:
+            config.read(config_path, encoding='utf-8')
+    except Exception as e:
+        print(f"[CONFIG] Load error: {e}, falling back to plain read.")
+        try:
+            config.read(config_path, encoding='utf-8')
+        except Exception:
+            pass
+    return config
+
+
+def save_config(config_path, config_obj, encrypt=False):
+    """Ghi config ra file, hỗ trợ mã hóa nếu encrypt=True."""
+    import base64
+    import io
+    
+    string_io = io.StringIO()
+    config_obj.write(string_io)
+    plaintext_content = string_io.getvalue()
+    
+    try:
+        if encrypt:
+            def xor_crypt(data: str, key: str = "SM-Key-2026") -> str:
+                key_len = len(key)
+                return "".join(chr(ord(c) ^ ord(key[i % key_len])) for i, c in enumerate(data))
+            
+            encrypted_xor = xor_crypt(plaintext_content)
+            b64_data = base64.b64encode(encrypted_xor.encode('utf-8')).decode('utf-8')
+            final_content = f"ENC:{b64_data}"
+        else:
+            final_content = plaintext_content
+            
+        with open(config_path, "w", encoding="utf-8") as f:
+            f.write(final_content)
+        return True
+    except Exception as e:
+        print(f"[CONFIG] Save error: {e}")
+        return False

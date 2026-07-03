@@ -12,7 +12,7 @@ import sys
 import ctypes
 import psutil
 import platform
-from library import WindowsAuditor
+from library import WindowsAuditor, load_config
 
 # Kiểm tra nền tảng
 IS_WINDOWS = sys.platform == "win32"
@@ -707,8 +707,7 @@ async def main():
     base_path = get_base_path()
     config_path = os.path.join(base_path, "config.ini")
 
-    config = configparser.ConfigParser()
-    config.read(config_path)
+    config = load_config(config_path)
 
     server_host = config['server']['host']
     server_port = int(config['server']['port'])

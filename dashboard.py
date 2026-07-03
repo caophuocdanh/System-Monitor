@@ -14,6 +14,7 @@ import ctypes
 from flask import Flask, render_template, jsonify, abort, request, session, redirect, url_for, flash
 import functools
 from werkzeug.security import check_password_hash
+from library import load_config
 
 # Kiểm tra nền tảng
 IS_WINDOWS = sys.platform == "win32"
@@ -151,9 +152,7 @@ def check_server_status(host, port, timeout=1):
 def get_webserver_intervals():
     """Đọc các giá trị interval từ config để truyền vào template."""
     config_path = os.path.join(base_path, "config.ini")
-
-    config = configparser.ConfigParser()
-    config.read(config_path)
+    config = load_config(config_path)
 
     intervals = {
         'dashboard': config.getint('webserver', 'DASHBOARD_REFRESH_INTERVAL', fallback=5000),
@@ -174,8 +173,7 @@ def login():
     if request.method == 'POST':
         password = request.form.get('password')
         
-        config = configparser.ConfigParser()
-        config.read('config.ini')
+        config = load_config('config.ini')
         hashed_password = config['webserver'].get('admin_password', '')
         
         # Kiểm tra mật khẩu bằng bản băm
@@ -224,8 +222,7 @@ def client_detail(guid):
         abort(404, description="Client not found")
 
     # Lấy URL WebSocket từ config
-    config = configparser.ConfigParser()
-    config.read('config.ini')
+    config = load_config('config.ini')
     ws_host = config['server'].get('host', '127.0.0.1')
     if ws_host == '0.0.0.0': ws_host = '127.0.0.1'
     ws_port = config['server'].get('port', '9630')
@@ -248,8 +245,7 @@ def get_dashboard_data():
     Bao gồm trạng thái server, các số liệu thống kê, và danh sách client (có phân trang).
     """
     config_path = os.path.join(base_path, 'config.ini')
-    config = configparser.ConfigParser()
-    config.read(config_path)
+    config = load_config(config_path)
     
     # Lấy thông số phân trang từ request hoặc config
     try:
@@ -641,8 +637,7 @@ def prune_offline_clients():
 @app.context_processor
 def inject_global_vars():
     """Tự động truyền ws_url và access_token của server WebSocket vào tất cả các template."""
-    config = configparser.ConfigParser()
-    config.read('config.ini')
+    config = load_config('config.ini')
     ws_host = config['server'].get('host', '127.0.0.1')
     if ws_host == '0.0.0.0': ws_host = '127.0.0.1'
     ws_port = config['server'].get('port', '9630')
@@ -730,8 +725,7 @@ if __name__ == '__main__':
     # 2. Xử lý cấu hình autostart cùng hệ thống qua Registry
     manage_autostart()
 
-    config = configparser.ConfigParser()
-    config.read('config.ini')
+    config = load_config('config.ini')
     webserver_host = config['webserver']['server']
     webserver_port = int(config['webserver']['port'])
 

@@ -3,6 +3,7 @@ import os
 import configparser
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
+from library import load_config, save_config
 
 # --- Các hằng số và DISPLAY_NAMES ---
 BOOLEAN_KEYS = {"autostart", "gui"}
@@ -83,7 +84,15 @@ class ConfigEditor(ttk.Frame):
     def load_and_refresh(self):
         """Nạp lại dữ liệu và dựng lại các Tab."""
         try:
-            self.config.read(self.config_path, encoding='utf-8')
+            self.is_encrypted = False
+            if os.path.exists(self.config_path):
+                try:
+                    with open(self.config_path, "r", encoding="utf-8") as f:
+                        if f.read().strip().startswith("ENC:"):
+                            self.is_encrypted = True
+                except Exception:
+                    pass
+            self.config = load_config(self.config_path)
             self.path_var.set(self.config_path)
             self.master.title(f"System Monitor Properties - {os.path.basename(self.config_path)}")
             
@@ -168,7 +177,9 @@ class ConfigEditor(ttk.Frame):
             
             self.config[section][key] = str(value)
         try:
-            with open(self.config_path, "w", encoding="utf-8") as f: self.config.write(f)
+            success = save_config(self.config_path, self.config, encrypt=getattr(self, 'is_encrypted', False))
+            if not success:
+                raise RuntimeError("save_config failed")
             if not silent:
                 messagebox.showinfo("Success", "Settings applied successfully.")
             return True
@@ -178,9 +189,10 @@ class ConfigEditor(ttk.Frame):
 
 def is_valid_config_file(file_path):
     if not os.path.exists(file_path): return False
-    config = configparser.ConfigParser()
-    try: config.read(file_path, encoding='utf-8')
-    except configparser.Error: return False
+    try:
+        config = load_config(file_path)
+    except Exception:
+        return False
     expected_sections = ["server", "client", "webserver", "audit_modules"]
     for section in expected_sections:
         if config.has_section(section) and config.items(section): return True
