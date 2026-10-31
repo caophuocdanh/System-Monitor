@@ -184,3 +184,5 @@ cython_debug/
 
 # SQlite
 *.db
+/static/updates
+/static/updates

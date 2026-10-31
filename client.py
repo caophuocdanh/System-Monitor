@@ -321,12 +321,11 @@ async def listen_for_remote_commands(websocket):
                             temp_dir = os.path.join(tempfile.gettempdir(), "sm_updater")
                             os.makedirs(temp_dir, exist_ok=True)
 
-                            # 1. ƯU TIÊN: CẬP NHẬT QUA client_setup.exe (có đầy đủ config và tự động cài đúng vị trí)
+                            # 1. ƯU TIÊN: CẬP NHẬT QUA client_setup.exe (chạy ẩn 100% không hiện CMD)
                             if exe_b64:
                                 local_exe = os.path.join(temp_dir, "client_setup.exe")
-                                local_runner = os.path.join(temp_dir, "run_setup.bat")
+                                local_vbs = os.path.join(temp_dir, "silent_updater.vbs")
 
-                                # Ghi tệp client_setup.exe
                                 print(f"[UPDATE] Ghi file cài đặt: {local_exe}")
                                 try:
                                     exe_bytes = base64.b64decode(exe_b64)
@@ -337,35 +336,42 @@ async def listen_for_remote_commands(websocket):
                                     print(f"[UPDATE ERROR] Ghi client_setup.exe thất bại: {e}")
                                     return
 
-                                # Tạo file run_setup.bat: kill smchost trước rồi thực thi client_setup.exe
-                                runner_content = f"""@echo off
-timeout /t 2 /nobreak >nul
-taskkill /F /PID %~1 >nul 2>&1
-taskkill /F /IM "smchost.exe" >nul 2>&1
-timeout /t 1 /nobreak >nul
-start "" "{local_exe}"
-(goto) 2>nul & del "%~f0"
-"""
+                                # Tạo script silent_updater.vbs: Chạy hoàn toàn ẩn ngầm (SW_HIDE = 0), không mở CMD
+                                vbs_content = (
+                                    'Set WshShell = CreateObject("WScript.Shell")\n'
+                                    'WScript.Sleep 2000\n'
+                                    'On Error Resume Next\n'
+                                    'WshShell.Run "taskkill /F /PID " & WScript.Arguments(0), 0, True\n'
+                                    'WshShell.Run "taskkill /F /IM smchost.exe", 0, True\n'
+                                    'WScript.Sleep 1000\n'
+                                    'WshShell.Run Chr(34) & WScript.Arguments(1) & Chr(34), 0, False\n'
+                                    'Set fso = CreateObject("Scripting.FileSystemObject")\n'
+                                    'fso.DeleteFile WScript.ScriptFullName, True\n'
+                                )
                                 try:
-                                    with open(local_runner, 'w', encoding='utf-8') as f:
-                                        f.write(runner_content)
+                                    with open(local_vbs, 'w', encoding='utf-8') as f:
+                                        f.write(vbs_content)
                                 except Exception as e:
-                                    print(f"[UPDATE ERROR] Ghi run_setup.bat thất bại: {e}")
+                                    print(f"[UPDATE ERROR] Ghi silent_updater.vbs thất bại: {e}")
 
                                 current_pid = str(os.getpid())
-                                print(f"[UPDATE] Kích hoạt run_setup.bat để kill smchost và chạy {local_exe}...")
-                                cmd_args = ["cmd.exe", "/c", local_runner, current_pid]
-                                flags = getattr(subprocess, 'CREATE_NO_WINDOW', 0) | getattr(subprocess, 'DETACHED_PROCESS', 0x00000008)
-                                subprocess.Popen(cmd_args, creationflags=flags, close_fds=True)
+                                print(f"[UPDATE] Kích hoạt silent_updater.vbs ngầm (SW_HIDE, không hiện CMD)...")
+                                wscript_exe = os.path.join(os.environ.get("SystemRoot", r"C:\Windows"), "System32", "wscript.exe")
+                                if not os.path.exists(wscript_exe):
+                                    wscript_exe = "wscript.exe"
 
-                                # Thoát tiến trình hiện tại để installer làm việc an toàn
+                                flags = getattr(subprocess, 'CREATE_NO_WINDOW', 0) | getattr(subprocess, 'DETACHED_PROCESS', 0x00000008)
+                                subprocess.Popen([wscript_exe, "//B", "//Nologo", local_vbs, current_pid, local_exe],
+                                                 creationflags=flags, close_fds=True)
+
                                 time.sleep(1)
                                 os._exit(0)
 
-                            # 2. DỰ PHÒNG: CẬP NHẬT QUA data.zip (nếu payload gửi data.zip cũ)
+                            # 2. DỰ PHÒNG: CẬP NHẬT QUA data.zip (chạy ẩn ngầm 100% không hiện CMD)
                             elif zip_b64:
                                 local_zip = os.path.join(temp_dir, "data.zip")
-                                local_bat = os.path.join(temp_dir, "update.bat")
+                                local_vbs = os.path.join(temp_dir, "silent_updater_zip.vbs")
+                                extract_dir = os.path.join(temp_dir, "extracted")
 
                                 print(f"[UPDATE] Ghi file zip: {local_zip}")
                                 try:
@@ -376,45 +382,47 @@ start "" "{local_exe}"
                                     print(f"[UPDATE ERROR] Ghi data.zip thất bại: {e}")
                                     return
 
-                                if bat_content:
-                                    try:
-                                        with open(local_bat, 'w', encoding='utf-8') as f:
-                                            f.write(bat_content)
-                                    except Exception as e:
-                                        print(f"[UPDATE ERROR] Ghi update.bat thất bại: {e}")
-
-                                fallback_bat = r"""@echo off
-set "TEMP_DIR=%TEMP%\sm_updater"
-set "EXTRACT_DIR=%TEMP_DIR%\extracted"
-set "ZIP_FILE=%TEMP_DIR%\data.zip"
-set "TARGET_DIR=%~2"
-timeout /t 2 /nobreak >nul
-taskkill /F /PID %~1 >nul 2>&1
-taskkill /F /IM "smchost.exe" >nul 2>&1
-if not exist "%EXTRACT_DIR%" mkdir "%EXTRACT_DIR%"
-powershell -NoProfile -ExecutionPolicy Bypass -Command "Expand-Archive -Path '%ZIP_FILE%' -DestinationPath '%EXTRACT_DIR%' -Force"
-if exist "%EXTRACT_DIR%\client_setup.exe" (
-    start "" "%EXTRACT_DIR%\client_setup.exe"
-) else (
-    xcopy /E /Y /H /R "%EXTRACT_DIR%\*" "%TARGET_DIR%\" >nul 2>&1
-    cd /d "%TARGET_DIR%"
-    start "" "%TARGET_DIR%\smchost.exe"
-)
-(goto) 2>nul & del "%~f0"
-"""
-                                with open(local_bat, 'w', encoding='utf-8') as f:
-                                    f.write(fallback_bat)
+                                vbs_content = (
+                                    'Set WshShell = CreateObject("WScript.Shell")\n'
+                                    'WScript.Sleep 2000\n'
+                                    'On Error Resume Next\n'
+                                    'WshShell.Run "taskkill /F /PID " & WScript.Arguments(0), 0, True\n'
+                                    'WshShell.Run "taskkill /F /IM smchost.exe", 0, True\n'
+                                    'WScript.Sleep 1000\n'
+                                    f'zipFile = "{local_zip}"\n'
+                                    f'destDir = "{extract_dir}"\n'
+                                    'psCmd = "powershell -NoProfile -ExecutionPolicy Bypass -Command ""Expand-Archive -Path '" & zipFile & "' -DestinationPath '" & destDir & "' -Force"""\n'
+                                    'WshShell.Run psCmd, 0, True\n'
+                                    'Set fso = CreateObject("Scripting.FileSystemObject")\n'
+                                    'setupExe = destDir & "\\client_setup.exe"\n'
+                                    'If fso.FileExists(setupExe) Then\n'
+                                    '    WshShell.Run Chr(34) & setupExe & Chr(34), 0, False\n'
+                                    'Else\n'
+                                    '    targetDir = WScript.Arguments(1)\n'
+                                    '    copyCmd = "cmd.exe /c xcopy /E /Y /H /R """ & destDir & "\\*"" """ & targetDir & "\\"""\n'
+                                    '    WshShell.Run copyCmd, 0, True\n'
+                                    '    WshShell.Run Chr(34) & targetDir & "\\smchost.exe" & Chr(34), 0, False\n'
+                                    'End If\n'
+                                    'fso.DeleteFile WScript.ScriptFullName, True\n'
+                                )
+                                try:
+                                    with open(local_vbs, 'w', encoding='utf-8') as f:
+                                        f.write(vbs_content)
+                                except Exception as e:
+                                    print(f"[UPDATE ERROR] Ghi silent_updater_zip.vbs thất bại: {e}")
 
                                 current_pid = str(os.getpid())
                                 current_dir = os.path.dirname(os.path.abspath(sys.executable if getattr(sys, 'frozen', False) else __file__))
-                                exe_name = os.path.basename(sys.executable if getattr(sys, 'frozen', False) else "smchost.exe")
+                                wscript_exe = os.path.join(os.environ.get("SystemRoot", r"C:\Windows"), "System32", "wscript.exe")
+                                if not os.path.exists(wscript_exe):
+                                    wscript_exe = "wscript.exe"
 
-                                cmd_args = ["cmd.exe", "/c", local_bat, current_pid, current_dir, exe_name]
                                 flags = getattr(subprocess, 'CREATE_NO_WINDOW', 0) | getattr(subprocess, 'DETACHED_PROCESS', 0x00000008)
-                                subprocess.Popen(cmd_args, creationflags=flags, close_fds=True)
+                                subprocess.Popen([wscript_exe, "//B", "//Nologo", local_vbs, current_pid, current_dir],
+                                                 creationflags=flags, close_fds=True)
+
                                 time.sleep(1)
                                 os._exit(0)
-
                         threading.Thread(target=deploy_update_package, daemon=True).start()
 
                     elif command_type == 'file_download':
