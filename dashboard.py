@@ -12,7 +12,7 @@ import platform
 import psutil
 import subprocess
 import ctypes
-from flask import Flask, render_template, jsonify, abort, request, session, redirect, url_for, flash
+from flask import Flask, render_template, jsonify, abort, request, session, redirect, url_for, flash, send_from_directory
 import functools
 from werkzeug.security import check_password_hash
 from library import load_config
@@ -24,6 +24,21 @@ if IS_WINDOWS:
     import winreg
 
 # --- HÀM HELPER HỆ THỐNG ---
+
+def get_local_lan_ip():
+    """Lấy địa chỉ IPv4 LAN thực tế của máy server (ví dụ 192.168.x.x)."""
+    import socket
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except Exception:
+        try:
+            return socket.gethostbyname(socket.gethostname())
+        except Exception:
+            return "127.0.0.1"
 
 def get_base_path():
     """Trả về thư mục chứa file .exe hoặc .py đang chạy"""
@@ -249,9 +264,9 @@ def logout():
 
 @app.before_request
 def require_login():
-    """Bảo vệ tất cả các route, trừ trang login và các file static."""
-    # Cho phép truy cập /health mà không cần login (để dashboard tự check hoặc load balancer check)
-    if request.endpoint in ['login', 'static']:
+    """Bảo vệ tất cả các route, trừ trang login, static và file cập nhật client."""
+    # Cho phép tải file tĩnh, file cập nhật và trang đăng nhập mà không cần login session
+    if request.endpoint in ['login', 'static', 'serve_update_files'] or (request.path and request.path.startswith('/static/updates/')):
         return
     if not session.get('logged_in'):
         return redirect(url_for('login'))
@@ -393,8 +408,15 @@ def get_dashboard_data():
     except (FileNotFoundError, TypeError):
         last_db_update_time = "N/A"
 
+    # Lấy phiên bản mục tiêu từ config server
+    target_version = config['server'].get('client_version', '1.0.1')
+    for c in all_clients:
+        c['version'] = c.get('version') or '1.0.0'
+        c['needs_update'] = (c['version'] != target_version)
+
     # 4. Trả về dữ liệu dưới dạng JSON
     return jsonify({
+        'target_version': target_version,
         'server_status': {
             'is_online': is_server_online,
             'last_data_update': last_db_update_time
@@ -769,6 +791,60 @@ def clear_system_logs():
     finally:
         conn.close()
         
+
+@app.route('/api/client/trigger_update', methods=['POST'])
+def trigger_client_update():
+    """API gửi lệnh cập nhật tới một hoặc tất cả client.
+    Gửi trực tiếp qua WebSocket nội bộ (localhost:9630) tới server.py để server đẩy gói Base64 xuống Agent.
+    """
+    data = request.get_json() or {}
+    guid = data.get('guid') or 'ALL'
+    
+    config_path = os.path.join(base_path, 'config.ini')
+    config = load_config(config_path)
+    ws_port = config['server'].get('port', '9630')
+    access_token = config['server'].get('access_token', '')
+    ws_url = f"ws://127.0.0.1:{ws_port}"
+
+    try:
+        from websockets.sync.client import connect
+        # Mở kết nối WebSocket nội bộ tới server.py
+        with connect(ws_url, open_timeout=5, close_timeout=5) as ws:
+            # 1. Đăng nhập với quyền dashboard_global
+            ws.send(json.dumps({
+                "type": "dashboard_global_login",
+                "access_token": access_token
+            }))
+            # 2. Gửi lệnh cập nhật
+            ws.send(json.dumps({
+                "type": "remote_command",
+                "target_guid": guid,
+                "command": "update_client"
+            }))
+            # 3. Chờ phản hồi từ Server (timeout 15s)
+            response = ws.recv(timeout=15)
+            res_data = json.loads(response)
+            
+            if res_data.get('error'):
+                return jsonify({'status': 'error', 'message': res_data['error']}), 400
+            
+            result = res_data.get('result', {})
+            return jsonify({
+                'status': 'success',
+                'message': result.get('message', 'Đã đẩy trực tiếp gói cập nhật qua WebSocket!'),
+                'sent_count': result.get('sent_count', 0)
+            })
+    except Exception as e:
+        print(f"[Dashboard Update API Error] {e}")
+        return jsonify({'status': 'error', 'message': f"Lỗi gửi lệnh cập nhật qua WebSocket: {e}"}), 500
+
+
+@app.route('/static/updates/<path:filename>')
+def serve_update_files(filename):
+    """Phục vụ tải các file cập nhật (data.zip, update.bat) trực tiếp và an toàn."""
+    updates_dir = os.path.join(base_path, 'static', 'updates')
+    return send_from_directory(updates_dir, filename, as_attachment=False)
+
 # --- KHỞI CHẠY ỨNG DỤNG ---
 if __name__ == '__main__':
     # Thiết lập thư mục làm việc về thư mục chứa script

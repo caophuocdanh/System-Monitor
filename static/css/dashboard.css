@@ -24,7 +24,7 @@
 .stat-card.color-orange{--icon-color:#fd7e14;--icon-bg-color:#fff3cd;--icon-glow-color:#fd7e1466}
 .stat-card::after{content:attr(data-decor-icon);position:absolute;bottom:-15px;right:-15px;font-size:100px;line-height:1;color:var(--color-text);opacity:0.05;pointer-events:none}
 .clients-grid{display:grid;gap:1rem;grid-template-columns:repeat(4,1fr)}
-.client-card{background-color:var(--color-surface);border-radius:var(--border-radius);box-shadow:var(--box-shadow);display:flex;flex-direction:column;padding:1.4rem;transition:box-shadow 0.3s ease-in-out,border-color 0.3s ease-in-out;border:1px solid transparent;border-left:5px solid;position:relative;overflow:hidden}
+.client-card{background-color:var(--color-surface);border-radius:var(--border-radius);box-shadow:var(--box-shadow);display:flex;flex-direction:column;padding:1.4rem;padding-bottom:1.6rem;transition:box-shadow 0.3s ease-in-out,border-color 0.3s ease-in-out;border:1px solid transparent;border-left:5px solid;position:relative;overflow:hidden}
 .client-card:hover::after{height:100%}
 .client-card.status-offline::after{display:none}
 .client-card::before{content:attr(data-decor-icon);position:absolute;top:40px;right:10px;font-size:90px;line-height:1;color:var(--color-primary);opacity:0.08;pointer-events:none;z-index:0}
@@ -331,4 +331,121 @@ to{height:100%}
 
 @media (max-width:600px){
 .clients-grid{grid-template-columns:1fr}
+}
+/* ==================== CẬP NHẬT PHIÊN BẢN CLIENT (AUTO UPDATE STYLING) ==================== */
+.btn-update-all {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    background: linear-gradient(135deg, #f39c12, #e67e22);
+    color: white !important;
+    border: none;
+    padding: 0.35rem 0.85rem;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 2px 6px rgba(230, 126, 34, 0.35);
+    transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
+    margin-left: 0.85rem;
+}
+
+.btn-update-all:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 10px rgba(230, 126, 34, 0.45);
+    filter: brightness(108%);
+}
+
+.btn-update-all:active {
+    transform: translateY(0);
+}
+
+.badge-version {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.72rem;
+    font-family: var(--font-mono);
+    font-weight: 700;
+    padding: 0.12rem 0.45rem;
+    border-radius: 10px;
+    letter-spacing: -0.2px;
+}
+
+.badge-version.uptodate {
+    background-color: rgba(46, 204, 113, 0.15);
+    color: #27ae60;
+    border: 1px solid rgba(46, 204, 113, 0.3);
+}
+
+.badge-version.outdated {
+    background-color: rgba(243, 156, 18, 0.15);
+    color: #d35400;
+    border: 1px solid rgba(243, 156, 18, 0.35);
+}
+
+.btn-icon.btn-update {
+    background-color: #f39c12;
+    animation: pulse-update 2s infinite;
+}
+
+@keyframes pulse-update {
+    0% { box-shadow: 0 0 0 0 rgba(243, 156, 18, 0.5); }
+    70% { box-shadow: 0 0 0 6px rgba(243, 156, 18, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(243, 156, 18, 0); }
+}
+/* ==================== PHIÊN BẢN CLIENT GÓC PHẢI DƯỚI CÙNG ==================== */
+.card-version-tag {
+    position: absolute;
+    bottom: 5px;
+    right: 8px;
+    font-size: 0.65rem;
+    font-family: var(--font-mono);
+    font-weight: 600;
+    line-height: 1;
+    color: var(--color-text-muted);
+    opacity: 0.6;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    user-select: none;
+    transition: opacity 0.2s ease, color 0.2s ease;
+    z-index: 2;
+}
+
+.client-card:hover .card-version-tag {
+    opacity: 0.95;
+}
+
+.card-version-tag.outdated {
+    color: #e67e22;
+    opacity: 0.95;
+    font-weight: 700;
+}
+
+.card-version-tag.outdated i {
+    font-size: 0.62rem;
+}
+
+.table-version-tag {
+    font-size: 0.65rem;
+    font-family: var(--font-mono);
+    font-weight: 600;
+    line-height: 1;
+    color: var(--color-text-muted);
+    opacity: 0.6;
+    text-align: right;
+    margin-top: 3px;
+    padding-right: 4px;
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 3px;
+    user-select: none;
+}
+
+.table-version-tag.outdated {
+    color: #e67e22;
+    opacity: 0.95;
+    font-weight: 700;
 }

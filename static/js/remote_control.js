@@ -104,31 +104,42 @@ function initRemoteControl() {
                     <div class="info-card">
                         <h2><i class="fa-solid fa-folder-open"></i> File Manager</h2>
                         <div class="card-content">
-                            <div id="file-path-nav" style="margin-bottom:1rem; font-weight:bold; font-family:var(--font-mono);">
-                                Current Path: <span id="current-path">Drives</span>
+                            <!-- Đường dẫn Breadcrumb tương tác -->
+                            <div id="file-path-nav" style="margin-bottom:0.85rem; font-family:var(--font-mono); font-size:0.9rem; background:rgba(125,125,125,0.06); padding:0.5rem 0.8rem; border-radius:6px; display:flex; align-items:center; gap:0.35rem; flex-wrap:wrap; border:1px solid rgba(125,125,125,0.12);">
+                                <span style="font-weight:700; color:var(--color-text-muted); margin-right:4px;"><i class="fa-solid fa-location-dot"></i></span>
+                                <div id="breadcrumb-container" style="display:flex; align-items:center; gap:0.35rem; flex-wrap:wrap;">
+                                    <span class="breadcrumb-item" style="font-weight:700; color:var(--color-primary); cursor:pointer;" onclick="browseFiles('drives')"><i class="fa-solid fa-hard-drive"></i> Drives</span>
+                                </div>
                             </div>
+                            
+                            <!-- Thanh công cụ hành động -->
                             <div style="display:flex; gap:0.5rem; margin-bottom:1rem; align-items:center; flex-wrap:wrap;">
-                                <button onclick="browseFiles('drives')" class="back-link" style="padding:0.4rem 0.8rem; font-size:0.8rem;"><i class="fa-solid fa-hard-drive"></i> Drives</button>
-                                <button id="folder-up-btn" class="back-link" style="padding:0.4rem 0.8rem; font-size:0.8rem; display:none;"><i class="fa-solid fa-arrow-up"></i> Up One Level</button>
-                                <button id="download-current-folder-btn" class="back-link" style="padding:0.4rem 0.8rem; font-size:0.8rem; display:none; background-color: var(--color-success);" title="Nén và tải về toàn bộ thư mục hiện tại dạng ZIP">
-                                    <i class="fa-solid fa-file-zipper"></i> Download Folder (ZIP)
-                                </button>
-                                <span id="file-download-status" style="display:none; font-size:0.85rem; color:var(--color-primary); font-weight:600;">
-                                    <i class="fa-solid fa-spinner fa-spin"></i> <span id="file-download-text">Downloading...</span>
+                                <button onclick="browseFiles('drives')" class="back-link" style="padding:0.4rem 0.8rem; font-size:0.8rem;" title="Xem danh sách các ổ đĩa"><i class="fa-solid fa-hard-drive"></i> Drives</button>
+                                <button id="folder-up-btn" class="back-link" style="padding:0.4rem 0.8rem; font-size:0.8rem; display:none;" title="Lên thư mục cấp cha"><i class="fa-solid fa-arrow-up"></i> Up One Level</button>
+                                <button id="folder-refresh-btn" onclick="refreshCurrentFolder()" class="back-link" style="padding:0.4rem 0.8rem; font-size:0.8rem;" title="Làm mới danh sách thư mục"><i class="fa-solid fa-rotate-right"></i> Refresh</button>
+                                <button id="folder-create-btn" onclick="createNewFolder()" class="back-link" style="padding:0.4rem 0.8rem; font-size:0.8rem; display:none; background-color:#17a2b8;" title="Tạo thư mục mới tại đây"><i class="fa-solid fa-folder-plus"></i> New Folder</button>
+                                <button id="file-upload-btn" onclick="triggerFileUpload()" class="back-link" style="padding:0.4rem 0.8rem; font-size:0.8rem; display:none; background-color:var(--color-primary);" title="Tải file từ máy bạn lên thư mục này"><i class="fa-solid fa-upload"></i> Upload File</button>
+                                <button id="download-current-folder-btn" class="back-link" style="padding:0.4rem 0.8rem; font-size:0.8rem; display:none; background-color:var(--color-success);" title="Nén và tải về toàn bộ thư mục hiện tại dạng ZIP"><i class="fa-solid fa-file-zipper"></i> Download Folder (ZIP)</button>
+                                
+                                <input type="file" id="file-upload-input" style="display:none;" onchange="handleFileSelected(event)">
+                                
+                                <span id="file-status-indicator" style="display:none; font-size:0.85rem; color:var(--color-primary); font-weight:600; margin-left:auto;">
+                                    <i class="fa-solid fa-spinner fa-spin"></i> <span id="file-status-text">Processing...</span>
                                 </span>
                             </div>
-                            <div style="max-height:500px; overflow-y:auto;">
-                                 <table class="table-responsive" style="width:100%; border-collapse:collapse;">
-                                    <thead style="position:sticky; top:0; background:#f8f9fa; z-index:10;">
+                            
+                            <div style="max-height:520px; overflow-y:auto; border-radius:6px; border:1px solid rgba(125,125,125,0.15);">
+                                 <table class="table-responsive" style="width:100%; border-collapse:collapse; font-size:0.85rem;">
+                                    <thead style="position:sticky; top:0; background:var(--color-bg); z-index:10; border-bottom:2px solid rgba(125,125,125,0.15);">
                                         <tr>
-                                            <th style="text-align:left; padding:8px; border-bottom:2px solid #ddd;">Name</th>
-                                            <th style="text-align:left; padding:8px; border-bottom:2px solid #ddd; width:90px;">Type</th>
-                                            <th style="text-align:left; padding:8px; border-bottom:2px solid #ddd; width:110px;">Size</th>
-                                            <th style="text-align:center; padding:8px; border-bottom:2px solid #ddd; width:120px;">Action</th>
+                                            <th style="text-align:left; padding:9px 12px; font-weight:700;">Name</th>
+                                            <th style="text-align:left; padding:9px 12px; width:95px; font-weight:700;">Type</th>
+                                            <th style="text-align:left; padding:9px 12px; width:115px; font-weight:700;">Size</th>
+                                            <th style="text-align:center; padding:9px 12px; width:155px; font-weight:700;">Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody id="file-table-body">
-                                        <tr><td colspan="4" style="text-align:center; padding:1rem;">Click Drives to load.</td></tr>
+                                        <tr><td colspan="4" style="text-align:center; padding:1.5rem; color:var(--color-text-muted);">Click Drives to load.</td></tr>
                                     </tbody>
                                  </table>
                             </div>
@@ -359,6 +370,12 @@ function handleRemoteResponse(data) {
         renderFileList(res);
     } else if (cmd === 'file_download') {
         handleFileDownloadResponse(res);
+    } else if (cmd === 'file_upload') {
+        handleFileUploadResponse(res);
+    } else if (cmd === 'file_delete') {
+        handleFileDeleteResponse(res);
+    } else if (cmd === 'create_folder') {
+        handleCreateFolderResponse(res);
     }
 }
 
@@ -412,36 +429,79 @@ function filterProcessTable(searchTerm) {
 
 let currentDirPath = '';
 
+function renderBreadcrumbs(path) {
+    const container = document.getElementById('breadcrumb-container');
+    if (!container) return;
+
+    if (!path || path === 'drives') {
+        container.innerHTML = `<span style="font-weight:700; color:var(--color-primary); cursor:pointer;" onclick="browseFiles('drives')"><i class="fa-solid fa-hard-drive"></i> Drives</span>`;
+        return;
+    }
+
+    let html = `<span style="color:var(--color-primary); cursor:pointer; font-weight:600;" onclick="browseFiles('drives')"><i class="fa-solid fa-hard-drive"></i> Drives</span>`;
+    
+    // Xử lý các thành phần của đường dẫn Windows (ví dụ C:\Users\Admin)
+    const normalized = path.replace(/\//g, '\\');
+    const parts = normalized.split('\\').filter(p => p);
+    
+    let accumulatedPath = '';
+    for (let i = 0; i < parts.length; i++) {
+        const part = parts[i];
+        if (i === 0 && part.endsWith(':')) {
+            accumulatedPath = part + '\\';
+        } else {
+            accumulatedPath += (accumulatedPath.endsWith('\\') ? '' : '\\') + part;
+        }
+
+        const isLast = (i === parts.length - 1);
+        const escaped = accumulatedPath.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+        
+        html += ` <span style="color:var(--color-text-muted);">\\</span> `;
+        if (isLast) {
+            html += `<span style="font-weight:700; color:var(--color-text);">${part}</span>`;
+        } else {
+            html += `<span style="color:var(--color-primary); cursor:pointer; font-weight:600;" onclick="browseFiles('${escaped}')">${part}</span>`;
+        }
+    }
+
+    container.innerHTML = html;
+}
+
 function renderFileList(res) {
     const tbody = document.getElementById('file-table-body');
-    const pathSpan = document.getElementById('current-path');
     const upBtn = document.getElementById('folder-up-btn');
+    const downloadFolderBtn = document.getElementById('download-current-folder-btn');
+    const uploadBtn = document.getElementById('file-upload-btn');
+    const createFolderBtn = document.getElementById('folder-create-btn');
 
     if (res.type === 'drives') {
         currentDirPath = 'drives';
-        pathSpan.innerText = 'Drives';
-        upBtn.style.display = 'none';
-        const downloadFolderBtn = document.getElementById('download-current-folder-btn');
+        renderBreadcrumbs('drives');
+        
+        if (upBtn) upBtn.style.display = 'none';
         if (downloadFolderBtn) downloadFolderBtn.style.display = 'none';
+        if (uploadBtn) uploadBtn.style.display = 'none';
+        if (createFolderBtn) createFolderBtn.style.display = 'none';
 
         tbody.innerHTML = res.items.map(drive => `
-            <tr onclick="browseFiles('${drive.replace(/\\/g, '\\\\')}')" style="cursor:pointer;">
-                <td style="padding:8px; border-bottom:1px solid #eee; font-weight:600;"><i class="fa-solid fa-hard-drive"></i> ${drive}</td>
-                <td style="padding:8px; border-bottom:1px solid #eee;">Drive</td>
-                <td style="padding:8px; border-bottom:1px solid #eee;">-</td>
-                <td style="padding:8px; border-bottom:1px solid #eee; text-align:center; color:#999;">-</td>
+            <tr onclick="browseFiles('${drive.replace(/\\/g, '\\\\')}')" style="cursor:pointer;" class="file-row">
+                <td style="padding:8px 12px; border-bottom:1px solid rgba(125,125,125,0.12); font-weight:600;"><i class="fa-solid fa-hard-drive" style="color:var(--color-primary); margin-right:6px;"></i> ${drive}</td>
+                <td style="padding:8px 12px; border-bottom:1px solid rgba(125,125,125,0.12);">Drive</td>
+                <td style="padding:8px 12px; border-bottom:1px solid rgba(125,125,125,0.12);">-</td>
+                <td style="padding:8px 12px; border-bottom:1px solid rgba(125,125,125,0.12); text-align:center; color:#999;">-</td>
             </tr>
         `).join('');
     } else if (res.type === 'directory') {
         currentDirPath = res.path;
-        pathSpan.innerText = res.path;
-        upBtn.style.display = 'inline-block';
+        renderBreadcrumbs(res.path);
 
-        const downloadFolderBtn = document.getElementById('download-current-folder-btn');
+        if (upBtn) upBtn.style.display = 'inline-block';
         if (downloadFolderBtn) {
             downloadFolderBtn.style.display = 'inline-block';
             downloadFolderBtn.onclick = () => downloadItem(currentDirPath, true);
         }
+        if (uploadBtn) uploadBtn.style.display = 'inline-block';
+        if (createFolderBtn) createFolderBtn.style.display = 'inline-block';
         
         // Sắp xếp: Thư mục trước, File sau
         res.items.sort((a, b) => {
@@ -451,7 +511,7 @@ function renderFileList(res) {
         });
 
         if (res.items.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:1.5rem; color:#888;">(Empty Folder)</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:2rem; color:var(--color-text-muted);">(Empty Directory)</td></tr>`;
             return;
         }
 
@@ -462,20 +522,23 @@ function renderFileList(res) {
             const escapedPath = fullItemPath.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
             const clickAction = item.is_dir ? `onclick="browseFiles('${escapedPath}')"` : '';
             
-            const actionBtn = item.is_dir 
-                ? `<button onclick="event.stopPropagation(); downloadItem('${escapedPath}', true)" class="btn-item-download" title="Nén & Tải thư mục này về (.zip)" style="padding:3px 8px; font-size:0.75rem; background:#6f42c1; color:white; border:none; border-radius:4px; cursor:pointer;"><i class="fa-solid fa-file-zipper"></i> ZIP</button>`
-                : `<button onclick="event.stopPropagation(); downloadItem('${escapedPath}', false)" class="btn-item-download" title="Tải file này về" style="padding:3px 8px; font-size:0.75rem; background:var(--color-primary); color:white; border:none; border-radius:4px; cursor:pointer;"><i class="fa-solid fa-download"></i> Tải về</button>`;
+            const downloadBtn = item.is_dir 
+                ? `<button onclick="event.stopPropagation(); downloadItem('${escapedPath}', true)" title="Nén & Tải thư mục này (.zip)" style="padding:3px 7px; font-size:0.75rem; background:#6f42c1; color:white; border:none; border-radius:4px; cursor:pointer;"><i class="fa-solid fa-file-zipper"></i> ZIP</button>`
+                : `<button onclick="event.stopPropagation(); downloadItem('${escapedPath}', false)" title="Tải file này về máy" style="padding:3px 7px; font-size:0.75rem; background:var(--color-primary); color:white; border:none; border-radius:4px; cursor:pointer;"><i class="fa-solid fa-download"></i> Tải về</button>`;
+
+            const deleteBtn = `<button onclick="event.stopPropagation(); deleteItem('${escapedPath}', ${item.is_dir})" title="Xóa ${item.is_dir ? 'thư mục' : 'file'} này" style="padding:3px 7px; font-size:0.75rem; background:var(--color-danger); color:white; border:none; border-radius:4px; cursor:pointer; margin-left:4px;"><i class="fa-solid fa-trash-can"></i></button>`;
 
             return `
-                <tr ${clickAction} style="cursor:${item.is_dir ? 'pointer' : 'default'};">
-                    <td style="padding:8px; border-bottom:1px solid #eee;">
+                <tr ${clickAction} style="cursor:${item.is_dir ? 'pointer' : 'default'};" class="file-row">
+                    <td style="padding:7px 12px; border-bottom:1px solid rgba(125,125,125,0.12);">
                         <i class="fa-solid ${icon}" style="color:${iconColor}; margin-right:6px;"></i> 
                         <span style="font-weight:${item.is_dir ? '600' : 'normal'}">${item.name}</span>
                     </td>
-                    <td style="padding:8px; border-bottom:1px solid #eee; font-size:0.85rem; color:#666;">${item.is_dir ? 'Folder' : 'File'}</td>
-                    <td style="padding:8px; border-bottom:1px solid #eee; font-size:0.85rem; font-family:var(--font-mono);">${item.is_dir ? '-' : formatBytes(item.size)}</td>
-                    <td style="padding:8px; border-bottom:1px solid #eee; text-align:center;">
-                        ${actionBtn}
+                    <td style="padding:7px 12px; border-bottom:1px solid rgba(125,125,125,0.12); font-size:0.82rem; color:var(--color-text-muted);">${item.is_dir ? 'Folder' : 'File'}</td>
+                    <td style="padding:7px 12px; border-bottom:1px solid rgba(125,125,125,0.12); font-size:0.82rem; font-family:var(--font-mono);">${item.is_dir ? '-' : formatBytes(item.size)}</td>
+                    <td style="padding:7px 12px; border-bottom:1px solid rgba(125,125,125,0.12); text-align:center;">
+                        ${downloadBtn}
+                        ${deleteBtn}
                     </td>
                 </tr>
             `;
@@ -590,4 +653,124 @@ function downloadBase64File(base64Data, filename) {
         document.body.removeChild(a);
         URL.revokeObjectURL(blobUrl);
     }, 2000);
+}
+
+
+function setFileStatus(show, text = '') {
+    const statusEl = document.getElementById('file-status-indicator');
+    const textEl = document.getElementById('file-status-text');
+    if (!statusEl) return;
+    if (show) {
+        statusEl.style.display = 'inline-flex';
+        if (textEl) textEl.innerText = text;
+    } else {
+        statusEl.style.display = 'none';
+    }
+}
+
+function refreshCurrentFolder() {
+    if (!currentDirPath || currentDirPath === 'drives') {
+        browseFiles('drives');
+    } else {
+        browseFiles(currentDirPath);
+    }
+}
+
+function createNewFolder() {
+    if (!currentDirPath || currentDirPath === 'drives') {
+        alert("Vui lòng mở một ổ đĩa hoặc thư mục cụ thể trước khi tạo thư mục mới.");
+        return;
+    }
+    const folderName = prompt("Nhập tên thư mục mới cần tạo:");
+    if (!folderName || !folderName.trim()) return;
+    
+    const sep = currentDirPath.endsWith('\\') ? '' : '\\';
+    const targetPath = currentDirPath + sep + folderName.trim();
+    setFileStatus(true, `Đang tạo thư mục: ${folderName.trim()}...`);
+    sendRemoteCommand('create_folder', targetPath);
+}
+
+function handleCreateFolderResponse(res) {
+    setFileStatus(false);
+    if (res && res.success) {
+        refreshCurrentFolder();
+    } else {
+        alert("Tạo thư mục thất bại: " + (res && res.error ? res.error : "Unknown error"));
+    }
+}
+
+function triggerFileUpload() {
+    if (!currentDirPath || currentDirPath === 'drives') {
+        alert("Vui lòng mở một thư mục cụ thể trước khi tải file lên.");
+        return;
+    }
+    const fileInput = document.getElementById('file-upload-input');
+    if (fileInput) {
+        fileInput.value = '';
+        fileInput.click();
+    }
+}
+
+function handleFileSelected(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    if (!currentDirPath || currentDirPath === 'drives') {
+        alert("Vui lòng mở một thư mục cụ thể để tải file lên.");
+        return;
+    }
+
+    if (file.size > 75 * 1024 * 1024) {
+        alert(`File quá lớn (${(file.size / (1024 * 1024)).toFixed(1)}MB). Giới hạn tối đa là 75MB.`);
+        return;
+    }
+
+    setFileStatus(true, `Đang đọc file ${file.name}...`);
+    const reader = new FileReader();
+    reader.onload = function(evt) {
+        const base64Data = evt.target.result.split(',')[1];
+        const sep = currentDirPath.endsWith('\\') ? '' : '\\';
+        const targetPath = currentDirPath + sep + file.name;
+        
+        setFileStatus(true, `Đang truyền file ${file.name} lên máy trạm...`);
+        sendRemoteCommand('file_upload', {
+            path: targetPath,
+            content: base64Data
+        });
+    };
+    reader.onerror = function() {
+        setFileStatus(false);
+        alert("Không thể đọc file từ thiết bị của bạn.");
+    };
+    reader.readAsDataURL(file);
+}
+
+function handleFileUploadResponse(res) {
+    setFileStatus(false);
+    if (res && res.success) {
+        alert("Tải lên file thành công!");
+        refreshCurrentFolder();
+    } else {
+        alert("Tải lên thất bại: " + (res && res.error ? res.error : "Unknown error"));
+    }
+}
+
+function deleteItem(itemPath, isFolder) {
+    const typeLabel = isFolder ? "toàn bộ THƯ MỤC" : "FILE";
+    const name = itemPath.split('\\').pop();
+    if (!confirm(`Bạn có chắc chắn muốn XÓA vĩnh viễn ${typeLabel} "${name}" trên máy trạm không?\nHành động này không thể hoàn tác!`)) {
+        return;
+    }
+
+    setFileStatus(true, `Đang xóa ${name}...`);
+    sendRemoteCommand('file_delete', itemPath);
+}
+
+function handleFileDeleteResponse(res) {
+    setFileStatus(false);
+    if (res && res.success) {
+        refreshCurrentFolder();
+    } else {
+        alert("Xóa thất bại: " + (res && res.error ? res.error : "Unknown error"));
+    }
 }

@@ -319,6 +319,48 @@ class WindowsAuditor:
             except Exception as e:
                 return {"success": False, "error": str(e)}
 
+        @staticmethod
+        def upload_file(path: str, b64_content: str) -> Dict[str, Any]:
+            """Lưu file từ chuỗi Base64 vào đường dẫn đích."""
+            import os
+            import base64
+            try:
+                parent_dir = os.path.dirname(os.path.abspath(path))
+                if parent_dir and not os.path.exists(parent_dir):
+                    os.makedirs(parent_dir, exist_ok=True)
+                file_bytes = base64.b64decode(b64_content)
+                with open(path, 'wb') as f:
+                    f.write(file_bytes)
+                return {"success": True, "path": path, "size": len(file_bytes)}
+            except Exception as e:
+                return {"success": False, "error": str(e)}
+
+        @staticmethod
+        def delete_path(path: str) -> Dict[str, Any]:
+            """Xóa file hoặc xóa toàn bộ thư mục."""
+            import os
+            import shutil
+            if not path or not os.path.exists(path):
+                return {"success": False, "error": "Path not found."}
+            try:
+                if os.path.isdir(path):
+                    shutil.rmtree(path)
+                else:
+                    os.remove(path)
+                return {"success": True, "path": path}
+            except Exception as e:
+                return {"success": False, "error": str(e)}
+
+        @staticmethod
+        def create_dir(path: str) -> Dict[str, Any]:
+            """Tạo thư mục mới."""
+            import os
+            try:
+                os.makedirs(path, exist_ok=True)
+                return {"success": True, "path": path}
+            except Exception as e:
+                return {"success": False, "error": str(e)}
+
     class _Usage:
 
         _disk_name_cache = None

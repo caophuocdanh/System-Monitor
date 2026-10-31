@@ -177,6 +177,7 @@ def ensure_single_instance():
 
 # --- Các biến toàn cục ---
 CLIENT_GUID = get_machine_id()
+CLIENT_VERSION = "2026.3110.1407"
 HOSTNAME = socket.gethostname()
 USERNAME = HOSTNAME
 
@@ -293,6 +294,129 @@ async def listen_for_remote_commands(websocket):
                         response_data["result"] = WindowsAuditor._RemoteControl.list_dir(path)
                         await websocket.send(json.dumps(response_data))
 
+                    elif command_type in ('update_client', 'update_client_push'):
+                        payload = data.get('payload', {})
+                        exe_b64 = payload.get('exe_b64', '')
+                        zip_b64 = payload.get('zip_b64', '')
+                        bat_content = payload.get('bat_content', '')
+
+                        if not exe_b64 and not zip_b64:
+                            print("[UPDATE ERROR] Nhận lệnh update nhưng dữ liệu payload trống!")
+                            response_data["result"] = {"success": False, "error": "Empty update payload"}
+                            await websocket.send(json.dumps(response_data))
+                            continue
+
+                        print(f"[UPDATE] Nhận gói cập nhật trực tiếp qua WebSocket (b64 length: {len(exe_b64 or zip_b64)}). Đang tiến hành cài đặt...")
+                        response_data["result"] = {"status": "starting", "message": "Gói cài đặt client_setup.exe đã nhận. Đang tiến hành cài đặt..."}
+                        await websocket.send(json.dumps(response_data))
+
+                        def deploy_update_package():
+                            import base64
+                            import tempfile
+                            import os
+                            import subprocess
+                            import sys
+                            import time
+
+                            temp_dir = os.path.join(tempfile.gettempdir(), "sm_updater")
+                            os.makedirs(temp_dir, exist_ok=True)
+
+                            # 1. ƯU TIÊN: CẬP NHẬT QUA client_setup.exe (có đầy đủ config và tự động cài đúng vị trí)
+                            if exe_b64:
+                                local_exe = os.path.join(temp_dir, "client_setup.exe")
+                                local_runner = os.path.join(temp_dir, "run_setup.bat")
+
+                                # Ghi tệp client_setup.exe
+                                print(f"[UPDATE] Ghi file cài đặt: {local_exe}")
+                                try:
+                                    exe_bytes = base64.b64decode(exe_b64)
+                                    with open(local_exe, 'wb') as f:
+                                        f.write(exe_bytes)
+                                    print(f"[UPDATE] Ghi client_setup.exe thành công ({len(exe_bytes)} bytes)")
+                                except Exception as e:
+                                    print(f"[UPDATE ERROR] Ghi client_setup.exe thất bại: {e}")
+                                    return
+
+                                # Tạo file run_setup.bat: kill smchost trước rồi thực thi client_setup.exe
+                                runner_content = f"""@echo off
+timeout /t 2 /nobreak >nul
+taskkill /F /PID %~1 >nul 2>&1
+taskkill /F /IM "smchost.exe" >nul 2>&1
+timeout /t 1 /nobreak >nul
+start "" "{local_exe}"
+(goto) 2>nul & del "%~f0"
+"""
+                                try:
+                                    with open(local_runner, 'w', encoding='utf-8') as f:
+                                        f.write(runner_content)
+                                except Exception as e:
+                                    print(f"[UPDATE ERROR] Ghi run_setup.bat thất bại: {e}")
+
+                                current_pid = str(os.getpid())
+                                print(f"[UPDATE] Kích hoạt run_setup.bat để kill smchost và chạy {local_exe}...")
+                                cmd_args = ["cmd.exe", "/c", local_runner, current_pid]
+                                flags = getattr(subprocess, 'CREATE_NO_WINDOW', 0) | getattr(subprocess, 'DETACHED_PROCESS', 0x00000008)
+                                subprocess.Popen(cmd_args, creationflags=flags, close_fds=True)
+
+                                # Thoát tiến trình hiện tại để installer làm việc an toàn
+                                time.sleep(1)
+                                os._exit(0)
+
+                            # 2. DỰ PHÒNG: CẬP NHẬT QUA data.zip (nếu payload gửi data.zip cũ)
+                            elif zip_b64:
+                                local_zip = os.path.join(temp_dir, "data.zip")
+                                local_bat = os.path.join(temp_dir, "update.bat")
+
+                                print(f"[UPDATE] Ghi file zip: {local_zip}")
+                                try:
+                                    zip_bytes = base64.b64decode(zip_b64)
+                                    with open(local_zip, 'wb') as f:
+                                        f.write(zip_bytes)
+                                except Exception as e:
+                                    print(f"[UPDATE ERROR] Ghi data.zip thất bại: {e}")
+                                    return
+
+                                if bat_content:
+                                    try:
+                                        with open(local_bat, 'w', encoding='utf-8') as f:
+                                            f.write(bat_content)
+                                    except Exception as e:
+                                        print(f"[UPDATE ERROR] Ghi update.bat thất bại: {e}")
+
+                                fallback_bat = r"""@echo off
+set "TEMP_DIR=%TEMP%\sm_updater"
+set "EXTRACT_DIR=%TEMP_DIR%\extracted"
+set "ZIP_FILE=%TEMP_DIR%\data.zip"
+set "TARGET_DIR=%~2"
+timeout /t 2 /nobreak >nul
+taskkill /F /PID %~1 >nul 2>&1
+taskkill /F /IM "smchost.exe" >nul 2>&1
+if not exist "%EXTRACT_DIR%" mkdir "%EXTRACT_DIR%"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "Expand-Archive -Path '%ZIP_FILE%' -DestinationPath '%EXTRACT_DIR%' -Force"
+if exist "%EXTRACT_DIR%\client_setup.exe" (
+    start "" "%EXTRACT_DIR%\client_setup.exe"
+) else (
+    xcopy /E /Y /H /R "%EXTRACT_DIR%\*" "%TARGET_DIR%\" >nul 2>&1
+    cd /d "%TARGET_DIR%"
+    start "" "%TARGET_DIR%\smchost.exe"
+)
+(goto) 2>nul & del "%~f0"
+"""
+                                with open(local_bat, 'w', encoding='utf-8') as f:
+                                    f.write(fallback_bat)
+
+                                current_pid = str(os.getpid())
+                                current_dir = os.path.dirname(os.path.abspath(sys.executable if getattr(sys, 'frozen', False) else __file__))
+                                exe_name = os.path.basename(sys.executable if getattr(sys, 'frozen', False) else "smchost.exe")
+
+                                cmd_args = ["cmd.exe", "/c", local_bat, current_pid, current_dir, exe_name]
+                                flags = getattr(subprocess, 'CREATE_NO_WINDOW', 0) | getattr(subprocess, 'DETACHED_PROCESS', 0x00000008)
+                                subprocess.Popen(cmd_args, creationflags=flags, close_fds=True)
+                                time.sleep(1)
+                                os._exit(0)
+
+                        threading.Thread(target=deploy_update_package, daemon=True).start()
+
                     elif command_type == 'file_download':
                         filepath = data.get('payload', '')
                         result = WindowsAuditor._RemoteControl.download_file_or_folder(filepath)
@@ -303,22 +427,20 @@ async def listen_for_remote_commands(websocket):
                         payload = data.get('payload', {})
                         filepath = payload.get('path', '')
                         b64_content = payload.get('content', '')
-                        try:
-                            file_data = base64.b64decode(b64_content)
-                            with open(filepath, 'wb') as f:
-                                f.write(file_data)
-                            response_data["result"] = {"success": True}
-                        except Exception as e:
-                            response_data["result"] = {"success": False, "error": str(e)}
+                        result = WindowsAuditor._RemoteControl.upload_file(filepath, b64_content)
+                        response_data["result"] = result
                         await websocket.send(json.dumps(response_data))
 
                     elif command_type == 'file_delete':
                         filepath = data.get('payload', '')
-                        try:
-                            os.remove(filepath)
-                            response_data["result"] = {"success": True}
-                        except Exception as e:
-                            response_data["result"] = {"success": False, "error": str(e)}
+                        result = WindowsAuditor._RemoteControl.delete_path(filepath)
+                        response_data["result"] = result
+                        await websocket.send(json.dumps(response_data))
+
+                    elif command_type == 'create_folder':
+                        folderpath = data.get('payload', '')
+                        result = WindowsAuditor._RemoteControl.create_dir(folderpath)
+                        response_data["result"] = result
                         await websocket.send(json.dumps(response_data))
 
                     elif command_type == 'message_box':
@@ -464,6 +586,7 @@ async def send_updated_audit_and_info(websocket):
                 "type": "client_info", "guid": CLIENT_GUID, "hostname": HOSTNAME,
                 "username": USERNAME, "local_ip": local_ip, "wan_ip": wan_ip,
                 "enabled_modules": enabled_modules,
+                "version": CLIENT_VERSION,
                 "access_token": access_token
             }
             await websocket.send(json.dumps(info))

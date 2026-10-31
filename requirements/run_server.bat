@@ -11,4 +11,4 @@ start "SM Server" "SM Server.exe"
 
 echo Starting programs...
 cd "..\client"
-start "smchost" "smchost.exe"
+echo start "smchost" "smchost.exe"

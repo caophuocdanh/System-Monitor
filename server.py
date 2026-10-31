@@ -252,17 +252,18 @@ def run_health_check_server(host, port):
 # --- CÁC HÀM TƯƠNG TÁC VỚI DATABASE (ĐƯỢC TÁI CẤU TRÚC) ---
 
 # Các hàm này giờ chỉ đưa yêu cầu vào hàng đợi dưới dạng (query, params)
-async def db_upsert_client_static_info(guid, hostname, username, local_ip, wan_ip, enabled_modules_json):
+async def db_upsert_client_static_info(guid, hostname, username, local_ip, wan_ip, enabled_modules_json, version='1.0.0'):
     sql_script = """
-        INSERT INTO client (guid, hostname, username, local_ip, wan_ip, enabled_modules)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO client (guid, hostname, username, local_ip, wan_ip, enabled_modules, version)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(guid) DO UPDATE SET
         hostname=excluded.hostname,
         local_ip=excluded.local_ip,
         wan_ip=excluded.wan_ip,
-        enabled_modules=excluded.enabled_modules;
+        enabled_modules=excluded.enabled_modules,
+        version=excluded.version;
     """
-    await db_write_queue.put((sql_script, (guid, hostname, username, local_ip, wan_ip, enabled_modules_json)))
+    await db_write_queue.put((sql_script, (guid, hostname, username, local_ip, wan_ip, enabled_modules_json, version)))
 
 async def db_add_active_connection(guid, client_address):
     timestamp = int(datetime.now(timezone.utc).timestamp()) 
@@ -486,7 +487,8 @@ def setup_database():
         username TEXT NOT NULL,
         local_ip TEXT,
         wan_ip TEXT,
-        enabled_modules TEXT
+        enabled_modules TEXT,
+        version TEXT DEFAULT '1.0.0'
     );''')
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS active_connections (
@@ -539,6 +541,10 @@ def setup_database():
     if 'enabled_modules' not in columns:
         print("Database migration: Adding 'enabled_modules' column to 'client' table...")
         cursor.execute("ALTER TABLE client ADD COLUMN enabled_modules TEXT DEFAULT '[]'")
+
+    if 'version' not in columns:
+        print("Database migration: Adding 'version' column to 'client' table...")
+        cursor.execute("ALTER TABLE client ADD COLUMN version TEXT DEFAULT '1.0.0'")
 
     cursor.execute("PRAGMA table_info(metrics_log)")
     columns = [info[1] for info in cursor.fetchall()]
@@ -596,10 +602,12 @@ async def websocket_handler(websocket):
             client_info_cache[guid] = {"hostname": hostname, "username": username}
             
             # Xử lý thông tin ban đầu (giống logic cũ)
+            client_version = data.get('version', '1.0.0')
             await db_upsert_client_static_info(
                 guid, hostname, username,
                 data.get('local_ip'), data.get('wan_ip'),
-                json.dumps(data.get('enabled_modules', []))
+                json.dumps(data.get('enabled_modules', [])),
+                client_version
             )
             await db_clear_client_audit_data(guid)
             await db_add_active_connection(guid, client_address)
@@ -717,19 +725,101 @@ async def websocket_handler(websocket):
                     hostname = data.get('hostname', 'Unknown')
                     username = data.get('username', 'Unknown')
                     client_info_cache[client_guid] = {"hostname": hostname, "username": username}
+                    client_version = data.get('version', '1.0.0')
                     await db_upsert_client_static_info(
                         client_guid, hostname, username,
                         data.get('local_ip'), data.get('wan_ip'),
-                        json.dumps(data.get('enabled_modules', []))
+                        json.dumps(data.get('enabled_modules', [])),
+                        client_version
                     )
 
-            elif conn_type == 'dashboard':
-                # --- XỬ LÝ TIN NHẮN TỪ DASHBOARD ---
+            elif conn_type in ('dashboard', 'dashboard_global'):
+                # --- XỬ LÝ TIN NHẮN TỪ DASHBOARD (CẢ DASHBOARD VÀ GLOBAL DASHBOARD) ---
                 if msg_type == 'remote_command':
-                    # Chuyển tiếp lệnh tới đúng Agent
                     target_guid = data.get('target_guid')
+                    command = data.get('command')
+
+                    # NẾU LÀ LỆNH CẬP NHẬT CLIENT: SERVER ĐẨY TRỰC TIẾP FILE client_setup.exe QUA WEBSOCKET
+                    if command == 'update_client':
+                        import base64
+                        base_path = get_base_path()
+                        updates_dir = os.path.join(base_path, 'static', 'updates')
+                        
+                        # 1. Tìm tệp client_setup.exe
+                        setup_path = os.path.join(updates_dir, 'client_setup.exe')
+                        if not os.path.exists(setup_path):
+                            setup_path = os.path.join(base_path, 'source', 'client', 'client_setup.exe')
+                        if not os.path.exists(setup_path):
+                            setup_path = os.path.join(base_path, 'client_setup.exe')
+
+                        if not os.path.exists(setup_path):
+                            print(f"[{timestamp_str}] [Update Error] Không tìm thấy client_setup.exe trên Server.")
+                            await websocket.send(json.dumps({
+                                "type": "remote_response", 
+                                "command": "update_client", 
+                                "error": "Tệp cài đặt client_setup.exe chưa được tạo trên Server. Vui lòng chạy build.bat!"
+                            }))
+                            continue
+
+                        try:
+                            file_size_mb = os.path.getsize(setup_path) / (1024 * 1024)
+                            print(f"[{timestamp_str}] [Auto Update] Đang đọc client_setup.exe ({file_size_mb:.2f} MB)...")
+                            with open(setup_path, 'rb') as f:
+                                exe_b64 = base64.b64encode(f.read()).decode('utf-8')
+
+                            push_msg = json.dumps({
+                                "type": "remote_command",
+                                "command": "update_client_push",
+                                "payload": {
+                                    "installer_type": "setup_exe",
+                                    "exe_b64": exe_b64,
+                                    "filename": "client_setup.exe"
+                                }
+                            })
+
+                            sent_count = 0
+                            if target_guid == 'ALL':
+                                print(f"[{timestamp_str}] [Auto Update] Đang đẩy client_setup.exe ({file_size_mb:.2f} MB) qua WebSocket tới TẤT CẢ ({len(agent_connections)}) máy trạm online...")
+                                for guid, agent_ws in list(agent_connections.items()):
+                                    try:
+                                        await agent_ws.send(push_msg)
+                                        sent_count += 1
+                                    except Exception as e:
+                                        print(f"[{timestamp_str}] [Update Error] Gửi tới {guid} thất bại: {e}")
+                            else:
+                                if target_guid in agent_connections:
+                                    print(f"[{timestamp_str}] [Auto Update] Đang đẩy client_setup.exe ({file_size_mb:.2f} MB) qua WebSocket tới máy trạm {target_guid}...")
+                                    await agent_connections[target_guid].send(push_msg)
+                                    sent_count = 1
+                                else:
+                                    await websocket.send(json.dumps({
+                                        "type": "remote_response", 
+                                        "command": "update_client", 
+                                        "error": "Máy trạm này hiện đang Offline."
+                                    }))
+                                    continue
+
+                            await websocket.send(json.dumps({
+                                "type": "remote_response", 
+                                "command": "update_client", 
+                                "result": {
+                                    "success": True, 
+                                    "sent_count": sent_count, 
+                                    "message": f"Đã đẩy trực tiếp client_setup.exe qua WebSocket tới {sent_count} máy trạm!"
+                                }
+                            }))
+                        except Exception as e:
+                            print(f"[{timestamp_str}] [Update Error] {e}")
+                            await websocket.send(json.dumps({
+                                "type": "remote_response", 
+                                "command": "update_client", 
+                                "error": str(e)
+                            }))
+                        continue
+
+                    # Các lệnh điều khiển khác (Terminal, File Manager, Processes...): Chuyển tiếp tới Agent
                     if target_guid in agent_connections:
-                        print(f"[{timestamp_str}] [Remote Command] Routing to Agent {target_guid}: {data.get('command')}")
+                        print(f"[{timestamp_str}] [Remote Command] Routing to Agent {target_guid}: {command}")
                         try:
                             await agent_connections[target_guid].send(message)
                         except:
