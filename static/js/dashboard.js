@@ -6,7 +6,7 @@ document.addEventListener('DOMContentLoaded', () => {
         "⛲", "⛳", "⛺", "⛽", "⛪", "⚽", "⚾", "⛄", "⛅", "☔", "☕",
         "🌈", "🔥", "🌟", "💧", "🍀", "🍁", "🌻", "🌊", "🌙", "⭐",
         "🎯", "🎨", "🎉", "🪁", "🧩", "🛸", "🚀", "🌍", "🗻", "🌋"
-        ];
+    ];
 
     function getRandomDecorIcon() {
         const randomIndex = Math.floor(Math.random() * DECOR_ICONS_UNICODE.length);
@@ -18,7 +18,10 @@ document.addEventListener('DOMContentLoaded', () => {
         card.setAttribute('data-decor-icon', getRandomDecorIcon());
     });
 
+    const clientsViewContainer = document.getElementById('clients-view-container');
     const clientsGrid = document.getElementById('clients-grid');
+    const clientsTableWrapper = document.getElementById('clients-table-wrapper');
+    const clientsTableBody = document.getElementById('clients-table-body');
     
     // Target các element mới trong stat cards
     const statElements = {
@@ -49,11 +52,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let totalPages = 1;
     const btnPrev = document.getElementById('btn-prev-page');
     const btnNext = document.getElementById('btn-next-page');
-    const spanCurrentPage = document.getElementById('current-page-num');
-    const spanTotalPages = document.getElementById('total-pages-num');
-    const spanTotalClients = document.getElementById('total-clients-num'); // Vẫn giữ để cập nhật ngầm nếu cần
 
-    // ... (code getUsageLevelClass và timeAgo không đổi) ...
     function getUsageLevelClass(percentage) {
         if (percentage < 35) return 'level-low';
         if (percentage < 70) return 'level-medium';
@@ -73,9 +72,11 @@ document.addEventListener('DOMContentLoaded', () => {
         return `${Math.floor(seconds / 86400)}d ago`;
     }
 
+    // ==========================================
+    // 1. CHẾ ĐỘ LƯỚI THẺ (GRID CARD VIEW)
+    // ==========================================
     function createClientCard(client) {
         const clientCard = document.createElement('div');
-        // Gán icon ngẫu nhiên ngay khi tạo card
         clientCard.setAttribute('data-decor-icon', getRandomDecorIcon());
         updateClientCardContent(clientCard, client);
         return clientCard;
@@ -99,7 +100,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const isEditing = currentInput && !currentInput.hasAttribute('readonly');
 
         if (!cardElement.querySelector('.client-card-header')) {
-            // Lần đầu render card
             cardElement.innerHTML = `
                 <div class="client-card-header">
                     <div class="client-card-identity">
@@ -158,13 +158,12 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // Cập nhật DOM cụ thể (Targeted Update) - Tuyệt đối không ghi đè input khi đang gõ
+        // Targeted DOM update
         const hostEl = cardElement.querySelector('.hostname');
         if (hostEl && hostEl.textContent !== client.hostname) {
             hostEl.textContent = client.hostname;
         }
 
-        // Chỉ cập nhật username khi người dùng KHÔNG đang trong chế độ chỉnh sửa
         if (!isEditing && currentInput) {
             if (currentInput.value !== client.username) {
                 currentInput.value = client.username;
@@ -214,7 +213,128 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // ... (các hàm còn lại updateDashboard, disableEditing, saveUsername, event listeners không đổi) ...
+    // ==========================================
+    // 2. CHẾ ĐỘ BẢNG DANH SÁCH (TABLE / LIST ROW VIEW)
+    // ==========================================
+    function createClientRow(client) {
+        const tr = document.createElement('tr');
+        updateClientRowContent(tr, client);
+        return tr;
+    }
+
+    function updateClientRowContent(rowElement, client) {
+        const statusClass = client.status.toLowerCase();
+        rowElement.className = `client-row status-${statusClass}`;
+        rowElement.dataset.guid = client.guid;
+
+        const lastUpdate = timeAgo(client.metrics_timestamp);
+        const cpu = parseFloat(client.cpu_usage) || 0;
+        const ram = parseFloat(client.ram_usage) || 0;
+        const disk = parseFloat(client.disk_usage) || 0;
+        
+        const cpuLevelClass = getUsageLevelClass(cpu);
+        const ramLevelClass = getUsageLevelClass(ram);
+        const diskLevelClass = getUsageLevelClass(disk);
+
+        const currentInput = rowElement.querySelector('.username-input');
+        const isEditing = currentInput && !currentInput.hasAttribute('readonly');
+
+        if (!rowElement.querySelector('.td-hostname')) {
+            rowElement.innerHTML = `
+                <td class="td-status">
+                    <div class="status-dot ${statusClass}" title="${client.status}"></div>
+                </td>
+                <td class="td-hostname">
+                    <div class="hostname-wrapper">
+                        <i class="icon fa-solid fa-server"></i>
+                        <span class="hostname">${client.hostname}</span>
+                    </div>
+                </td>
+                <td class="td-username">
+                    <div class="username-wrapper">
+                        <i class="icon fa-solid fa-user"></i>
+                        <input type="text" class="username-input ip-font" value="${client.username}" readonly data-guid="${client.guid}">
+                        <button class="edit-username-btn" title="Edit Username">
+                            <i class="fa-solid fa-pencil"></i>
+                        </button>
+                    </div>
+                </td>
+                <td class="td-ip"><span class="ip-local">${client.local_ip || 'N/A'}</span></td>
+                <td class="td-ip"><span class="ip-wan">${client.wan_ip || 'N/A'}</span></td>
+                <td class="td-metric metric-cpu ${cpuLevelClass}"><span class="metric-val">${cpu.toFixed(1)}%</span></td>
+                <td class="td-metric metric-ram ${ramLevelClass}"><span class="metric-val">${ram.toFixed(1)}%</span></td>
+                <td class="td-metric metric-disk ${diskLevelClass}"><span class="metric-val">${disk.toFixed(1)}%</span></td>
+                <td class="td-time"><span class="time-ago">${lastUpdate}</span></td>
+                <td class="td-actions">
+                    <div class="client-card-actions">
+                        <a href="/client/${client.guid}" class="btn-icon btn-detail" title="View Details">
+                            <i class="fa-solid fa-info"></i>
+                        </a>
+                        <button class="btn-icon btn-refresh" data-guid="${client.guid}" title="Refresh Data">
+                            <i class="fa-solid fa-sync-alt"></i>
+                        </button>
+                        <button class="btn-icon btn-delete" data-guid="${client.guid}" title="Delete Client">
+                            <i class="fa-solid fa-trash-alt"></i>
+                        </button>
+                    </div>
+                </td>
+            `;
+            return;
+        }
+
+        // Targeted Row Update
+        const statusDot = rowElement.querySelector('.status-dot');
+        if (statusDot) {
+            statusDot.className = `status-dot ${statusClass}`;
+            statusDot.title = client.status;
+        }
+
+        const hostEl = rowElement.querySelector('.hostname');
+        if (hostEl && hostEl.textContent !== client.hostname) {
+            hostEl.textContent = client.hostname;
+        }
+
+        if (!isEditing && currentInput) {
+            if (currentInput.value !== client.username) {
+                currentInput.value = client.username;
+            }
+            currentInput.defaultValue = client.username;
+        }
+
+        const localIp = rowElement.querySelector('.ip-local');
+        if (localIp) localIp.textContent = client.local_ip || 'N/A';
+
+        const wanIp = rowElement.querySelector('.ip-wan');
+        if (wanIp) wanIp.textContent = client.wan_ip || 'N/A';
+
+        const cpuCell = rowElement.querySelector('.metric-cpu');
+        if (cpuCell) {
+            cpuCell.className = `td-metric metric-cpu ${cpuLevelClass}`;
+            const val = cpuCell.querySelector('.metric-val');
+            if (val) val.textContent = `${cpu.toFixed(1)}%`;
+        }
+
+        const ramCell = rowElement.querySelector('.metric-ram');
+        if (ramCell) {
+            ramCell.className = `td-metric metric-ram ${ramLevelClass}`;
+            const val = ramCell.querySelector('.metric-val');
+            if (val) val.textContent = `${ram.toFixed(1)}%`;
+        }
+
+        const diskCell = rowElement.querySelector('.metric-disk');
+        if (diskCell) {
+            diskCell.className = `td-metric metric-disk ${diskLevelClass}`;
+            const val = diskCell.querySelector('.metric-val');
+            if (val) val.textContent = `${disk.toFixed(1)}%`;
+        }
+
+        const timeSpan = rowElement.querySelector('.time-ago');
+        if (timeSpan) timeSpan.textContent = lastUpdate;
+    }
+
+    // ==========================================
+    // 3. CẬP NHẬT DỮ LIỆU ĐỊNH KỲ (UPDATE DASHBOARD)
+    // ==========================================
     function updateDashboard(page = null) {
         if (page !== null) currentPage = page;
         
@@ -236,9 +356,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // CẬP NHẬT DỮ LIỆU CHO STATS-GRID MỚI
                 const stats = data.stats;
-                const thresholds = data.thresholds; // Lấy giá trị ngưỡng từ API
+                const thresholds = data.thresholds;
 
-                // Hàm tiện ích để tính toán và giới hạn %
                 const calculatePercent = (current, max) => {
                     if (max <= 0) return 0;
                     return Math.min((current / max) * 100, 100);
@@ -268,7 +387,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 statElements.dbsize.progress.style.width = `${dbPercent}%`;
                 statElements.dbsize.subtext.textContent = `Limit: ${thresholds.db_size} MB`;
 
-                // --- CẬP NHẬT PHÂN TRANG ---
+                // CẬP NHẬT PHÂN TRANG
                 const pagin = data.pagination;
                 currentPage = pagin.current_page;
                 totalPages = pagin.total_pages;
@@ -279,7 +398,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         paginationContainer.style.display = 'none';
                     } else {
                         paginationContainer.style.display = 'flex';
-                        // ÉP BUỘC ĐỊNH DẠNG ◀ 1/10 ▶ QUA JS ĐỂ TRÁNH TEMPLATE CŨ
                         paginationContainer.innerHTML = `
                             <button id="btn-prev-page" class="btn-minimal" ${currentPage <= 1 ? 'disabled' : ''}>&#9664;</button>
                             <span class="page-info">
@@ -288,7 +406,6 @@ document.addEventListener('DOMContentLoaded', () => {
                             <button id="btn-next-page" class="btn-minimal" ${currentPage >= totalPages ? 'disabled' : ''}>&#9654;</button>
                         `;
                         
-                        // Gán lại sự kiện vì innerHTML đã làm mất listener cũ
                         const newBtnPrev = paginationContainer.querySelector('#btn-prev-page');
                         const newBtnNext = paginationContainer.querySelector('#btn-next-page');
                         newBtnPrev.onclick = () => { if (currentPage > 1) updateDashboard(currentPage - 1); };
@@ -298,30 +415,59 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const receivedGuids = new Set(data.clients.map(c => c.guid));
                 
-                data.clients.forEach(client => {
-                    let card = clientsGrid.querySelector(`.client-card[data-guid="${client.guid}"]`);
-                    if (card) {
-                        updateClientCardContent(card, client);
-                    } else {
-                        card = createClientCard(client);
-                        clientsGrid.appendChild(card);
+                // Cập nhật Grid view
+                if (clientsGrid) {
+                    data.clients.forEach(client => {
+                        let card = clientsGrid.querySelector(`.client-card[data-guid="${client.guid}"]`);
+                        if (card) {
+                            updateClientCardContent(card, client);
+                        } else {
+                            card = createClientCard(client);
+                            clientsGrid.appendChild(card);
+                        }
+                    });
+                    
+                    const existingCards = clientsGrid.querySelectorAll('.client-card');
+                    existingCards.forEach(card => {
+                        if (!receivedGuids.has(card.dataset.guid)) {
+                            card.remove();
+                        }
+                    });
+                    
+                    if (clientsGrid.children.length === 0 && !clientsGrid.querySelector('.no-clients-message')) {
+                         clientsGrid.innerHTML = '<p class="no-clients-message">No clients found.</p>';
+                    } else if (clientsGrid.children.length > 0) {
+                        const noClientsMessage = clientsGrid.querySelector('.no-clients-message');
+                        if (noClientsMessage) noClientsMessage.remove();
                     }
-                });
-                
-                const existingCards = clientsGrid.querySelectorAll('.client-card');
-                existingCards.forEach(card => {
-                    if (!receivedGuids.has(card.dataset.guid)) {
-                        card.remove();
-                    }
-                });
-                
-                if (clientsGrid.children.length === 0 && !clientsGrid.querySelector('.no-clients-message')) {
-                     clientsGrid.innerHTML = '<p class="no-clients-message">No clients found.</p>';
-                } else if (clientsGrid.children.length > 0) {
-                    const noClientsMessage = clientsGrid.querySelector('.no-clients-message');
-                    if (noClientsMessage) noClientsMessage.remove();
                 }
 
+                // Cập nhật Table view
+                if (clientsTableBody) {
+                    data.clients.forEach(client => {
+                        let row = clientsTableBody.querySelector(`.client-row[data-guid="${client.guid}"]`);
+                        if (row) {
+                            updateClientRowContent(row, client);
+                        } else {
+                            row = createClientRow(client);
+                            clientsTableBody.appendChild(row);
+                        }
+                    });
+
+                    const existingRows = clientsTableBody.querySelectorAll('.client-row');
+                    existingRows.forEach(row => {
+                        if (!receivedGuids.has(row.dataset.guid)) {
+                            row.remove();
+                        }
+                    });
+
+                    if (clientsTableBody.children.length === 0 && !clientsTableBody.querySelector('.no-clients-row')) {
+                        clientsTableBody.innerHTML = '<tr class="no-clients-row"><td colspan="10" style="text-align:center; padding: 2rem; color: var(--color-text-muted);">No clients found.</td></tr>';
+                    } else if (clientsTableBody.children.length > 0) {
+                        const emptyRow = clientsTableBody.querySelector('.no-clients-row');
+                        if (emptyRow) emptyRow.remove();
+                    }
+                }
             })
             .catch(error => {
                 console.error('Error updating dashboard:', error);
@@ -382,6 +528,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 inputElement.value = newUsername;
                 inputElement.defaultValue = newUsername;
                 disableEditing(inputElement, buttonElement);
+                // Đồng bộ giá trị vào tất cả các input có cùng guid (cả trong card và trong row)
+                document.querySelectorAll(`.username-input[data-guid="${guid}"]`).forEach(inp => {
+                    inp.value = newUsername;
+                    inp.defaultValue = newUsername;
+                    const btn = inp.closest('.username-wrapper')?.querySelector('.edit-username-btn');
+                    if (btn) disableEditing(inp, btn);
+                });
             } else {
                 buttonElement.innerHTML = '<i class="fa-solid fa-check"></i>';
                 alert('Lỗi cập nhật tên người dùng: ' + data.message);
@@ -396,7 +549,12 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    clientsGrid.addEventListener('click', function(e) {
+    // ==========================================
+    // 4. LẮNG NGHE SỰ KIỆN CHỈNH SỬA & THAO TÁC TRÊN CONTAINER CHUNG
+    // ==========================================
+    const containerToListen = clientsViewContainer || document.body;
+
+    containerToListen.addEventListener('click', function(e) {
         const editBtn = e.target.closest('.edit-username-btn');
         const deleteBtn = e.target.closest('.btn-delete');
         const refreshBtn = e.target.closest('.btn-refresh');
@@ -430,10 +588,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    clientsGrid.addEventListener('keydown', function(e) {
+    containerToListen.addEventListener('keydown', function(e) {
         if (e.target.classList.contains('username-input') && !e.target.hasAttribute('readonly')) {
-             const input = e.target;
-             const editBtn = input.closest('.username-wrapper').querySelector('.edit-username-btn');
+            const input = e.target;
+            const editBtn = input.closest('.username-wrapper').querySelector('.edit-username-btn');
             if (e.key === 'Enter') {
                 e.preventDefault();
                 saveUsername(input, editBtn);
@@ -443,6 +601,51 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     });
+
+    // ==========================================
+    // 5. LOGIC CHUYỂN ĐỔI CHẾ ĐỘ HIỂN THỊ (LƯỚI / DANH SÁCH BẢNG)
+    // ==========================================
+    const viewModeSwitcher = document.getElementById('view-mode-switcher');
+    const viewModeIcon = document.getElementById('view-mode-icon');
+    const viewModeContainer = document.getElementById('view-mode-container');
+
+    function applyViewMode(mode) {
+        const isList = (mode === 'list');
+        
+        // Điều khiển trực tiếp hiển thị phần tử DOM
+        if (clientsTableWrapper) {
+            clientsTableWrapper.style.display = isList ? 'block' : 'none';
+        }
+        if (clientsGrid) {
+            clientsGrid.style.display = isList ? 'none' : 'grid';
+        }
+
+        // Cập nhật class body và các điều khiển trên header
+        if (isList) {
+            document.body.classList.add('view-list');
+            document.body.classList.remove('view-grid');
+            if (viewModeSwitcher) viewModeSwitcher.value = 'list';
+            if (viewModeIcon) viewModeIcon.className = 'fa-solid fa-table-list';
+        } else {
+            document.body.classList.remove('view-list');
+            document.body.classList.add('view-grid');
+            if (viewModeSwitcher) viewModeSwitcher.value = 'grid';
+            if (viewModeIcon) viewModeIcon.className = 'fa-solid fa-table-cells-large';
+        }
+        localStorage.setItem('dashboard_view_mode', mode);
+    }
+
+    if (viewModeContainer) viewModeContainer.style.display = 'inline-flex';
+    if (viewModeSwitcher) {
+        let savedViewMode = localStorage.getItem('dashboard_view_mode') || 'grid';
+        if (savedViewMode === 'detailed') savedViewMode = 'grid';
+        if (savedViewMode === 'simple') savedViewMode = 'list';
+        applyViewMode(savedViewMode);
+
+        viewModeSwitcher.addEventListener('change', (e) => {
+            applyViewMode(e.target.value);
+        });
+    }
 
     updateDashboard();
     setInterval(updateDashboard, DASHBOARD_INTERVAL);

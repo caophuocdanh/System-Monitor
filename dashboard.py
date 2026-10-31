@@ -10,6 +10,7 @@ import time
 import webbrowser
 import platform
 import psutil
+import subprocess
 import ctypes
 from flask import Flask, render_template, jsonify, abort, request, session, redirect, url_for, flash
 import functools
@@ -36,6 +37,57 @@ def hide_console():
         whnd = ctypes.windll.kernel32.GetConsoleWindow()
         if whnd != 0:
             ctypes.windll.user32.ShowWindow(whnd, 0)
+
+def is_admin():
+    """Kiểm tra xem tiến trình hiện tại có quyền Administrator hay không."""
+    if not IS_WINDOWS:
+        return False
+    try:
+        return ctypes.windll.shell32.IsUserAnAdmin() != 0
+    except Exception:
+        return False
+
+def ensure_firewall_rule(rule_name, port, protocol="TCP"):
+    """
+    Tự động kiểm tra và mở cổng trên Windows Firewall nếu chưa mở.
+    Hỗ trợ tự động nâng quyền qua UAC (runas) nếu chưa chạy với quyền Admin.
+    """
+    if not IS_WINDOWS or not port:
+        return
+
+    port_str = str(port)
+    try:
+        check_cmd = f'netsh advfirewall firewall show rule name="{rule_name}"'
+        res = subprocess.run(check_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        if res.returncode == 0 and port_str in res.stdout:
+            print(f"[FIREWALL] Rule '{rule_name}' for port {port_str}/{protocol} is already OPEN and ACTIVE.")
+            return
+    except Exception as e:
+        print(f"[FIREWALL] Error checking rule '{rule_name}': {e}")
+
+    print(f"[FIREWALL] Port {port_str}/{protocol} is not open. Adding firewall rule '{rule_name}'...")
+    add_args = f'advfirewall firewall add rule name="{rule_name}" dir=in action=allow protocol={protocol} localport={port_str} profile=any description="Allow Inbound {protocol} Port {port_str} for System Monitor"'
+    
+    if is_admin():
+        try:
+            subprocess.run(f'netsh advfirewall firewall delete rule name="{rule_name}"', shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            add_res = subprocess.run(f'netsh {add_args}', shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            if add_res.returncode == 0:
+                print(f"[FIREWALL] Successfully created firewall rule '{rule_name}' on port {port_str}.")
+            else:
+                print(f"[FIREWALL] Failed to add rule: {add_res.stderr.strip()}")
+        except Exception as e:
+            print(f"[FIREWALL] Error executing netsh: {e}")
+    else:
+        try:
+            print(f"[FIREWALL] Requesting Administrator permission via UAC to open port {port_str}...")
+            ret = ctypes.windll.shell32.ShellExecuteW(None, "runas", "netsh.exe", add_args, None, 0)
+            if ret > 32:
+                print(f"[FIREWALL] UAC prompt accepted. Firewall rule '{rule_name}' for port {port_str} requested.")
+            else:
+                print(f"[FIREWALL] UAC request denied or cancelled (Code: {ret}).")
+        except Exception as e:
+            print(f"[FIREWALL] Error requesting UAC elevation: {e}")
 
 def manage_autostart():
     """Thiết lập Windows Registry để dashboard tự động chạy cùng hệ thống (luôn force Enabled nếu là Admin)."""
@@ -221,11 +273,15 @@ def client_detail(guid):
     if client is None:
         abort(404, description="Client not found")
 
-    # Lấy URL WebSocket từ config
+    # Lấy URL WebSocket từ config (tự động điều chỉnh host theo request từ mạng LAN)
     config = load_config('config.ini')
     ws_host = config['server'].get('host', '127.0.0.1')
-    if ws_host == '0.0.0.0': ws_host = '127.0.0.1'
     ws_port = config['server'].get('port', '9630')
+    if ws_host in ('0.0.0.0', '127.0.0.1', 'localhost'):
+        if request and request.host:
+            ws_host = request.host.split(':')[0]
+        elif ws_host == '0.0.0.0':
+            ws_host = '127.0.0.1'
     ws_url = f"ws://{ws_host}:{ws_port}"
     access_token = config['server'].get('access_token', '')
 
@@ -639,8 +695,12 @@ def inject_global_vars():
     """Tự động truyền ws_url và access_token của server WebSocket vào tất cả các template."""
     config = load_config('config.ini')
     ws_host = config['server'].get('host', '127.0.0.1')
-    if ws_host == '0.0.0.0': ws_host = '127.0.0.1'
     ws_port = config['server'].get('port', '9630')
+    if ws_host in ('0.0.0.0', '127.0.0.1', 'localhost'):
+        if request and request.host:
+            ws_host = request.host.split(':')[0]
+        elif ws_host == '0.0.0.0':
+            ws_host = '127.0.0.1'
     ws_url = f"ws://{ws_host}:{ws_port}"
     access_token = config['server'].get('access_token', '')
     return dict(global_ws_url=ws_url, global_access_token=access_token)
@@ -728,6 +788,9 @@ if __name__ == '__main__':
     config = load_config('config.ini')
     webserver_host = config['webserver']['server']
     webserver_port = int(config['webserver']['port'])
+
+    # Tự động kiểm tra và mở cổng Windows Firewall cho Web Dashboard
+    ensure_firewall_rule('SM Web Dashboard', webserver_port, 'TCP')
 
     # 3. Tự động mở trình duyệt sau 5 giây (chỉ khi không chạy minimized)
     if not is_minimized:

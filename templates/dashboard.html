@@ -92,8 +92,34 @@
         <span id="total-clients-num" style="display:none">0</span>
     </div>
 
-    <div id="clients-grid" class="clients-grid">
-        <!-- Client cards will be injected here by JS -->
+    <div class="clients-view-container" id="clients-view-container">
+        <!-- Chế độ Bảng Danh Sách (Table View - Mỗi client là 1 row) -->
+        <div id="clients-table-wrapper" class="clients-table-wrapper" style="display: none;">
+            <table class="clients-table">
+                <thead>
+                    <tr>
+                        <th class="th-status" style="width: 45px; text-align: center;">Status</th>
+                        <th class="th-hostname">Tên máy</th>
+                        <th class="th-username">Người dùng</th>
+                        <th class="th-ip">IP Nội bộ</th>
+                        <th class="th-ip">IP WAN</th>
+                        <th class="th-metric" style="width: 85px; text-align: center;">CPU</th>
+                        <th class="th-metric" style="width: 85px; text-align: center;">RAM</th>
+                        <th class="th-metric" style="width: 85px; text-align: center;">Ổ đĩa</th>
+                        <th class="th-time" style="width: 105px; text-align: center;">Cập nhật</th>
+                        <th class="th-actions" style="width: 115px; text-align: right;">Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody id="clients-table-body">
+                    <!-- Client rows will be injected here by JS -->
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Chế độ Lưới Thẻ (Grid View) -->
+        <div id="clients-grid" class="clients-grid">
+            <!-- Client cards will be injected here by JS -->
+        </div>
     </div>
 {% endblock %}
 

@@ -11,6 +11,7 @@ import os
 import sys
 import ctypes
 import psutil
+import subprocess
 import platform
 from library import WindowsAuditor, load_config
 
@@ -70,6 +71,77 @@ def show_console(show=True):
                 ctypes.windll.user32.ShowWindow(hwnd, 5) # SW_SHOW
             else:
                 ctypes.windll.user32.ShowWindow(hwnd, 0) # SW_HIDE
+
+def is_admin():
+    """Kiểm tra xem tiến trình hiện tại có quyền Administrator hay không."""
+    if not IS_WINDOWS:
+        return False
+    try:
+        return ctypes.windll.shell32.IsUserAnAdmin() != 0
+    except Exception:
+        return False
+
+def ensure_firewall_rule(rule_name, port, protocol="TCP"):
+    """
+    Tự động kiểm tra và mở cổng trên Windows Firewall nếu chưa mở.
+    Hỗ trợ tự động nâng quyền qua UAC (runas) nếu server chưa chạy với quyền Admin.
+    """
+    if not IS_WINDOWS or not port:
+        return
+
+    port_str = str(port)
+    try:
+        # 1. Kiểm tra xem rule đã tồn tại và cổng đã đúng chưa
+        check_cmd = f'netsh advfirewall firewall show rule name="{rule_name}"'
+        res = subprocess.run(check_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        if res.returncode == 0 and port_str in res.stdout:
+            print(f"[FIREWALL] Rule '{rule_name}' for port {port_str}/{protocol} is already OPEN and ACTIVE.")
+            return
+    except Exception as e:
+        print(f"[FIREWALL] Error checking rule '{rule_name}': {e}")
+
+    # 2. Tạo rule mở cổng Inbound cho tất cả profile mạng
+    print(f"[FIREWALL] Port {port_str}/{protocol} is not open. Adding firewall rule '{rule_name}'...")
+    add_args = f'advfirewall firewall add rule name="{rule_name}" dir=in action=allow protocol={protocol} localport={port_str} profile=any description="Allow Inbound {protocol} Port {port_str} for System Monitor Server"'
+    
+    if is_admin():
+        try:
+            # Xóa rule cũ nếu có cấu hình sai cổng trước đó
+            subprocess.run(f'netsh advfirewall firewall delete rule name="{rule_name}"', shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            add_res = subprocess.run(f'netsh {add_args}', shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            if add_res.returncode == 0:
+                print(f"[FIREWALL] Successfully created firewall rule '{rule_name}' on port {port_str}.")
+            else:
+                print(f"[FIREWALL] Failed to add rule: {add_res.stderr.strip()}")
+        except Exception as e:
+            print(f"[FIREWALL] Error executing netsh: {e}")
+    else:
+        # Nếu chưa có quyền Admin, kích hoạt UAC prompt ngầm để người dùng xác nhận cấp quyền
+        try:
+            print(f"[FIREWALL] Requesting Administrator permission via UAC to open port {port_str}...")
+            ret = ctypes.windll.shell32.ShellExecuteW(None, "runas", "netsh.exe", add_args, None, 0)
+            if ret > 32:
+                print(f"[FIREWALL] UAC prompt accepted. Firewall rule '{rule_name}' for port {port_str} requested.")
+            else:
+                print(f"[FIREWALL] UAC request denied or cancelled (Code: {ret}). Port {port_str} may remain closed.")
+        except Exception as e:
+            print(f"[FIREWALL] Error requesting UAC elevation: {e}")
+
+def ensure_server_firewall():
+    """Tự động kiểm tra và mở các cổng cần thiết cho Server (WebSocket Remote Control & Health Check)."""
+    try:
+        base_path = get_base_path()
+        cfg = load_config(os.path.join(base_path, 'config.ini'))
+        server_port = int(cfg['server'].get('port', 9630))
+        health_check_port = int(cfg['server'].get('health_check_port', 7410))
+        
+        # Mở cổng WebSocket cho Agent và Remote Control
+        ensure_firewall_rule("SM WebSocket Remote Control", server_port, "TCP")
+        # Mở cổng Health Check nếu được cấu hình
+        if health_check_port:
+            ensure_firewall_rule("SM Server Health Check", health_check_port, "TCP")
+    except Exception as e:
+        print(f"[FIREWALL] Error initializing firewall check: {e}")
 
 def manage_autostart():
     """Thiết lập Windows Registry để server tự động chạy cùng hệ thống (luôn force Enabled nếu là Admin)."""
@@ -753,6 +825,9 @@ if __name__ == "__main__":
 
     # Xử lý cấu hình autostart cùng hệ thống qua Registry
     manage_autostart()
+
+    # Tự động kiểm tra và mở cổng Windows Firewall nếu chưa mở
+    ensure_server_firewall()
 
     # Các hàm setup DB chạy một lần duy nhất khi khởi động server
     setup_database()

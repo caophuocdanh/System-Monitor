@@ -206,6 +206,36 @@ function viewLargeImage(src) {
     document.body.appendChild(overlay);
 }
 
+function getResolvedWsUrl() {
+    let rawUrl = (typeof WS_URL !== 'undefined' && WS_URL) ? WS_URL : '';
+    const currentHost = window.location.hostname;
+    const isCurrentHostLocal = (currentHost === 'localhost' || currentHost === '127.0.0.1');
+
+    try {
+        if (!rawUrl) {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            return `${protocol}//${currentHost}:9630`;
+        }
+        
+        const url = new URL(rawUrl);
+        // Tự động thay thế localhost/127.0.0.1/0.0.0.0 bằng hostname/IP hiện tại nếu truy cập từ xa qua mạng LAN
+        if ((url.hostname === '127.0.0.1' || url.hostname === 'localhost' || url.hostname === '0.0.0.0') && !isCurrentHostLocal) {
+            url.hostname = currentHost;
+        }
+        
+        // Hỗ trợ giao thức an toàn wss: nếu trang web tải qua https:
+        if (window.location.protocol === 'https:' && url.protocol === 'ws:') {
+            url.protocol = 'wss:';
+        }
+
+        return url.href;
+    } catch (e) {
+        console.warn("[Remote Control] Error resolving WS URL, fallback to current hostname:", e);
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        return `${protocol}//${currentHost}:9630`;
+    }
+}
+
 function connectWS() {
     if (ws) ws.close();
 
@@ -216,10 +246,21 @@ function connectWS() {
     statusBadge.style.backgroundColor = "#6c757d";
     reconnectBtn.style.display = "none";
 
-    ws = new WebSocket(WS_URL);
+    const targetUrl = getResolvedWsUrl();
+    console.log("[Remote Control] Connecting to WebSocket:", targetUrl);
+
+    try {
+        ws = new WebSocket(targetUrl);
+    } catch (err) {
+        console.error("[Remote Control] WebSocket creation failed:", err);
+        statusBadge.innerText = "Error";
+        statusBadge.style.backgroundColor = "#dc3545";
+        reconnectBtn.style.display = "inline-block";
+        return;
+    }
 
     ws.onopen = () => {
-        console.log("WS Connected");
+        console.log("WS Connected to", targetUrl);
         statusBadge.innerText = "Authenticating...";
         // Gửi tin nhắn login đầu tiên
         ws.send(jsonStr({

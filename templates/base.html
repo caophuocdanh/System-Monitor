@@ -42,6 +42,15 @@
                     </select>
                 </div>
 
+                <!-- Tùy chọn chế độ hiển thị Client (Lưới / Danh sách) -->
+                <div class="header-control-item view-mode-selector" id="view-mode-container" title="Chế độ hiển thị danh sách máy trạm">
+                    <i class="fa-solid fa-table-cells-large" id="view-mode-icon"></i>
+                    <select id="view-mode-switcher" aria-label="Chế độ hiển thị">
+                        <option value="grid">Lưới</option>
+                        <option value="list">Danh sách</option>
+                    </select>
+                </div>
+
                  <!-- Nút hành động -->
                 <button id="btn-prune-offline" class="header-control-item btn-action btn-header-action" title="Xóa tất cả client offline và dữ liệu của họ">
                     <i class="fa-solid fa-user-slash"></i>
@@ -87,11 +96,42 @@
         const GLOBAL_WS_URL = "{{ global_ws_url }}";
         const GLOBAL_ACCESS_TOKEN = "{{ global_access_token }}";
 
+        function getResolvedGlobalWsUrl() {
+            let rawUrl = (typeof GLOBAL_WS_URL !== 'undefined' && GLOBAL_WS_URL) ? GLOBAL_WS_URL : '';
+            const currentHost = window.location.hostname;
+            const isCurrentHostLocal = (currentHost === 'localhost' || currentHost === '127.0.0.1');
+
+            try {
+                if (!rawUrl) {
+                    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                    return `${protocol}//${currentHost}:9630`;
+                }
+                const url = new URL(rawUrl);
+                if ((url.hostname === '127.0.0.1' || url.hostname === 'localhost' || url.hostname === '0.0.0.0') && !isCurrentHostLocal) {
+                    url.hostname = currentHost;
+                }
+                if (window.location.protocol === 'https:' && url.protocol === 'ws:') {
+                    url.protocol = 'wss:';
+                }
+                return url.href;
+            } catch (e) {
+                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                return `${protocol}//${currentHost}:9630`;
+            }
+        }
+
         if (GLOBAL_WS_URL) {
             let globalWs = null;
             function connectGlobalWS() {
                 if (globalWs) globalWs.close();
-                globalWs = new WebSocket(GLOBAL_WS_URL);
+                const resolvedUrl = getResolvedGlobalWsUrl();
+                try {
+                    globalWs = new WebSocket(resolvedUrl);
+                } catch(e) {
+                    console.error("[Global WS] Init error:", e);
+                    setTimeout(connectGlobalWS, 10000);
+                    return;
+                }
 
                 globalWs.onopen = () => {
                     console.log("[Global WS] Connected");
