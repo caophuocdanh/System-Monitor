@@ -23,19 +23,19 @@
             </div>
 
             <div class="header-controls">
-                <!-- Contact -->
-                <div class="header-control-item social"><a href="http://danhcp.dssddns.net/" target="_blank" rel="noopener noreferrer"><i class="fa fa-globe"></i></a></div>
-                <div class="header-control-item social"><a href="https://github.com/caophuocdanh/System-Monitor" target="_blank" rel="noopener noreferrer"><i class="fa-brands fa-github"></i></a></div>
-                <div class="header-control-item social" title="Xem lịch sử cảnh báo hệ thống (System Logs)"><a href="/logs"><i class="fa-solid fa-clipboard-list"></i></a></div>
+                <!-- Contact & System Logs -->
+                <div class="header-control-item social" title="Website cá nhân"><a href="http://danhcp.dssddns.net/" target="_blank" rel="noopener noreferrer" title="Website"><i class="fa fa-globe"></i></a></div>
+                <div class="header-control-item social" title="GitHub Repository"><a href="https://github.com/caophuocdanh/System-Monitor" target="_blank" rel="noopener noreferrer" title="GitHub"><i class="fa-brands fa-github"></i></a></div>
+                <div class="header-control-item social" title="Xem lịch sử cảnh báo hệ thống (System Logs)"><a href="/logs" title="System Logs"><i class="fa-solid fa-clipboard-list"></i></a></div>
                 
                 <!-- Trạng thái Server -->
-                <div id="server-status-bar" class="header-control-item server-status-bar">
+                <div id="server-status-bar" class="header-control-item server-status-bar" title="Trạng thái kết nối Server">
                     <span class="status-indicator"></span>
                     <span id="server-status-text">Checking...</span>
                 </div>
                 
                 <!-- Bộ chọn Theme -->
-                <div class="header-control-item theme-selector">
+                <div class="header-control-item theme-selector" title="Chọn giao diện">
                     <i class="fa-solid fa-palette"></i>
                     <select id="theme-switcher">
                         <!-- JS sẽ tự động điền các lựa chọn vào đây -->
@@ -43,16 +43,16 @@
                 </div>
 
                  <!-- Nút hành động -->
-                  <button id="btn-prune-offline" class="header-control-item btn-action btn-header-action" title="Xóa tất cả client offline và dữ liệu của họ">
-                     <i class="fa-solid fa-user-slash"></i>
-                     <span>Prune Offline</span>
-                 </button>
-                <button id="btn-clear-records" class="header-control-item btn-action btn-header-action">
+                <button id="btn-prune-offline" class="header-control-item btn-action btn-header-action" title="Xóa tất cả client offline và dữ liệu của họ">
+                    <i class="fa-solid fa-user-slash"></i>
+                    <span>Prune Offline</span>
+                </button>
+                <button id="btn-clear-records" class="header-control-item btn-action btn-header-action" title="Xóa tất cả các bản ghi metrics trong database">
                     <i class="fa-solid fa-eraser"></i>
                     <span>Clear Records</span>
                 </button>
                 {% if session.get('logged_in') %}
-                <a href="{{ url_for('logout') }}" id="btn-logout" class="header-control-item btn-action btn-header-action">
+                <a href="{{ url_for('logout') }}" id="btn-logout" class="header-control-item btn-action btn-header-action" title="Đăng xuất khỏi Dashboard">
                     <i class="fa-solid fa-right-from-bracket"></i>
                     <span>Logout</span>
                 </a>
@@ -65,11 +65,11 @@
         {% block content %}{% endblock %}
     </main>
 
-    <!-- ======================= FOOTER MỚI (Giữ nguyên) ======================= -->
+    <!-- ======================= SITE FOOTER ======================= -->
     <footer class="site-footer">
         <div class="footer-credit">
-                <div><i class="fa-solid fa-heart"></i> System Monitor Dashboard © 2026</div>
-                <div><i class="fa-solid fa-code-branch"></i> v2.26 build 6.3.16 by danhcp</div>
+            <div class="footer-row"><i class="fa-solid fa-heart"></i> System Monitor Dashboard © 2026</div>
+            <div class="footer-row"><i class="fa-solid fa-code-branch"></i> v2.26 build 6.3.16 by danhcp</div>
         </div>
     </footer>
 

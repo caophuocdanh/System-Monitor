@@ -18,19 +18,19 @@ echo Installing dependencies from requirements.txt...
 pip install -r requirements/requirements.txt
 
 echo Building SM Server executable...
-pyinstaller --console --onefile --name="SM Server" --icon="requirements\server.ico" server.py
+python -m PyInstaller --console --onefile --name="SM Server" --icon="requirements\server.ico" server.py
 
 echo Building System Monitor Client executable (smchost)...
-pyinstaller --noconsole --onefile --hidden-import=win32timezone --name="smchost" --icon="requirements\client.ico" client.py
+python -m PyInstaller --noconsole --onefile --hidden-import=win32timezone --name="smchost" --icon="requirements\client.ico" client.py
 
 echo Building SM Dashboard executable...
-pyinstaller --noconsole --onefile --name="SM Dashboard" --icon="requirements\dashboard.ico" dashboard.py
+python -m PyInstaller --noconsole --onefile --name="SM Dashboard" --icon="requirements\dashboard.ico" dashboard.py
 
 echo Building Audit Data executable...
-pyinstaller --noconsole --onefile --icon="requirements\sample.ico" --name="Audit Data Sample" "Audit Data.py"
+python -m PyInstaller --noconsole --onefile --icon="requirements\sample.ico" --name="Audit Data Sample" "Audit Data.py"
 
 echo Building Config Editor executable...
-pyinstaller --noconsole --onefile --icon="requirements\config.ico" --name="Config Editor" "config_editor.py"
+python -m PyInstaller --noconsole --onefile --icon="requirements\config.ico" --name="Config Editor" "config_editor.py"
 
 mkdir "source"
 mkdir "source\server"
@@ -58,7 +58,7 @@ echo.
 echo ==========================================================
 echo Packaging Client and Config into a single silent installer (client.exe)...
 echo ==========================================================
-pyinstaller --noconsole --onefile --name="client" --icon="requirements\client.ico" --add-data "source\client\smchost.exe;." --add-data "config.ini;." requirements\installer.py
+python -m PyInstaller --noconsole --onefile --name="client" --icon="requirements\client.ico" --add-data "source\client\smchost.exe;." --add-data "config.ini;." requirements\installer.py
 
 move /Y "dist\client.exe" "source\client\client_setup.exe"
 

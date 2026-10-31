@@ -95,61 +95,123 @@ document.addEventListener('DOMContentLoaded', () => {
         const ramLevelClass = getUsageLevelClass(ram);
         const diskLevelClass = getUsageLevelClass(disk);
 
-        cardElement.innerHTML = `
-            <div class="client-card-header">
-                <div class="client-card-identity">
-                    <div class="hostname-wrapper">
-                        <i class="icon fa-solid fa-server"></i>
-                        <p class="hostname">${client.hostname}</p>
+        const currentInput = cardElement.querySelector('.username-input');
+        const isEditing = currentInput && !currentInput.hasAttribute('readonly');
+
+        if (!cardElement.querySelector('.client-card-header')) {
+            // Lần đầu render card
+            cardElement.innerHTML = `
+                <div class="client-card-header">
+                    <div class="client-card-identity">
+                        <div class="hostname-wrapper">
+                            <i class="icon fa-solid fa-server"></i>
+                            <p class="hostname">${client.hostname}</p>
+                        </div>
+                        <div class="username-wrapper">
+                            <i class="icon fa-solid fa-user"></i>
+                            <input type="text" class="username-input ip-font" value="${client.username}" readonly data-guid="${client.guid}">
+                            <button class="edit-username-btn" title="Edit Username">
+                                <i class="fa-solid fa-pencil"></i>
+                            </button>
+                        </div>
                     </div>
-                    <div class="username-wrapper">
-                        <i class="icon fa-solid fa-user"></i>
-                        <input type="text" class="username-input ip-font" value="${client.username}" readonly data-guid="${client.guid}">
-                        <button class="edit-username-btn" title="Edit Username">
-                            <i class="fa-solid fa-pencil"></i>
+                    <div class="status-dot ${statusClass}"></div>
+                </div>
+                <div class="client-card-body">
+                    <p><i class="icon fa-solid fa-desktop"></i> <span class="ip-font ip-local">${client.local_ip || 'N/A'}</span></p>
+                    <p><i class="icon fa-solid fa-globe"></i> <span class="ip-font ip-wan">${client.wan_ip || 'N/A'}</span></p>
+                </div>
+                <div class="client-card-metrics">
+                    <div class="metric-item metric-cpu ${cpuLevelClass}">
+                        <div class="metric-icon"><i class="fa-solid fa-microchip"></i></div>
+                        <div class="metric-value">${cpu.toFixed(1)}%</div>
+                        <div class="metric-label">CPU</div>
+                    </div>
+                    <div class="metric-item metric-ram ${ramLevelClass}">
+                        <div class="metric-icon"><i class="fa-solid fa-memory"></i></div>
+                        <div class="metric-value">${ram.toFixed(1)}%</div>
+                        <div class="metric-label">RAM</div>
+                    </div>
+                    <div class="metric-item metric-disk ${diskLevelClass}">
+                        <div class="metric-icon"><i class="fa-solid fa-hard-drive"></i></div>
+                        <div class="metric-value">${disk.toFixed(1)}%</div>
+                        <div class="metric-label">Disk</div>
+                    </div>
+                </div>
+                <div class="client-card-footer-wrapper">
+                    <div class="client-card-status">
+                        <span>Last update: ${lastUpdate}</span>
+                    </div>
+                    <div class="client-card-actions">
+                        <a href="/client/${client.guid}" class="btn-icon btn-detail" title="View Details">
+                            <i class="fa-solid fa-info"></i>
+                        </a>
+                        <button class="btn-icon btn-refresh" data-guid="${client.guid}" title="Refresh Data">
+                            <i class="fa-solid fa-sync-alt"></i>
+                        </button>
+                        <button class="btn-icon btn-delete" data-guid="${client.guid}" title="Delete Client">
+                            <i class="fa-solid fa-trash-alt"></i>
                         </button>
                     </div>
                 </div>
-                <div class="status-dot ${statusClass}"></div>
-            </div>
-            <div class="client-card-body">
-                <p><i class="icon fa-solid fa-desktop"></i> <span class="ip-font">${client.local_ip || 'N/A'}</span></p>
-                <p><i class="icon fa-solid fa-globe"></i> <span class="ip-font">${client.wan_ip || 'N/A'}</span></p>
-            </div>
-            <div class="client-card-metrics">
-                <div class="metric-item ${cpuLevelClass}">
-                    <div class="metric-icon"><i class="fa-solid fa-microchip"></i></div>
-                    <div class="metric-value">${cpu.toFixed(1)}%</div>
-                    <div class="metric-label">CPU</div>
-                </div>
-                <div class="metric-item ${ramLevelClass}">
-                    <div class="metric-icon"><i class="fa-solid fa-memory"></i></div>
-                    <div class="metric-value">${ram.toFixed(1)}%</div>
-                    <div class="metric-label">RAM</div>
-                </div>
-                <div class="metric-item ${diskLevelClass}">
-                    <div class="metric-icon"><i class="fa-solid fa-hard-drive"></i></div>
-                    <div class="metric-value">${disk.toFixed(1)}%</div>
-                    <div class="metric-label">Disk</div>
-                </div>
-            </div>
-            <div class="client-card-footer-wrapper">
-                <div class="client-card-status">
-                    <span>Last update: ${lastUpdate}</span>
-                </div>
-                <div class="client-card-actions">
-                    <a href="/client/${client.guid}" class="btn-icon btn-detail" title="View Details">
-                        <i class="fa-solid fa-info"></i>
-                    </a>
-                    <button class="btn-icon btn-refresh" data-guid="${client.guid}" title="Refresh Data">
-                        <i class="fa-solid fa-sync-alt"></i>
-                    </button>
-                    <button class="btn-icon btn-delete" data-guid="${client.guid}" title="Delete Client">
-                        <i class="fa-solid fa-trash-alt"></i>
-                    </button>
-                </div>
-            </div>
-        `;
+            `;
+            return;
+        }
+
+        // Cập nhật DOM cụ thể (Targeted Update) - Tuyệt đối không ghi đè input khi đang gõ
+        const hostEl = cardElement.querySelector('.hostname');
+        if (hostEl && hostEl.textContent !== client.hostname) {
+            hostEl.textContent = client.hostname;
+        }
+
+        // Chỉ cập nhật username khi người dùng KHÔNG đang trong chế độ chỉnh sửa
+        if (!isEditing && currentInput) {
+            if (currentInput.value !== client.username) {
+                currentInput.value = client.username;
+            }
+            currentInput.defaultValue = client.username;
+        }
+
+        const statusDot = cardElement.querySelector('.status-dot');
+        if (statusDot) {
+            statusDot.className = `status-dot ${statusClass}`;
+        }
+
+        const localIp = cardElement.querySelector('.ip-local');
+        if (localIp) {
+            localIp.textContent = client.local_ip || 'N/A';
+        }
+
+        const wanIp = cardElement.querySelector('.ip-wan');
+        if (wanIp) {
+            wanIp.textContent = client.wan_ip || 'N/A';
+        }
+
+        const cpuItem = cardElement.querySelector('.metric-cpu');
+        if (cpuItem) {
+            cpuItem.className = `metric-item metric-cpu ${cpuLevelClass}`;
+            const val = cpuItem.querySelector('.metric-value');
+            if (val) val.textContent = `${cpu.toFixed(1)}%`;
+        }
+
+        const ramItem = cardElement.querySelector('.metric-ram');
+        if (ramItem) {
+            ramItem.className = `metric-item metric-ram ${ramLevelClass}`;
+            const val = ramItem.querySelector('.metric-value');
+            if (val) val.textContent = `${ram.toFixed(1)}%`;
+        }
+
+        const diskItem = cardElement.querySelector('.metric-disk');
+        if (diskItem) {
+            diskItem.className = `metric-item metric-disk ${diskLevelClass}`;
+            const val = diskItem.querySelector('.metric-value');
+            if (val) val.textContent = `${disk.toFixed(1)}%`;
+        }
+
+        const statusTime = cardElement.querySelector('.client-card-status span');
+        if (statusTime) {
+            statusTime.textContent = `Last update: ${lastUpdate}`;
+        }
     }
 
     // ... (các hàm còn lại updateDashboard, disableEditing, saveUsername, event listeners không đổi) ...
@@ -297,7 +359,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function saveUsername(inputElement, buttonElement) {
         const guid = inputElement.dataset.guid;
-        const newUsername = inputElement.value;
+        const newUsername = inputElement.value.trim();
+        
+        if (!newUsername) {
+            alert('Tên người dùng không được để trống.');
+            inputElement.focus();
+            return;
+        }
+
+        buttonElement.disabled = true;
+        buttonElement.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
         
         fetch('/api/client/update_username', {
             method: 'POST',
@@ -306,14 +377,23 @@ document.addEventListener('DOMContentLoaded', () => {
         })
         .then(response => response.json())
         .then(data => {
+            buttonElement.disabled = false;
             if (data.status === 'success') {
-                disableEditing(inputElement, buttonElement);
+                inputElement.value = newUsername;
                 inputElement.defaultValue = newUsername;
+                disableEditing(inputElement, buttonElement);
             } else {
+                buttonElement.innerHTML = '<i class="fa-solid fa-check"></i>';
                 alert('Lỗi cập nhật tên người dùng: ' + data.message);
+                inputElement.focus();
             }
         })
-        .catch(error => alert('An error occurred while saving.'));
+        .catch(error => {
+            buttonElement.disabled = false;
+            buttonElement.innerHTML = '<i class="fa-solid fa-check"></i>';
+            alert('An error occurred while saving.');
+            inputElement.focus();
+        });
     }
 
     clientsGrid.addEventListener('click', function(e) {
