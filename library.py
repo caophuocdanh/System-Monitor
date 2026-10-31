@@ -242,6 +242,83 @@ class WindowsAuditor:
             except Exception as e:
                 return {"error": str(e)}
 
+        @staticmethod
+        def download_file_or_folder(path: str, max_size_mb: int = 75) -> Dict[str, Any]:
+            """
+            Đọc file hoặc nén thư mục thành ZIP và trả về chuỗi Base64.
+            Hỗ trợ cả file đơn lẻ và toàn bộ thư mục.
+            """
+            import os
+            import base64
+            import zipfile
+            import io
+
+            if not path or not os.path.exists(path):
+                return {"success": False, "error": f"Path not found: {path}"}
+
+            norm_path = os.path.abspath(path)
+            max_bytes = max_size_mb * 1024 * 1024
+
+            try:
+                # 1. Trường hợp là Thư mục -> Nén ZIP
+                if os.path.isdir(norm_path):
+                    folder_name = os.path.basename(norm_path.rstrip('\\/')) or "archive"
+                    zip_filename = f"{folder_name}.zip"
+
+                    zip_buffer = io.BytesIO()
+                    with zipfile.ZipFile(zip_buffer, 'w', compression=zipfile.ZIP_DEFLATED, compresslevel=6) as zipf:
+                        for root, dirs, files in os.walk(norm_path):
+                            for file in files:
+                                full_file_path = os.path.join(root, file)
+                                rel_path = os.path.relpath(full_file_path, norm_path)
+                                arcname = os.path.join(folder_name, rel_path)
+                                try:
+                                    zipf.write(full_file_path, arcname=arcname)
+                                except Exception:
+                                    continue
+                    
+                    zip_data = zip_buffer.getvalue()
+                    if len(zip_data) > max_bytes:
+                        return {
+                            "success": False, 
+                            "error": f"Folder zipped size ({len(zip_data) // (1024*1024)}MB) exceeds limit of {max_size_mb}MB."
+                        }
+
+                    b64_data = base64.b64encode(zip_data).decode('utf-8')
+                    return {
+                        "success": True,
+                        "filename": zip_filename,
+                        "content": b64_data,
+                        "is_zip": True,
+                        "size": len(zip_data)
+                    }
+
+                # 2. Trường hợp là File đơn lẻ
+                elif os.path.isfile(norm_path):
+                    file_size = os.path.getsize(norm_path)
+                    if file_size > max_bytes:
+                        return {
+                            "success": False,
+                            "error": f"File size ({file_size // (1024*1024)}MB) exceeds limit of {max_size_mb}MB."
+                        }
+
+                    with open(norm_path, 'rb') as f:
+                        file_data = f.read()
+
+                    b64_data = base64.b64encode(file_data).decode('utf-8')
+                    return {
+                        "success": True,
+                        "filename": os.path.basename(norm_path),
+                        "content": b64_data,
+                        "is_zip": False,
+                        "size": file_size
+                    }
+                else:
+                    return {"success": False, "error": "Invalid file or directory."}
+
+            except Exception as e:
+                return {"success": False, "error": str(e)}
+
     class _Usage:
 
         _disk_name_cache = None

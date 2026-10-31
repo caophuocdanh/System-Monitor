@@ -107,21 +107,28 @@ function initRemoteControl() {
                             <div id="file-path-nav" style="margin-bottom:1rem; font-weight:bold; font-family:var(--font-mono);">
                                 Current Path: <span id="current-path">Drives</span>
                             </div>
-                            <div style="display:flex; gap:0.5rem; margin-bottom:1rem;">
-                                <button onclick="browseFiles('drives')" class="back-link" style="padding:0.4rem 0.8rem; font-size:0.8rem;">Drives</button>
-                                <button id="folder-up-btn" class="back-link" style="padding:0.4rem 0.8rem; font-size:0.8rem; display:none;">Up One Level</button>
+                            <div style="display:flex; gap:0.5rem; margin-bottom:1rem; align-items:center; flex-wrap:wrap;">
+                                <button onclick="browseFiles('drives')" class="back-link" style="padding:0.4rem 0.8rem; font-size:0.8rem;"><i class="fa-solid fa-hard-drive"></i> Drives</button>
+                                <button id="folder-up-btn" class="back-link" style="padding:0.4rem 0.8rem; font-size:0.8rem; display:none;"><i class="fa-solid fa-arrow-up"></i> Up One Level</button>
+                                <button id="download-current-folder-btn" class="back-link" style="padding:0.4rem 0.8rem; font-size:0.8rem; display:none; background-color: var(--color-success);" title="Nén và tải về toàn bộ thư mục hiện tại dạng ZIP">
+                                    <i class="fa-solid fa-file-zipper"></i> Download Folder (ZIP)
+                                </button>
+                                <span id="file-download-status" style="display:none; font-size:0.85rem; color:var(--color-primary); font-weight:600;">
+                                    <i class="fa-solid fa-spinner fa-spin"></i> <span id="file-download-text">Downloading...</span>
+                                </span>
                             </div>
                             <div style="max-height:500px; overflow-y:auto;">
                                  <table class="table-responsive" style="width:100%; border-collapse:collapse;">
-                                    <thead style="position:sticky; top:0; background:#f8f9fa;">
+                                    <thead style="position:sticky; top:0; background:#f8f9fa; z-index:10;">
                                         <tr>
-                                            <th style="text-align:left; padding:8px;">Name</th>
-                                            <th style="text-align:left; padding:8px;">Type</th>
-                                            <th style="text-align:left; padding:8px;">Size</th>
+                                            <th style="text-align:left; padding:8px; border-bottom:2px solid #ddd;">Name</th>
+                                            <th style="text-align:left; padding:8px; border-bottom:2px solid #ddd; width:90px;">Type</th>
+                                            <th style="text-align:left; padding:8px; border-bottom:2px solid #ddd; width:110px;">Size</th>
+                                            <th style="text-align:center; padding:8px; border-bottom:2px solid #ddd; width:120px;">Action</th>
                                         </tr>
                                     </thead>
                                     <tbody id="file-table-body">
-                                        <tr><td colspan="3" style="text-align:center; padding:1rem;">Click Drives to load.</td></tr>
+                                        <tr><td colspan="4" style="text-align:center; padding:1rem;">Click Drives to load.</td></tr>
                                     </tbody>
                                  </table>
                             </div>
@@ -350,6 +357,8 @@ function handleRemoteResponse(data) {
         }
     } else if (cmd === 'file_browse') {
         renderFileList(res);
+    } else if (cmd === 'file_download') {
+        handleFileDownloadResponse(res);
     }
 }
 
@@ -412,17 +421,27 @@ function renderFileList(res) {
         currentDirPath = 'drives';
         pathSpan.innerText = 'Drives';
         upBtn.style.display = 'none';
+        const downloadFolderBtn = document.getElementById('download-current-folder-btn');
+        if (downloadFolderBtn) downloadFolderBtn.style.display = 'none';
+
         tbody.innerHTML = res.items.map(drive => `
-            <tr onclick="browseFiles('${drive.replace(/\\/g, '\\\\')}')" style="cursor:pointer; hover:background:#f8f9fa;">
-                <td style="padding:8px; border-bottom:1px solid #eee;"><i class="fa-solid fa-hard-drive"></i> ${drive}</td>
+            <tr onclick="browseFiles('${drive.replace(/\\/g, '\\\\')}')" style="cursor:pointer;">
+                <td style="padding:8px; border-bottom:1px solid #eee; font-weight:600;"><i class="fa-solid fa-hard-drive"></i> ${drive}</td>
                 <td style="padding:8px; border-bottom:1px solid #eee;">Drive</td>
                 <td style="padding:8px; border-bottom:1px solid #eee;">-</td>
+                <td style="padding:8px; border-bottom:1px solid #eee; text-align:center; color:#999;">-</td>
             </tr>
         `).join('');
     } else if (res.type === 'directory') {
         currentDirPath = res.path;
         pathSpan.innerText = res.path;
         upBtn.style.display = 'inline-block';
+
+        const downloadFolderBtn = document.getElementById('download-current-folder-btn');
+        if (downloadFolderBtn) {
+            downloadFolderBtn.style.display = 'inline-block';
+            downloadFolderBtn.onclick = () => downloadItem(currentDirPath, true);
+        }
         
         // Sắp xếp: Thư mục trước, File sau
         res.items.sort((a, b) => {
@@ -431,14 +450,33 @@ function renderFileList(res) {
             return a.name.localeCompare(b.name);
         });
 
+        if (res.items.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:1.5rem; color:#888;">(Empty Folder)</td></tr>`;
+            return;
+        }
+
         tbody.innerHTML = res.items.map(item => {
             const icon = item.is_dir ? 'fa-folder' : 'fa-file';
-            const clickAction = item.is_dir ? `onclick="browseFiles('${(res.path + (res.path.endsWith('\\') ? '' : '\\') + item.name).replace(/\\/g, '\\\\')}')"` : '';
+            const iconColor = item.is_dir ? '#f39c12' : '#3498db';
+            const fullItemPath = (res.path + (res.path.endsWith('\\') ? '' : '\\') + item.name);
+            const escapedPath = fullItemPath.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+            const clickAction = item.is_dir ? `onclick="browseFiles('${escapedPath}')"` : '';
+            
+            const actionBtn = item.is_dir 
+                ? `<button onclick="event.stopPropagation(); downloadItem('${escapedPath}', true)" class="btn-item-download" title="Nén & Tải thư mục này về (.zip)" style="padding:3px 8px; font-size:0.75rem; background:#6f42c1; color:white; border:none; border-radius:4px; cursor:pointer;"><i class="fa-solid fa-file-zipper"></i> ZIP</button>`
+                : `<button onclick="event.stopPropagation(); downloadItem('${escapedPath}', false)" class="btn-item-download" title="Tải file này về" style="padding:3px 8px; font-size:0.75rem; background:var(--color-primary); color:white; border:none; border-radius:4px; cursor:pointer;"><i class="fa-solid fa-download"></i> Tải về</button>`;
+
             return `
-                <tr ${clickAction} style="cursor:${item.is_dir ? 'pointer' : 'default'}; hover:background:#f8f9fa;">
-                    <td style="padding:8px; border-bottom:1px solid #eee;"><i class="fa-solid ${icon}"></i> ${item.name}</td>
-                    <td style="padding:8px; border-bottom:1px solid #eee;">${item.is_dir ? 'Folder' : 'File'}</td>
-                    <td style="padding:8px; border-bottom:1px solid #eee;">${item.is_dir ? '-' : formatBytes(item.size)}</td>
+                <tr ${clickAction} style="cursor:${item.is_dir ? 'pointer' : 'default'};">
+                    <td style="padding:8px; border-bottom:1px solid #eee;">
+                        <i class="fa-solid ${icon}" style="color:${iconColor}; margin-right:6px;"></i> 
+                        <span style="font-weight:${item.is_dir ? '600' : 'normal'}">${item.name}</span>
+                    </td>
+                    <td style="padding:8px; border-bottom:1px solid #eee; font-size:0.85rem; color:#666;">${item.is_dir ? 'Folder' : 'File'}</td>
+                    <td style="padding:8px; border-bottom:1px solid #eee; font-size:0.85rem; font-family:var(--font-mono);">${item.is_dir ? '-' : formatBytes(item.size)}</td>
+                    <td style="padding:8px; border-bottom:1px solid #eee; text-align:center;">
+                        ${actionBtn}
+                    </td>
                 </tr>
             `;
         }).join('');
@@ -478,4 +516,78 @@ function formatBytes(bytes, decimals = 2) {
     const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+}
+
+
+// ==========================================
+// CÁC HÀM DOWNLOAD FILE & FOLDER (ZIP)
+// ==========================================
+function setDownloadStatus(show, text = '') {
+    const statusEl = document.getElementById('file-download-status');
+    const textEl = document.getElementById('file-download-text');
+    if (!statusEl) return;
+    if (show) {
+        statusEl.style.display = 'inline-flex';
+        if (textEl) textEl.innerText = text;
+    } else {
+        statusEl.style.display = 'none';
+    }
+}
+
+function downloadItem(filePath, isFolder = false) {
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+        alert("Not connected to server.");
+        return;
+    }
+    const label = isFolder ? "Nén thư mục thành ZIP & chuẩn bị tải..." : "Đang đọc file để tải về...";
+    setDownloadStatus(true, label);
+    sendRemoteCommand('file_download', filePath);
+}
+
+function handleFileDownloadResponse(res) {
+    setDownloadStatus(false);
+    if (!res || !res.success) {
+        alert("Download thất bại: " + (res && res.error ? res.error : "Unknown error"));
+        return;
+    }
+
+    try {
+        downloadBase64File(res.content, res.filename);
+        console.log(`[Remote Control] Downloaded ${res.filename} (${res.size || 'N/A'} bytes)`);
+    } catch (e) {
+        console.error("[Remote Control] Error saving downloaded file:", e);
+        alert("Lỗi khi giải mã và lưu file: " + e.message);
+    }
+}
+
+function downloadBase64File(base64Data, filename) {
+    const byteCharacters = atob(base64Data);
+    const byteArrays = [];
+    const sliceSize = 1024;
+
+    for (let offset = 0; offset < byteCharacters.length; offset += sliceSize) {
+        const slice = byteCharacters.slice(offset, offset + sliceSize);
+        const byteNumbers = new Array(slice.length);
+        for (let i = 0; i < slice.length; i++) {
+            byteNumbers[i] = slice.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        byteArrays.push(byteArray);
+    }
+
+    const mimeType = filename.endsWith('.zip') ? 'application/zip' : 'application/octet-stream';
+    const blob = new Blob(byteArrays, { type: mimeType });
+    const blobUrl = URL.createObjectURL(blob);
+
+    const a = document.createElement('a');
+    a.style.display = 'none';
+    a.href = blobUrl;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+
+    setTimeout(() => {
+        document.body.removeChild(a);
+        URL.revokeObjectURL(blobUrl);
+    }, 2000);
 }

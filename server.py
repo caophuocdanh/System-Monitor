@@ -811,7 +811,7 @@ async def main():
     # Khởi tạo worker gộp dữ liệu cũ (Downsampling)
     asyncio.create_task(database_downsampling_worker())
 
-    async with websockets.serve(websocket_handler, server_host, server_port):
+    async with websockets.serve(websocket_handler, server_host, server_port, max_size=100 * 1024 * 1024):
         if "-minimized" not in sys.argv and gui_enabled:
             print(f"[Server] WebSocket server started at ws://{server_host}:{server_port}")
         await asyncio.Future()
