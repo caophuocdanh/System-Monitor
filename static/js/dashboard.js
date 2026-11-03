@@ -464,6 +464,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
             .then(data => {
 
+                // Tự động cập nhật version trong footer theo cấu hình server mới nhất
+                const ver = data.server_version || data.target_version;
+                if (ver) {
+                    const footerVerEl = document.getElementById('footer-build-version');
+                    if (footerVerEl && footerVerEl.textContent !== ver) {
+                        footerVerEl.textContent = ver;
+                    }
+                }
+
                 const statusBar = document.getElementById('server-status-bar');
 
                 const statusText = document.getElementById('server-status-text');

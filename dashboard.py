@@ -409,13 +409,20 @@ def get_dashboard_data():
         last_db_update_time = "N/A"
 
     # Lấy phiên bản mục tiêu từ config server
-    target_version = config['server'].get('version', config['server'].get('client_version', '1.0.1'))
+    server_version = (
+        config['server'].get('version') or
+        config['server'].get('client_version') or
+        config['client'].get('version') or
+        "2026.3110.1407"
+    )
+    target_version = server_version
     for c in all_clients:
         c['version'] = c.get('version') or '1.0.0'
         c['needs_update'] = (c['version'] != target_version)
 
     # 4. Trả về dữ liệu dưới dạng JSON
     return jsonify({
+        'server_version': server_version,
         'target_version': target_version,
         'server_status': {
             'is_online': is_server_online,
@@ -725,7 +732,13 @@ def inject_global_vars():
             ws_host = '127.0.0.1'
     ws_url = f"ws://{ws_host}:{ws_port}"
     access_token = config['server'].get('access_token', '')
-    return dict(global_ws_url=ws_url, global_access_token=access_token)
+    server_version = (
+        config['server'].get('version') or
+        config['server'].get('client_version') or
+        config['client'].get('version') or
+        "2026.3110.1407"
+    )
+    return dict(global_ws_url=ws_url, global_access_token=access_token, server_version=server_version)
 
 @app.route('/logs')
 def system_logs_page():

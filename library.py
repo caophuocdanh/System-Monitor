@@ -519,12 +519,34 @@ class WindowsAuditor:
 
         @staticmethod
         def get_wan_ip():
-            services = ["https://api.ipify.org", "https://icanhazip.com", "https://ifconfig.me/ip"]
-            for s in services:
+            # Chỉ lấy IPv4: sử dụng các endpoint chuyên dụng chỉ trả về IPv4 và kiểm tra cấu trúc IPv4 nghiêm ngặt
+            def is_valid_ipv4(ip_str: str) -> bool:
+                if not ip_str:
+                    return False
+                parts = ip_str.strip().split('.')
+                if len(parts) != 4:
+                    return False
+                for p in parts:
+                    if not p.isdigit() or not (0 <= int(p) <= 255):
+                        return False
+                    if len(p) > 1 and p.startswith('0'):
+                        return False
+                return True
+
+            ipv4_services = [
+                "https://api4.ipify.org",
+                "https://ipv4.icanhazip.com",
+                "https://v4.ident.me",
+                "https://checkip.amazonaws.com",
+                "https://api-ipv4.ip.sb/ip"
+            ]
+            for s in ipv4_services:
                 try:
                     res = requests.get(s, timeout=3)
-                    if res.status_code == 200 and res.text.strip():
-                        return res.text.strip()
+                    if res.status_code == 200:
+                        candidate = res.text.strip()
+                        if is_valid_ipv4(candidate):
+                            return candidate
                 except Exception:
                     continue
             return "N/A"
@@ -932,7 +954,7 @@ class WindowsAuditor:
             self._details = [{"Name": "Basic Display Adapter", "VRAM_Bytes": 0, "DriverVersion": "N/A", "DriverDate": "N/A", "Status": "OK"}]
             return self._details
 
-    # --- 6. MAINBOARD & BIOS (Đa tầng: Registry BIOS -> CIM/WMI -> WMIC an toàn) ---
+    # --- 6. MAINBOARD & BIOS (Đa tầng: Registry BIOS -> CIM/WMI -> OEM Info -> Suy luận Hardware) ---
     class _MainboardAudit:
         def __init__(self):
             self._details: Dict[str, Any] = {}
@@ -944,64 +966,125 @@ class WindowsAuditor:
             bb = {"Manufacturer": None, "Product": None, "Model": None, "SerialNumber": None, "Version": None}
             bios = {"Manufacturer": None, "Version": None, "ReleaseDate": None, "SerialNumber": None}
 
+            DUMMY_HW_STRINGS = {
+                "default string", "to be filled by o.e.m.", "to be filled by oem",
+                "system manufacturer", "system product name", "system version",
+                "all series", "base board vendor name", "base board product name",
+                "type2 - board manufacturer", "chassis manufacture", "standard",
+                "none", "n/a", "not applicable", "unknown", "default", "null",
+                "undefined", "empty", "0", "00000000", "na", "string"
+            }
+
+            def clean_val(v):
+                if v is None:
+                    return None
+                s = str(v).strip()
+                if not s or s.lower() in DUMMY_HW_STRINGS:
+                    return None
+                if set(s) <= {'0', ' ', '-', '_', '.'}:
+                    return None
+                return s
+
             # --- Tầng 1: Đọc Registry (Nhanh, tương thích 100% Win 7, 8, 10, 11) ---
             try:
                 with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"HARDWARE\DESCRIPTION\System\BIOS") as key:
-                    def get_val(name):
+                    def get_reg_bios(name):
                         try:
                             v, _ = winreg.QueryValueEx(key, name)
-                            s = str(v).strip()
-                            return s if s and s.lower() != "default string" else None
+                            return clean_val(v)
                         except Exception:
                             return None
 
-                    bb["Manufacturer"] = get_val("BaseBoardManufacturer") or get_val("SystemManufacturer")
-                    bb["Product"] = get_val("BaseBoardProduct") or get_val("SystemProductName")
-                    bb["Model"] = bb["Product"]
-                    bb["SerialNumber"] = get_val("BaseBoardSerialNumber") or get_val("SystemSerialNumber")
-                    bb["Version"] = get_val("BaseBoardVersion") or get_val("SystemVersion")
+                    bb["Manufacturer"] = get_reg_bios("BaseBoardManufacturer") or get_reg_bios("SystemManufacturer")
+                    bb["Product"] = get_reg_bios("BaseBoardProduct") or get_reg_bios("SystemProductName")
+                    bb["Model"] = bb["Product"] or get_reg_bios("SystemFamily")
+                    bb["SerialNumber"] = get_reg_bios("BaseBoardSerialNumber") or get_reg_bios("SystemSerialNumber")
+                    bb["Version"] = get_reg_bios("BaseBoardVersion") or get_reg_bios("SystemVersion")
 
-                    bios["Manufacturer"] = get_val("BIOSVendor")
-                    bios["Version"] = get_val("BIOSVersion")
-                    bios["ReleaseDate"] = get_val("BIOSReleaseDate")
-                    bios["SerialNumber"] = get_val("SystemSerialNumber")
+                    bios["Manufacturer"] = get_reg_bios("BIOSVendor")
+                    bios["Version"] = get_reg_bios("BIOSVersion")
+                    bios["ReleaseDate"] = get_reg_bios("BIOSReleaseDate")
+                    bios["SerialNumber"] = get_reg_bios("SystemSerialNumber")
             except Exception:
                 pass
 
-            # --- Tầng 2: PowerShell CIM / WMI nếu thiếu thông tin ---
-            if not bb["Manufacturer"] or not bios["Manufacturer"]:
+            # --- Tầng 2: PowerShell CIM / WMI (Kiểm tra BaseBoard, ComputerSystem, ComputerSystemProduct) ---
+            if not bb["Manufacturer"] or not bb["Product"] or not bios["Manufacturer"]:
                 try:
                     ps_script = _compat_wmi_script(
                         """
                         $b = Get-CimInstance Win32_BaseBoard -EA 0
+                        $cs = Get-CimInstance Win32_ComputerSystem -EA 0
+                        $csp = Get-CimInstance Win32_ComputerSystemProduct -EA 0
                         $bi = Get-CimInstance Win32_BIOS -EA 0
-                        @{ BaseBoard = $b; BIOS = $bi } | ConvertTo-Json
+                        @{ BaseBoard = $b; ComputerSystem = $cs; ComputerSystemProduct = $csp; BIOS = $bi } | ConvertTo-Json
                         """,
                         """
                         $b = Get-WmiObject Win32_BaseBoard -EA 0
+                        $cs = Get-WmiObject Win32_ComputerSystem -EA 0
+                        $csp = Get-WmiObject Win32_ComputerSystemProduct -EA 0
                         $bi = Get-WmiObject Win32_BIOS -EA 0
-                        @{ BaseBoard = $b; BIOS = $bi } | ConvertTo-Json
+                        @{ BaseBoard = $b; ComputerSystem = $cs; ComputerSystemProduct = $csp; BIOS = $bi } | ConvertTo-Json
                         """
                     )
                     data = _run_powershell(ps_script)
                     if isinstance(data, dict):
                         b_data = data.get("BaseBoard") or {}
+                        cs_data = data.get("ComputerSystem") or {}
+                        csp_data = data.get("ComputerSystemProduct") or {}
                         bi_data = data.get("BIOS") or {}
-                        if not bb["Manufacturer"] and b_data.get("Manufacturer"): bb["Manufacturer"] = b_data["Manufacturer"]
-                        if not bb["Product"] and b_data.get("Product"):
-                            bb["Product"] = b_data["Product"]
-                            bb["Model"] = b_data["Product"]
-                        if not bb["SerialNumber"] and b_data.get("SerialNumber"): bb["SerialNumber"] = b_data["SerialNumber"]
-                        if not bb["Version"] and b_data.get("Version"): bb["Version"] = b_data["Version"]
-                        if not bios["Manufacturer"] and bi_data.get("Manufacturer"): bios["Manufacturer"] = bi_data["Manufacturer"]
-                        if not bios["Version"] and (bi_data.get("SMBIOSBIOSVersion") or bi_data.get("Version")):
-                            bios["Version"] = bi_data.get("SMBIOSBIOSVersion") or bi_data.get("Version")
-                        if not bios["ReleaseDate"] and bi_data.get("ReleaseDate"): bios["ReleaseDate"] = str(bi_data.get("ReleaseDate"))
-                        if not bios["SerialNumber"] and bi_data.get("SerialNumber"): bios["SerialNumber"] = bi_data.get("SerialNumber")
+
+                        if not bb["Manufacturer"]:
+                            bb["Manufacturer"] = (
+                                clean_val(b_data.get("Manufacturer")) or
+                                clean_val(cs_data.get("Manufacturer")) or
+                                clean_val(csp_data.get("Vendor"))
+                            )
+                        if not bb["Product"]:
+                            bb["Product"] = (
+                                clean_val(b_data.get("Product")) or
+                                clean_val(cs_data.get("Model")) or
+                                clean_val(csp_data.get("Name"))
+                            )
+                            if bb["Product"]:
+                                bb["Model"] = bb["Product"]
+                        if not bb["SerialNumber"]:
+                            bb["SerialNumber"] = (
+                                clean_val(b_data.get("SerialNumber")) or
+                                clean_val(csp_data.get("IdentifyingNumber"))
+                            )
+                        if not bb["Version"]:
+                            bb["Version"] = (
+                                clean_val(b_data.get("Version")) or
+                                clean_val(csp_data.get("Version"))
+                            )
+
+                        if not bios["Manufacturer"]: bios["Manufacturer"] = clean_val(bi_data.get("Manufacturer"))
+                        if not bios["Version"]:
+                            bios["Version"] = clean_val(bi_data.get("SMBIOSBIOSVersion")) or clean_val(bi_data.get("Version"))
+                        if not bios["ReleaseDate"]: bios["ReleaseDate"] = clean_val(bi_data.get("ReleaseDate"))
+                        if not bios["SerialNumber"]: bios["SerialNumber"] = clean_val(bi_data.get("SerialNumber"))
                 except Exception:
                     pass
 
-            # --- Tầng 3: WMIC (Chỉ chạy nếu có wmic.exe, tránh lỗi trên Win 11) ---
+            # --- Tầng 3: Kiểm tra OEM Information trong Windows Registry ---
+            if not bb["Manufacturer"] or not bb["Product"]:
+                try:
+                    with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\Windows\CurrentVersion\OEMInformation") as oem_k:
+                        try:
+                            oem_mfg = clean_val(winreg.QueryValueEx(oem_k, "Manufacturer")[0])
+                            if oem_mfg and not bb["Manufacturer"]: bb["Manufacturer"] = oem_mfg
+                        except Exception: pass
+                        try:
+                            oem_mod = clean_val(winreg.QueryValueEx(oem_k, "Model")[0])
+                            if oem_mod and not bb["Product"]:
+                                bb["Product"] = oem_mod
+                                bb["Model"] = oem_mod
+                        except Exception: pass
+                except Exception:
+                    pass
+
+            # --- Tầng 4: WMIC (Chỉ chạy nếu có wmic.exe, tránh lỗi trên Win 11) ---
             if not bb["Manufacturer"] or not bios["Manufacturer"]:
                 try:
                     si = subprocess.STARTUPINFO()
@@ -1012,18 +1095,51 @@ class WindowsAuditor:
                     for line in out.strip().splitlines():
                         if "=" in line:
                             k, v = line.split("=", 1)
-                            k, v = k.strip(), v.strip()
-                            if k in bb and not bb[k]: bb[k] = v
+                            k, v = k.strip(), clean_val(v.strip())
+                            if v and k in bb and not bb[k]: bb[k] = v
                     if bb.get("Product") and not bb.get("Model"): bb["Model"] = bb["Product"]
                 except Exception:
                     pass
 
-            # Điền fallback nếu vẫn trống
+            # --- Tầng 5: Suy luận phần cứng khi OEM để 'Default string' ---
+            if not bb["Manufacturer"] or not bb["Product"]:
+                cpu_name = ""
+                cpu_vendor = ""
+                try:
+                    with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"HARDWARE\DESCRIPTION\System\CentralProcessor\\0") as cpu_k:
+                        try: cpu_name = str(winreg.QueryValueEx(cpu_k, "ProcessorNameString")[0]).strip()
+                        except Exception: pass
+                        try: cpu_vendor = str(winreg.QueryValueEx(cpu_k, "VendorIdentifier")[0]).strip()
+                        except Exception: pass
+                except Exception:
+                    pass
+
+                detected_mfg = None
+                if "intel" in cpu_vendor.lower() or "intel" in cpu_name.lower():
+                    detected_mfg = "Intel Corporation"
+                elif "amd" in cpu_vendor.lower() or "amd" in cpu_name.lower():
+                    detected_mfg = "AMD"
+
+                if not bb["Manufacturer"]:
+                    bb["Manufacturer"] = detected_mfg or (bios.get("Manufacturer") if bios.get("Manufacturer") else "Generic Motherboard")
+
+                if not bb["Product"] or not bb["Model"]:
+                    cpu_clean = re.sub(r'\(R\)|\(TM\)', '', cpu_name).strip()
+                    cpu_clean = re.sub(r'\s+', ' ', cpu_clean)
+                    inferred_name = f"{cpu_clean} Motherboard" if cpu_clean else "System Mainboard"
+                    if not bb["Product"]: bb["Product"] = inferred_name
+                    if not bb["Model"]: bb["Model"] = f"{cpu_clean} System Board" if cpu_clean else "System Board"
+
+            # Chuẩn hóa các trường còn thiếu (không bao giờ để lại 'Default string')
             if not bb["Manufacturer"]: bb["Manufacturer"] = "Generic Motherboard"
             if not bb["Product"]: bb["Product"] = "Mainboard"
             if not bb["Model"]: bb["Model"] = bb["Product"]
+            if not bb["SerialNumber"]: bb["SerialNumber"] = "N/A"
+            if not bb["Version"]: bb["Version"] = "N/A"
+
             if not bios["Manufacturer"]: bios["Manufacturer"] = "American Megatrends / Phoenix / Insyde"
             if not bios["Version"]: bios["Version"] = "N/A"
+            if not bios["SerialNumber"]: bios["SerialNumber"] = "N/A"
 
             self._details = {"BaseBoard": bb, "BIOS": bios}
             return self._details
