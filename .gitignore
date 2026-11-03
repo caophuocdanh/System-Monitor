@@ -184,5 +184,8 @@ cython_debug/
 
 # SQlite
 *.db
-/static/updates
-/static/updates
+static/updates
+static/updates/client_setup.exe
+static/updates/config.ini
+static/updates/data.zip
+static/updates/smchost.exe

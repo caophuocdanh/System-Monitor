@@ -74,6 +74,34 @@ def install():
             shutil.copy2(src_config, dest_config)
         except Exception:
             pass
+
+    # Xóa các file source/tệp nén dư thừa sau khi cài đặt để tối ưu dung lượng
+    for extra_file in ["data.zip", "client.zip", "smchost.zip", "client_setup.exe", "updater.bat"]:
+        extra_path = os.path.join(target_dir, extra_file)
+        if os.path.exists(extra_path):
+            try:
+                os.remove(extra_path)
+            except Exception:
+                pass
+
+    # Dọn dẹp các file source trong thư mục updates (nếu tồn tại)
+    current_script_dir = os.path.dirname(os.path.abspath(__file__))
+    potential_updates_dirs = [
+        os.path.join(base_path, "static", "updates"),
+        os.path.join(base_path, "updates"),
+        os.path.join(current_script_dir, "..", "static", "updates"),
+        os.path.join(current_script_dir, "..", "source", "server", "static", "updates"),
+        os.path.join(target_dir, "updates")
+    ]
+    for upd_dir in potential_updates_dirs:
+        if os.path.isdir(upd_dir):
+            for file_to_clean in ["client_setup.exe", "smchost.exe", "config.ini", "updater.bat"]:
+                f_path = os.path.join(upd_dir, file_to_clean)
+                if os.path.exists(f_path):
+                    try:
+                        os.remove(f_path)
+                    except Exception:
+                        pass
             
     # 4. Phân quyền thư mục cho tất cả Users truy cập
     try:

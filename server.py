@@ -745,37 +745,57 @@ async def websocket_handler(websocket):
                         base_path = get_base_path()
                         updates_dir = os.path.join(base_path, 'static', 'updates')
                         
-                        # 1. Tìm tệp client_setup.exe
+                        # 1. Tìm tệp cài đặt (Ưu tiên client_setup.exe, nếu không có thì fallback sang data.zip)
                         setup_path = os.path.join(updates_dir, 'client_setup.exe')
                         if not os.path.exists(setup_path):
                             setup_path = os.path.join(base_path, 'source', 'client', 'client_setup.exe')
                         if not os.path.exists(setup_path):
                             setup_path = os.path.join(base_path, 'client_setup.exe')
 
-                        if not os.path.exists(setup_path):
-                            print(f"[{timestamp_str}] [Update Error] Không tìm thấy client_setup.exe trên Server.")
+                        zip_path = os.path.join(updates_dir, 'data.zip')
+                        if not os.path.exists(zip_path):
+                            zip_path = os.path.join(base_path, 'source', 'server', 'static', 'updates', 'data.zip')
+
+                        if not os.path.exists(setup_path) and not os.path.exists(zip_path):
+                            print(f"[{timestamp_str}] [Update Error] Không tìm thấy client_setup.exe hoặc data.zip trên Server.")
                             await websocket.send(json.dumps({
                                 "type": "remote_response", 
                                 "command": "update_client", 
-                                "error": "Tệp cài đặt client_setup.exe chưa được tạo trên Server. Vui lòng chạy build.bat!"
+                                "error": "Tệp cài đặt client_setup.exe hoặc data.zip chưa được tạo trên Server. Vui lòng chạy build.bat!"
                             }))
                             continue
 
                         try:
-                            file_size_mb = os.path.getsize(setup_path) / (1024 * 1024)
-                            print(f"[{timestamp_str}] [Auto Update] Đang đọc client_setup.exe ({file_size_mb:.2f} MB)...")
-                            with open(setup_path, 'rb') as f:
-                                exe_b64 = base64.b64encode(f.read()).decode('utf-8')
+                            if os.path.exists(setup_path):
+                                file_size_mb = os.path.getsize(setup_path) / (1024 * 1024)
+                                print(f"[{timestamp_str}] [Auto Update] Đang đọc client_setup.exe ({file_size_mb:.2f} MB)...")
+                                with open(setup_path, 'rb') as f:
+                                    exe_b64 = base64.b64encode(f.read()).decode('utf-8')
 
-                            push_msg = json.dumps({
-                                "type": "remote_command",
-                                "command": "update_client_push",
-                                "payload": {
-                                    "installer_type": "setup_exe",
-                                    "exe_b64": exe_b64,
-                                    "filename": "client_setup.exe"
-                                }
-                            })
+                                push_msg = json.dumps({
+                                    "type": "remote_command",
+                                    "command": "update_client_push",
+                                    "payload": {
+                                        "installer_type": "setup_exe",
+                                        "exe_b64": exe_b64,
+                                        "filename": "client_setup.exe"
+                                    }
+                                })
+                            else:
+                                file_size_mb = os.path.getsize(zip_path) / (1024 * 1024)
+                                print(f"[{timestamp_str}] [Auto Update] Đang đọc data.zip ({file_size_mb:.2f} MB)...")
+                                with open(zip_path, 'rb') as f:
+                                    zip_b64 = base64.b64encode(f.read()).decode('utf-8')
+
+                                push_msg = json.dumps({
+                                    "type": "remote_command",
+                                    "command": "update_client_push",
+                                    "payload": {
+                                        "installer_type": "zip",
+                                        "zip_b64": zip_b64,
+                                        "filename": "data.zip"
+                                    }
+                                })
 
                             sent_count = 0
                             if target_guid == 'ALL':

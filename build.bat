@@ -33,8 +33,8 @@ pyinstaller --noconsole --onefile --name="SM Dashboard" --icon="requirements\das
 
 
 echo Building Audit Data executable...
-python -m PyInstaller --noconsole --onefile --icon="requirements\sample.ico" --name="Audit Data Sample" "Audit Data.py"
-pyinstaller --noconsole --onefile --icon="requirements\sample.ico" --name="Audit Data Sample" "Audit Data.py"
+echo python -m PyInstaller --noconsole --onefile --icon="requirements\sample.ico" --name="Audit Data Sample" "Audit Data.py"
+echo pyinstaller --noconsole --onefile --icon="requirements\sample.ico" --name="Audit Data Sample" "Audit Data.py"
 
 echo Building Config Editor executable...
 python -m PyInstaller --noconsole --onefile --icon="requirements\config.ico" --name="Config Editor" "config_editor.py"
@@ -80,20 +80,25 @@ echo ==========================================================
 if not exist "static\updates" mkdir "static\updates"
 if not exist "source\server\static\updates" mkdir "source\server\static\updates"
 
-:: 1. Sao chép client_setup.exe vào thư mục static\updates
-copy /Y "source\client\client_setup.exe" "static\updates\client_setup.exe"
-copy /Y "source\client\client_setup.exe" "source\server\static\updates\client_setup.exe"
-
-:: 2. Nén client_setup.exe thành data.zip để phục vụ cập nhật
+:: 1. Nén client_setup.exe thành data.zip để phục vụ cập nhật
 echo Compressing client_setup.exe into data.zip...
 powershell -NoProfile -ExecutionPolicy Bypass -Command "Compress-Archive -Path 'source\client\client_setup.exe' -DestinationPath 'static\updates\data.zip' -Force"
 copy /Y "static\updates\data.zip" "source\server\static\updates\data.zip"
 
-:: 3. Sao chép các tệp cấu hình và smchost phụ trợ
-copy /Y "source\client\smchost.exe" "static\updates\smchost.exe"
-copy /Y "source\client\config.ini" "static\updates\config.ini"
-copy /Y "source\client\smchost.exe" "source\server\static\updates\smchost.exe"
-copy /Y "source\client\config.ini" "source\server\static\updates\config.ini"
+:: 2. Đảm bảo file update.bat có sẵn trong thư mục updates
+if exist "static\updates\update.bat" copy /Y "static\updates\update.bat" "source\server\static\updates\update.bat"
+
+:: 3. Xóa các file source trong thư mục updates để giảm dung lượng không cần thiết
+echo Cleaning redundant source files from updates folders...
+del /F /Q "static\updates\client_setup.exe" 2>nul
+del /F /Q "static\updates\smchost.exe" 2>nul
+del /F /Q "static\updates\config.ini" 2>nul
+del /F /Q "static\updates\updater.bat" 2>nul
+
+del /F /Q "source\server\static\updates\client_setup.exe" 2>nul
+del /F /Q "source\server\static\updates\smchost.exe" 2>nul
+del /F /Q "source\server\static\updates\config.ini" 2>nul
+del /F /Q "source\server\static\updates\updater.bat" 2>nul
 
 rmdir /S /Q dist 2>nul
 rmdir /S /Q build 2>nul
