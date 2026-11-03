@@ -9,6 +9,8 @@ from library import load_config, save_config
 BOOLEAN_KEYS = {"autostart", "gui"}
 
 DISPLAY_NAMES = {
+    "version": "Phiên bản ứng dụng (Version)",
+    "client_version": "Phiên bản Client yêu cầu (Target Version)",
     "host": "Địa chỉ IP mà server WebSocket sẽ lắng nghe (0.0.0.0 = mọi địa chỉ)", "port": "Cổng WebSocket chính mà server sử dụng", "health_check_port": "Cổng kiểm tra tình trạng server (health-check)",
     "gui": "Hiển thị cửa sổ Console (Server)",
     "server": "Địa chỉ WebSocket server mà client kết nối", "retry_interval": "Thời gian giữa các lần thử lại nếu mất kết nối (giây)", "refesh_interval": "Tần suất gửi dữ liệu hiệu năng (giây)",
@@ -93,6 +95,26 @@ class ConfigEditor(ttk.Frame):
                 except Exception:
                     pass
             self.config = load_config(self.config_path)
+            
+            # Đồng bộ và chuẩn hóa version giữa [server] và [client]
+            server_ver = ""
+            client_ver = ""
+            if self.config.has_section("server"):
+                server_ver = self.config["server"].get("version") or self.config["server"].get("client_version") or ""
+            if self.config.has_section("client"):
+                client_ver = self.config["client"].get("version") or self.config["client"].get("client_version") or ""
+
+            sync_version = server_ver or client_ver or "2026.3110.1407"
+
+            if self.config.has_section("server"):
+                self.config["server"]["version"] = sync_version
+                self.config["server"]["client_version"] = sync_version
+            if self.config.has_section("client"):
+                self.config["client"]["version"] = sync_version
+
+            # Biến dùng chung để đồng bộ real-time giữa các tab trong GUI
+            self.version_var = tk.StringVar(value=sync_version)
+
             self.path_var.set(self.config_path)
             self.master.title(f"System Monitor Properties - {os.path.basename(self.config_path)}")
             
@@ -133,20 +155,30 @@ class ConfigEditor(ttk.Frame):
             ttk.Label(parent, text=f"Section [{section}] not found").grid(row=0, column=0)
             return
 
-        for i, (key, value) in enumerate(self.config[section].items()):
+        row_idx = 0
+        for key, value in self.config[section].items():
+            # Tránh hiển thị trùng lặp client_version nếu tab server đã có field version
+            if section == "server" and key == "client_version" and "version" in self.config[section]:
+                continue
+
             label_text = DISPLAY_NAMES.get(key, key)
-            ttk.Label(parent, text=label_text, wraplength=300).grid(row=i, column=0, sticky="w", pady=3, padx=(0, 10))
+            ttk.Label(parent, text=label_text, wraplength=300).grid(row=row_idx, column=0, sticky="w", pady=3, padx=(0, 10))
 
             is_bool = key in BOOLEAN_KEYS or value.lower() in ["true", "false", "1", "0"]
             if is_bool:
                 var = tk.BooleanVar(value=self.config.getboolean(section, key))
                 widget = ttk.Checkbutton(parent, variable=var)
+            elif key in ("version", "client_version"):
+                # Dùng chung self.version_var để mọi thay đổi tại Server hoặc Client đều đồng bộ tức thì
+                var = self.version_var
+                widget = ttk.Entry(parent, textvariable=var, width=25)
             else:
                 var = tk.StringVar(value=value)
                 widget = ttk.Entry(parent, textvariable=var, width=25)
             
-            widget.grid(row=i, column=1, sticky="w")
+            widget.grid(row=row_idx, column=1, sticky="w")
             self.tk_vars[(section, key)] = var
+            row_idx += 1
 
     def create_audit_tab(self, parent):
         container = ttk.LabelFrame(parent, text="Monitoring Modules", padding=10)
@@ -176,6 +208,16 @@ class ConfigEditor(ttk.Frame):
                 value = "1" if value else "0"
             
             self.config[section][key] = str(value)
+
+        # Luôn lưu đồng bộ tuyệt đối version giữa [server] và [client]
+        if hasattr(self, 'version_var'):
+            current_ver_str = self.version_var.get().strip()
+            if self.config.has_section("server"):
+                self.config["server"]["version"] = current_ver_str
+                self.config["server"]["client_version"] = current_ver_str
+            if self.config.has_section("client"):
+                self.config["client"]["version"] = current_ver_str
+
         try:
             success = save_config(self.config_path, self.config, encrypt=getattr(self, 'is_encrypted', False))
             if not success:

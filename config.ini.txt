@@ -1,9 +1,12 @@
 [server]
+version = 2026.3110.1407
+client_version = 2026.3110.1407
 host = 0.0.0.0
 port = 4567
 health_check_port = 7654
 
 [client]
+version = 2026.3110.1407
 server = 127.0.0.1
 retry_interval = 10
 refesh_interval = 5

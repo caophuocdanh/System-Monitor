@@ -876,6 +876,7 @@ async def main():
     health_check_port = int(config['server']['health_check_port'])
     retention_days = int(config['server'].get('retention_days', fallback=7))
     ACCESS_TOKEN = config['server'].get('access_token', fallback="")
+    server_version = config['server'].get('version', config['server'].get('client_version', '2026.3110.1407'))
 
     # Áp dụng cấu hình GUI và xử lý tham số -minimized
     gui_enabled = config.getboolean('server', 'gui', fallback=True)
@@ -903,7 +904,7 @@ async def main():
 
     async with websockets.serve(websocket_handler, server_host, server_port, max_size=100 * 1024 * 1024):
         if "-minimized" not in sys.argv and gui_enabled:
-            print(f"[Server] WebSocket server started at ws://{server_host}:{server_port}")
+            print(f"[Server] WebSocket server (Version {server_version}) started at ws://{server_host}:{server_port}")
         await asyncio.Future()
 
 if __name__ == "__main__":
