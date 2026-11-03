@@ -38,7 +38,8 @@ global_dashboards = set()
 # Trạng thái cảnh báo của từng client
 client_alert_status = {} # { guid: { "cpu": 0, "ram": 0, "disk": 0 } }
 # Cache thông tin client
-client_info_cache = {} # { guid: { "hostname": hostname, "username": username } }
+client_info_cache = {} # { guid: { "hostname": hostname, "username": username, ... } }
+known_db_guids = set()
 
 async def broadcast_to_global_dashboards(message):
     message_str = json.dumps(message)
@@ -253,6 +254,7 @@ def run_health_check_server(host, port):
 
 # Các hàm này giờ chỉ đưa yêu cầu vào hàng đợi dưới dạng (query, params)
 async def db_upsert_client_static_info(guid, hostname, username, local_ip, wan_ip, enabled_modules_json, version='1.0.0'):
+    known_db_guids.add(guid)
     sql_script = """
         INSERT INTO client (guid, hostname, username, local_ip, wan_ip, enabled_modules, version)
         VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -268,6 +270,8 @@ async def db_upsert_client_static_info(guid, hostname, username, local_ip, wan_i
 async def db_add_active_connection(guid, client_address):
     timestamp = int(datetime.now(timezone.utc).timestamp()) 
     address_str = f"{client_address[0]}:{client_address[1]}"
+    del_query = "DELETE FROM active_connections WHERE guid = ?"
+    await db_write_queue.put((del_query, (guid,)))
     query = "INSERT INTO active_connections (guid, connection_start_time, client_address) VALUES (?, ?, ?)"
     await db_write_queue.put((query, (guid, timestamp, address_str)))
 
@@ -354,6 +358,10 @@ async def database_writer_worker():
                     # Retry once for locked db
                     try: conn.execute(query, params); conn.commit()
                     except: pass
+            except sqlite3.IntegrityError as e:
+                print(f"[DB Worker Error] Integrity error: {e}")
+                if "foreign key" in str(e).lower() and params and isinstance(params[0], str):
+                    known_db_guids.discard(params[0])
             except Exception as e:
                 print(f"[DB Worker Error] Write failed: {e}")
             finally:
@@ -599,14 +607,25 @@ async def websocket_handler(websocket):
             
             hostname = data.get('hostname', 'Unknown')
             username = data.get('username', 'Unknown')
-            client_info_cache[guid] = {"hostname": hostname, "username": username}
+            local_ip = data.get('local_ip')
+            wan_ip = data.get('wan_ip')
+            enabled_modules_json = json.dumps(data.get('enabled_modules', []))
+            client_version = data.get('version', '1.0.0')
+            client_info_cache[guid] = {
+                "hostname": hostname,
+                "username": username,
+                "local_ip": local_ip,
+                "wan_ip": wan_ip,
+                "enabled_modules": enabled_modules_json,
+                "version": client_version
+            }
+            known_db_guids.add(guid)
             
             # Xử lý thông tin ban đầu (giống logic cũ)
-            client_version = data.get('version', '1.0.0')
             await db_upsert_client_static_info(
                 guid, hostname, username,
-                data.get('local_ip'), data.get('wan_ip'),
-                json.dumps(data.get('enabled_modules', [])),
+                local_ip, wan_ip,
+                enabled_modules_json,
                 client_version
             )
             await db_clear_client_audit_data(guid)
@@ -655,6 +674,20 @@ async def websocket_handler(websocket):
             if conn_type == 'agent':
                 # --- XỬ LÝ TIN NHẮN TỪ AGENT ---
                 if msg_type == 'metrics':
+                    if client_guid not in known_db_guids:
+                        cached = client_info_cache.get(client_guid)
+                        if cached:
+                            await db_upsert_client_static_info(
+                                client_guid,
+                                cached.get('hostname', 'Unknown'),
+                                cached.get('username', 'Unknown'),
+                                cached.get('local_ip'),
+                                cached.get('wan_ip'),
+                                cached.get('enabled_modules', '[]'),
+                                cached.get('version', '1.0.0')
+                            )
+                            await db_add_active_connection(client_guid, client_address)
+                            known_db_guids.add(client_guid)
                     await db_log_metrics(client_guid, data)
                     # (Tùy chọn) Forward metrics tới Dashboard nếu đang xem realtime
                     if client_guid in dashboard_connections:
@@ -724,14 +757,26 @@ async def websocket_handler(websocket):
                 elif msg_type == 'client_info':
                     hostname = data.get('hostname', 'Unknown')
                     username = data.get('username', 'Unknown')
-                    client_info_cache[client_guid] = {"hostname": hostname, "username": username}
+                    local_ip = data.get('local_ip')
+                    wan_ip = data.get('wan_ip')
+                    enabled_modules_json = json.dumps(data.get('enabled_modules', []))
                     client_version = data.get('version', '1.0.0')
+                    client_info_cache[client_guid] = {
+                        "hostname": hostname,
+                        "username": username,
+                        "local_ip": local_ip,
+                        "wan_ip": wan_ip,
+                        "enabled_modules": enabled_modules_json,
+                        "version": client_version
+                    }
+                    known_db_guids.add(client_guid)
                     await db_upsert_client_static_info(
                         client_guid, hostname, username,
-                        data.get('local_ip'), data.get('wan_ip'),
-                        json.dumps(data.get('enabled_modules', [])),
+                        local_ip, wan_ip,
+                        enabled_modules_json,
                         client_version
                     )
+                    await db_add_active_connection(client_guid, client_address)
 
             elif conn_type in ('dashboard', 'dashboard_global'):
                 # --- XỬ LÝ TIN NHẮN TỪ DASHBOARD (CẢ DASHBOARD VÀ GLOBAL DASHBOARD) ---
@@ -857,6 +902,29 @@ async def websocket_handler(websocket):
                             }))
                         continue
 
+                    if command == 'disconnect_client':
+                        disconnected_count = 0
+                        if target_guid == 'ALL':
+                            for g, ws in list(agent_connections.items()):
+                                try:
+                                    await ws.close(1000, "Client deleted from dashboard")
+                                    disconnected_count += 1
+                                    known_db_guids.discard(g)
+                                except: pass
+                        elif target_guid in agent_connections:
+                            ws = agent_connections[target_guid]
+                            try:
+                                await ws.close(1000, "Client deleted from dashboard")
+                                disconnected_count += 1
+                                known_db_guids.discard(target_guid)
+                            except: pass
+                        await websocket.send(json.dumps({
+                            "type": "remote_response",
+                            "command": "disconnect_client",
+                            "result": {"status": "success", "disconnected_count": disconnected_count}
+                        }))
+                        continue
+
                     # Các lệnh điều khiển khác (Terminal, File Manager, Processes...): Chuyển tiếp tới Agent
                     if target_guid in agent_connections:
                         print(f"[{timestamp_str}] [Remote Command] Routing to Agent {target_guid}: {command}")
@@ -874,6 +942,7 @@ async def websocket_handler(websocket):
         print(f"[{timestamp_str}] [WS Error] {e}")
     finally:
         if conn_type == 'agent' and client_guid:
+            known_db_guids.discard(client_guid)
             if agent_connections.get(client_guid) == websocket:
                 del agent_connections[client_guid]
             await db_remove_active_connection(client_guid, client_address)

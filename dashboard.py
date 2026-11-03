@@ -2,7 +2,7 @@ import sqlite3
 import json
 import os
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 import configparser
 import requests
 import threading
@@ -347,7 +347,11 @@ def get_dashboard_data():
     # 1. Lấy thông tin thống kê
     total_clients = conn.execute("SELECT COUNT(id) FROM client").fetchone()[0]
     active_guids_set = {row['guid'] for row in conn.execute("SELECT guid FROM active_connections").fetchall()}
-    clients_online = len(active_guids_set)
+    now_ts = int(datetime.now(timezone.utc).timestamp())
+    threshold_ts = now_ts - 30
+    recent_guids_set = {row['guid'] for row in conn.execute("SELECT DISTINCT guid FROM metrics_log WHERE timestamp >= ?", (threshold_ts,)).fetchall()}
+    all_online_guids = active_guids_set.union(recent_guids_set)
+    clients_online = len(all_online_guids)
     record_count = conn.execute("SELECT COUNT(id) FROM metrics_log").fetchone()[0]
     
     try:
@@ -365,11 +369,21 @@ def get_dashboard_data():
     # Lấy danh sách client theo trang (ưu tiên online lên đầu, sau đó theo hostname)
     # Ta sử dụng một CTE hoặc Subquery phức tạp hơn để sắp xếp đúng trước khi LIMIT
     query = f"""
-        WITH client_status AS (
+        WITH latest_metrics AS (
+            SELECT guid, MAX(timestamp) as last_ts
+            FROM metrics_log
+            GROUP BY guid
+        ),
+        client_status AS (
             SELECT 
                 c.*,
-                CASE WHEN EXISTS (SELECT 1 FROM active_connections WHERE guid = c.guid) THEN 0 ELSE 1 END as status_sort
+                CASE 
+                    WHEN EXISTS (SELECT 1 FROM active_connections WHERE guid = c.guid) THEN 0 
+                    WHEN lm.last_ts IS NOT NULL AND lm.last_ts >= ? THEN 0
+                    ELSE 1 
+                END as status_sort
             FROM client c
+            LEFT JOIN latest_metrics lm ON lm.guid = c.guid
         )
         SELECT 
             cs.*, 
@@ -388,11 +402,14 @@ def get_dashboard_data():
         LIMIT ? OFFSET ?
     """
     
-    all_clients_raw = conn.execute(query, (limit, offset)).fetchall()
+    all_clients_raw = conn.execute(query, (threshold_ts, limit, offset)).fetchall()
     all_clients = []
     for row in all_clients_raw:
         client_dict = dict(row)
-        client_dict['status'] = "Online" if client_dict['status_sort'] == 0 else "Offline"
+        is_online = (client_dict['status_sort'] == 0) or (
+            client_dict.get('metrics_timestamp') is not None and (now_ts - client_dict['metrics_timestamp'] <= 30)
+        )
+        client_dict['status'] = "Online" if is_online else "Offline"
         all_clients.append(client_dict)
     
     # Tính tổng số trang
@@ -490,6 +507,23 @@ def delete_client():
         cursor = conn.cursor()
         cursor.execute("DELETE FROM client WHERE guid = ?", (guid,))
         conn.commit()
+        
+        # Ngắt kết nối websocket của client trên server để client reconnect sạch sẽ
+        try:
+            cfg = load_config(os.path.join(get_base_path(), 'config.ini'))
+            ws_port = cfg['server'].get('port', '9630')
+            token = cfg['server'].get('access_token', '')
+            from websockets.sync.client import connect
+            with connect(f"ws://127.0.0.1:{ws_port}", open_timeout=2, close_timeout=2) as ws:
+                ws.send(json.dumps({"type": "dashboard_global_login", "access_token": token}))
+                ws.send(json.dumps({
+                    "type": "remote_command",
+                    "target_guid": guid,
+                    "command": "disconnect_client"
+                }))
+        except Exception as ws_err:
+            app.logger.warning(f"[Delete Client WS Notice] Could not notify server: {ws_err}")
+
         if cursor.rowcount > 0:
             return jsonify({'status': 'success', 'message': f'Client {guid} deleted.'})
         else:
@@ -621,6 +655,7 @@ def get_client_realtime_metrics(guid):
     conn = get_db_conn()
     metrics_row = conn.execute("""
         SELECT 
+            timestamp,
             cpu_usage, ram_usage, disk_usage,
             disk_io_json, network_io_json
         FROM metrics_log
@@ -628,8 +663,14 @@ def get_client_realtime_metrics(guid):
         ORDER BY timestamp DESC
         LIMIT 1
     """, (guid,)).fetchone()
-    is_online = conn.execute("SELECT 1 FROM active_connections WHERE guid = ?", (guid,)).fetchone() is not None
+    has_active = conn.execute("SELECT 1 FROM active_connections WHERE guid = ?", (guid,)).fetchone() is not None
     conn.close()
+
+    now_ts = int(datetime.now(timezone.utc).timestamp())
+    is_online = has_active
+    if metrics_row and not is_online:
+        if metrics_row['timestamp'] and (now_ts - metrics_row['timestamp'] <= 30):
+            is_online = True
 
     if metrics_row:
         metrics_dict = dict(metrics_row)
@@ -680,16 +721,21 @@ def prune_offline_clients():
     """API để xóa tất cả các client đang offline và dữ liệu liên quan."""
     conn = get_db_conn()
     try:
-        # Lấy danh sách GUID của các client đang online
+        # Lấy danh sách GUID của các client đang online (active connection HOẶC gửi metrics trong 30s)
+        now_ts = int(datetime.now(timezone.utc).timestamp())
+        threshold_ts = now_ts - 30
         active_guids_rows = conn.execute("SELECT DISTINCT guid FROM active_connections").fetchall()
         active_guids = {row['guid'] for row in active_guids_rows}
+        recent_guids_rows = conn.execute("SELECT DISTINCT guid FROM metrics_log WHERE timestamp >= ?", (threshold_ts,)).fetchall()
+        recent_guids = {row['guid'] for row in recent_guids_rows}
+        online_guids = active_guids.union(recent_guids)
         
         # Lấy danh sách GUID của tất cả client
         all_guids_rows = conn.execute("SELECT guid FROM client").fetchall()
         all_guids = {row['guid'] for row in all_guids_rows}
         
         # Xác định các client offline
-        offline_guids = all_guids - active_guids
+        offline_guids = all_guids - online_guids
         
         if not offline_guids:
             return jsonify({'status': 'success', 'message': 'No offline clients to prune.'})
