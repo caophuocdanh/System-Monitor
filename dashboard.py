@@ -822,7 +822,7 @@ def trigger_client_update():
     try:
         from websockets.sync.client import connect
         # Mở kết nối WebSocket nội bộ tới server.py
-        with connect(ws_url, open_timeout=5, close_timeout=5) as ws:
+        with connect(ws_url, open_timeout=10, close_timeout=10, max_size=100 * 1024 * 1024) as ws:
             # 1. Đăng nhập với quyền dashboard_global
             ws.send(json.dumps({
                 "type": "dashboard_global_login",
@@ -834,8 +834,8 @@ def trigger_client_update():
                 "target_guid": guid,
                 "command": "update_client"
             }))
-            # 3. Chờ phản hồi từ Server (timeout 15s)
-            response = ws.recv(timeout=15)
+            # 3. Chờ phản hồi từ Server (timeout 30s)
+            response = ws.recv(timeout=30)
             res_data = json.loads(response)
             
             if res_data.get('error'):

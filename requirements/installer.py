@@ -11,39 +11,71 @@ def install():
     target_dir = r"C:\Users\Public\SystemMonitor"
     exe_name = "smchost.exe"
     config_name = "config.ini"
+    flags = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
+    detached_flags = getattr(subprocess, 'CREATE_NO_WINDOW', 0) | getattr(subprocess, 'DETACHED_PROCESS', 0x00000008)
     
-    # 1. Xác định thư mục giải nén tạm thời của PyInstaller
+    # 1. Xác định thư mục chứa dữ liệu nguồn
     if getattr(sys, 'frozen', False):
         base_path = sys._MEIPASS
     else:
         base_path = os.path.dirname(os.path.abspath(__file__))
         
     src_exe = os.path.join(base_path, exe_name)
+    if not os.path.exists(src_exe):
+        for alt in [
+            os.path.join(base_path, "..", "source", "client", exe_name),
+            os.path.join(base_path, "..", "dist", exe_name),
+            os.path.join(base_path, "..", exe_name)
+        ]:
+            if os.path.exists(alt):
+                src_exe = alt
+                break
+
     src_config = os.path.join(base_path, config_name)
+    if not os.path.exists(src_config):
+        for alt in [
+            os.path.join(base_path, "..", config_name),
+            os.path.join(base_path, "..", "source", "client", config_name),
+            os.path.join(base_path, "..", "config.ini")
+        ]:
+            if os.path.exists(alt):
+                src_config = alt
+                break
+
     dest_exe = os.path.join(target_dir, exe_name)
     dest_config = os.path.join(target_dir, config_name)
     
-    # 2. Tắt tiến trình cũ (nếu có) để tránh khóa tệp tin
-    flags = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
-    subprocess.run(["taskkill", "/f", "/im", exe_name], capture_output=True, creationflags=flags)
-    time.sleep(0.5)
+    # 2. Tắt triệt để tiến trình cũ (nếu có) để giải phóng khóa tệp tin
+    for _ in range(3):
+        subprocess.run(["taskkill", "/f", "/im", exe_name], capture_output=True, creationflags=flags)
+        time.sleep(0.5)
     
-    # 3. Xóa luôn client cũ và giải nén client mới
+    # 3. Tạo thư mục đích nếu chưa có
     if not os.path.exists(target_dir):
         try:
             os.makedirs(target_dir, exist_ok=True)
         except Exception:
             pass
 
-    # Xóa triệt để file client cũ nếu tồn tại
+    # Xóa file thực thi cũ (hoặc đổi tên nếu Windows đang giữ handle)
     if os.path.exists(dest_exe):
-        for _ in range(3):
+        removed = False
+        for _ in range(5):
             try:
                 os.remove(dest_exe)
+                removed = True
                 break
             except Exception:
                 subprocess.run(["taskkill", "/f", "/im", exe_name], capture_output=True, creationflags=flags)
                 time.sleep(0.5)
+        if not removed and os.path.exists(dest_exe):
+            try:
+                old_dest = dest_exe + f".old_{int(time.time())}"
+                if os.path.exists(old_dest):
+                    os.remove(old_dest)
+                os.rename(dest_exe, old_dest)
+            except Exception:
+                pass
 
     # Giải nén gói zip client (nếu có trong gói cài đặt)
     for zip_name in ["data.zip", "client.zip", "smchost.zip"]:
@@ -56,22 +88,23 @@ def install():
             except Exception:
                 pass
 
-    # Sao chép/bung file thực thi client mới (smchost.exe) vào thư mục đích
+    # Sao chép file thực thi client mới (smchost.exe) vào thư mục đích
     if os.path.exists(src_exe):
-        try:
-            shutil.copy2(src_exe, dest_exe)
-        except Exception:
-            pass
+        for _ in range(5):
+            try:
+                shutil.copy2(src_exe, dest_exe)
+                break
+            except Exception:
+                time.sleep(0.5)
 
-    # Cập nhật file cấu hình nếu có kèm theo
+    # Cập nhật file cấu hình config.ini
     if os.path.exists(src_config):
         try:
-            if os.path.exists(dest_config):
-                try:
-                    os.remove(dest_config)
-                except Exception:
-                    pass
-            shutil.copy2(src_config, dest_config)
+            if not os.path.exists(dest_config):
+                shutil.copy2(src_config, dest_config)
+            else:
+                # Đã có file cấu hình tại client: Sao lưu và cập nhật
+                shutil.copy2(src_config, dest_config)
         except Exception:
             pass
 
@@ -84,7 +117,18 @@ def install():
             except Exception:
                 pass
 
-    # Dọn dẹp các file source trong thư mục updates (nếu tồn tại)
+    # Dọn dẹp các file rác .old nếu có
+    try:
+        for f in os.listdir(target_dir):
+            if f.startswith("smchost.exe.old"):
+                try:
+                    os.remove(os.path.join(target_dir, f))
+                except Exception:
+                    pass
+    except Exception:
+        pass
+
+    # Dọn dẹp các file source trong thư mục updates (nếu tồn tại trên máy)
     current_script_dir = os.path.dirname(os.path.abspath(__file__))
     potential_updates_dirs = [
         os.path.join(base_path, "static", "updates"),
@@ -95,7 +139,7 @@ def install():
     ]
     for upd_dir in potential_updates_dirs:
         if os.path.isdir(upd_dir):
-            for file_to_clean in ["client_setup.exe", "smchost.exe", "config.ini", "updater.bat"]:
+            for file_to_clean in ["smchost.exe", "config.ini", "updater.bat"]:
                 f_path = os.path.join(upd_dir, file_to_clean)
                 if os.path.exists(f_path):
                     try:
@@ -157,10 +201,10 @@ def install():
         except Exception:
             pass
             
-    # 6. Khởi động Client chạy ngầm luôn
+    # 6. Khởi động Client chạy ngầm hoàn toàn độc lập (DETACHED_PROCESS)
     try:
         if os.path.exists(dest_exe):
-            subprocess.Popen([dest_exe, "-minimized"], creationflags=flags)
+            subprocess.Popen([dest_exe, "-minimized"], creationflags=detached_flags, close_fds=True)
     except Exception:
         pass
 

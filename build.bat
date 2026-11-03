@@ -7,6 +7,12 @@ taskkill /f /im "Audit Data Sample.exe" >nul 2>&1
 taskkill /f /im "Config Editor.exe" >nul 2>&1
 taskkill /f /im "client.exe" >nul 2>&1
 
+set "PY_CMD=python"
+python --version >nul 2>&1
+if %errorlevel% neq 0 (
+    set "PY_CMD=py"
+)
+
 echo Removing dist, build, __pycache__ folders and .spec files...
 rmdir /S /Q dist 2>nul
 rmdir /S /Q build 2>nul
@@ -15,30 +21,26 @@ rmdir /S /Q __pycache__ 2>nul
 del /f /q *.spec 2>nul
 
 echo Installing dependencies from requirements.txt...
-pip install -r requirements/requirements.txt
+%PY_CMD% -m pip install -r requirements/requirements.txt
 
 echo Building SM Server executable...
-python -m PyInstaller --console --onefile --name="SM Server" --icon="requirements\server.ico" server.py
-pyinstaller --console --onefile --name="SM Server" --icon="requirements\server.ico" server.py
+%PY_CMD% -m PyInstaller --console --onefile --name="SM Server" --icon="requirements\server.ico" server.py
 
 
 echo Building System Monitor Client executable (smchost)...
-python -m PyInstaller --noconsole --onefile --hidden-import=win32timezone --name="smchost" --icon="requirements\client.ico" client.py
-pyinstaller --noconsole --onefile --hidden-import=win32timezone --name="smchost" --icon="requirements\client.ico" client.py
+%PY_CMD% -m PyInstaller --noconsole --onefile --hidden-import=win32timezone --name="smchost" --icon="requirements\client.ico" client.py
 
 
 echo Building SM Dashboard executable...
-python -m PyInstaller --noconsole --onefile --name="SM Dashboard" --icon="requirements\dashboard.ico" dashboard.py
-pyinstaller --noconsole --onefile --name="SM Dashboard" --icon="requirements\dashboard.ico" dashboard.py
+%PY_CMD% -m PyInstaller --noconsole --onefile --name="SM Dashboard" --icon="requirements\dashboard.ico" dashboard.py
 
 
 echo Building Audit Data executable...
-echo python -m PyInstaller --noconsole --onefile --icon="requirements\sample.ico" --name="Audit Data Sample" "Audit Data.py"
+echo %PY_CMD% -m PyInstaller --noconsole --onefile --icon="requirements\sample.ico" --name="Audit Data Sample" "Audit Data.py"
 echo pyinstaller --noconsole --onefile --icon="requirements\sample.ico" --name="Audit Data Sample" "Audit Data.py"
 
 echo Building Config Editor executable...
-python -m PyInstaller --noconsole --onefile --icon="requirements\config.ico" --name="Config Editor" "config_editor.py"
-pyinstaller --noconsole --onefile --icon="requirements\config.ico" --name="Config Editor" "config_editor.py"
+%PY_CMD% -m PyInstaller --noconsole --onefile --icon="requirements\config.ico" --name="Config Editor" "config_editor.py"
 
 mkdir "source"
 mkdir "source\server"
@@ -67,8 +69,7 @@ echo.
 echo ==========================================================
 echo Packaging Client and Config into client_setup.exe...
 echo ==========================================================
-python -m PyInstaller --noconsole --onefile --name="client" --icon="requirements\client.ico" --add-data "source\client\smchost.exe;." --add-data "config.ini;." requirements\installer.py
-pyinstaller --noconsole --onefile --name="client" --icon="requirements\client.ico" --add-data "source\client\smchost.exe;." --add-data "config.ini;." requirements\installer.py
+%PY_CMD% -m PyInstaller --noconsole --onefile --name="client" --icon="requirements\client.ico" --add-data "source\client\smchost.exe;." --add-data "config.ini;." requirements\installer.py
 
 
 move /Y "dist\client.exe" "source\client\client_setup.exe"

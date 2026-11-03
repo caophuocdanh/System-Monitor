@@ -746,17 +746,37 @@ async def websocket_handler(websocket):
                         updates_dir = os.path.join(base_path, 'static', 'updates')
                         
                         # 1. Tìm tệp cài đặt (Ưu tiên client_setup.exe, nếu không có thì fallback sang data.zip)
-                        setup_path = os.path.join(updates_dir, 'client_setup.exe')
-                        if not os.path.exists(setup_path):
-                            setup_path = os.path.join(base_path, 'source', 'client', 'client_setup.exe')
-                        if not os.path.exists(setup_path):
-                            setup_path = os.path.join(base_path, 'client_setup.exe')
+                        script_dir = os.path.dirname(os.path.abspath(__file__))
+                        possible_setup_paths = [
+                            os.path.join(updates_dir, 'client_setup.exe'),
+                            os.path.join(base_path, '..', 'client', 'client_setup.exe'),
+                            os.path.join(base_path, 'source', 'client', 'client_setup.exe'),
+                            os.path.join(base_path, 'client', 'client_setup.exe'),
+                            os.path.join(base_path, 'client_setup.exe'),
+                            os.path.join(script_dir, 'source', 'client', 'client_setup.exe'),
+                            os.path.join(script_dir, '..', 'client', 'client_setup.exe'),
+                        ]
+                        setup_path = None
+                        for p in possible_setup_paths:
+                            if os.path.exists(p):
+                                setup_path = p
+                                break
 
-                        zip_path = os.path.join(updates_dir, 'data.zip')
-                        if not os.path.exists(zip_path):
-                            zip_path = os.path.join(base_path, 'source', 'server', 'static', 'updates', 'data.zip')
+                        possible_zip_paths = [
+                            os.path.join(updates_dir, 'data.zip'),
+                            os.path.join(base_path, 'static', 'updates', 'data.zip'),
+                            os.path.join(base_path, 'source', 'server', 'static', 'updates', 'data.zip'),
+                            os.path.join(base_path, '..', 'server', 'static', 'updates', 'data.zip'),
+                            os.path.join(script_dir, 'static', 'updates', 'data.zip'),
+                            os.path.join(script_dir, 'source', 'server', 'static', 'updates', 'data.zip'),
+                        ]
+                        zip_path = None
+                        for p in possible_zip_paths:
+                            if os.path.exists(p):
+                                zip_path = p
+                                break
 
-                        if not os.path.exists(setup_path) and not os.path.exists(zip_path):
+                        if not setup_path and not zip_path:
                             print(f"[{timestamp_str}] [Update Error] Không tìm thấy client_setup.exe hoặc data.zip trên Server.")
                             await websocket.send(json.dumps({
                                 "type": "remote_response", 
@@ -766,7 +786,7 @@ async def websocket_handler(websocket):
                             continue
 
                         try:
-                            if os.path.exists(setup_path):
+                            if setup_path:
                                 file_size_mb = os.path.getsize(setup_path) / (1024 * 1024)
                                 print(f"[{timestamp_str}] [Auto Update] Đang đọc client_setup.exe ({file_size_mb:.2f} MB)...")
                                 with open(setup_path, 'rb') as f:
