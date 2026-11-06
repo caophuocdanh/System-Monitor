@@ -14,7 +14,10 @@ import configparser
 import platform
 import hashlib
 import psutil
-from library import WindowsAuditor, load_config, save_config
+from library import WindowsAuditor, load_config, save_config, setup_system_logger
+
+# Khởi tạo logger hệ thống xoay vòng (tối đa 5MB x 3 bản backup)
+logger = setup_system_logger("SM_Client", "client.log")
 import threading
 import time 
 
@@ -215,30 +218,15 @@ def ensure_single_instance():
     if not found_other:
         print("[CLEANUP] No other instances found.")
 
-# --- Các biến toàn cục ---
+# --- Các biến toàn cục và Phiên bản Client (cố định trong code, cập nhật qua build.bat) ---
+__version__ = "26.1106.2125"
+CLIENT_VERSION = __version__
 CLIENT_GUID = get_machine_id()
 
 def get_client_version(config_obj=None):
-    """Lấy phiên bản client trực tiếp từ file config.ini thay vì lưu cứng trong mã nguồn code."""
-    try:
-        if config_obj is None:
-            config_path = os.path.join(get_base_path(), "config.ini")
-            config_obj = load_config_file(config_path)
-        if config_obj.has_section('client'):
-            if config_obj['client'].get('version'):
-                return config_obj['client']['version'].strip()
-            if config_obj['client'].get('client_version'):
-                return config_obj['client']['client_version'].strip()
-        if config_obj.has_section('server'):
-            if config_obj['server'].get('client_version'):
-                return config_obj['server']['client_version'].strip()
-            if config_obj['server'].get('version'):
-                return config_obj['server']['version'].strip()
-    except Exception:
-        pass
-    return "2026.3110.1407"
+    """Lấy phiên bản client (được cố định trong mã nguồn code)."""
+    return CLIENT_VERSION
 
-CLIENT_VERSION = get_client_version()
 HOSTNAME = socket.gethostname()
 USERNAME = HOSTNAME
 
@@ -308,6 +296,138 @@ def run_full_audit_sync():
 # FILE: client.py
 
 terminal_process = None
+main_event_loop = None
+
+async def _safe_close_ws(ws):
+    if ws is None:
+        return
+    try:
+        if hasattr(ws, 'close'):
+            res = ws.close(code=1000, reason="Client normal exit")
+            if asyncio.iscoroutine(res):
+                await res
+    except Exception as e:
+        print(f"[RECONNECT] Warning closing websocket: {e}")
+
+def execute_graceful_shutdown(ws, delay_before_exit=1.2):
+    """
+    Thực hiện ngắt kết nối an toàn (Graceful Shutdown) trước khi tiến trình update thay thế:
+    1. Gửi Close frame WebSocket chuẩn (code 1000 - Normal Closure) để server không báo lỗi 1006.
+    2. Flush toàn bộ stream stdout, stderr.
+    3. Dừng event loop nếu đang chạy.
+    4. Thoát tiến trình có kiểm soát bằng sys.exit(0).
+    """
+    global main_event_loop
+    print("[SHUTDOWN] Bắt đầu quy trình tắt máy trạm an toàn (Graceful Shutdown)...")
+    try:
+        if ws and main_event_loop and main_event_loop.is_running():
+            asyncio.run_coroutine_threadsafe(
+                _safe_close_ws(ws),
+                main_event_loop
+            )
+    except Exception as e:
+        print(f"[SHUTDOWN] Lỗi khi đóng websocket: {e}")
+
+    try:
+        sys.stdout.flush()
+        sys.stderr.flush()
+    except Exception:
+        pass
+
+    time.sleep(delay_before_exit)
+    try:
+        if main_event_loop and main_event_loop.is_running():
+            main_event_loop.call_soon_threadsafe(main_event_loop.stop)
+    except Exception:
+        pass
+
+    try:
+        sys.exit(0)
+    except SystemExit:
+        os._exit(0)
+
+# Trạng thái theo dõi tiến trình tải bản cập nhật dạng Chunk
+chunk_download_state = {
+    "active": False,
+    "file_path": None,
+    "final_path": None,
+    "expected_sha256": None,
+    "filename": None,
+    "installer_type": None,
+    "total_chunks": 0,
+    "received_chunks": 0,
+    "file_handle": None
+}
+
+def run_silent_updater_and_exit(final_path, installer_type, ws):
+    """Kích hoạt VBScript chạy ngầm cài đặt và thực hiện shutdown an toàn."""
+    temp_dir = os.path.dirname(os.path.abspath(final_path))
+    wscript_exe = os.path.join(os.environ.get("SystemRoot", r"C:\Windows"), "System32", "wscript.exe")
+    if not os.path.exists(wscript_exe):
+        wscript_exe = "wscript.exe"
+    flags = getattr(subprocess, 'CREATE_NO_WINDOW', 0) | getattr(subprocess, 'DETACHED_PROCESS', 0x00000008)
+    current_pid = str(os.getpid())
+
+    if installer_type == 'setup_exe':
+        local_vbs = os.path.join(temp_dir, "silent_updater.vbs")
+        vbs_content = (
+            'Set WshShell = CreateObject("WScript.Shell")\n'
+            'WScript.Sleep 2000\n'
+            'On Error Resume Next\n'
+            'WshShell.Run "taskkill /F /PID " & WScript.Arguments(0), 0, True\n'
+            'WshShell.Run "taskkill /F /IM smchost.exe", 0, True\n'
+            'WScript.Sleep 1000\n'
+            'WshShell.Run Chr(34) & WScript.Arguments(1) & Chr(34), 0, False\n'
+            'Set fso = CreateObject("Scripting.FileSystemObject")\n'
+            'fso.DeleteFile WScript.ScriptFullName, True\n'
+        )
+        try:
+            with open(local_vbs, 'w', encoding='utf-8') as f:
+                f.write(vbs_content)
+        except Exception as e:
+            print(f"[UPDATE ERROR] Ghi silent_updater.vbs thất bại: {e}")
+
+        print(f"[UPDATE] Kích hoạt silent_updater.vbs ngầm (SW_HIDE, không hiện CMD)...")
+        subprocess.Popen([wscript_exe, "//B", "//Nologo", local_vbs, current_pid, final_path],
+                         creationflags=flags, close_fds=True)
+        execute_graceful_shutdown(ws, delay_before_exit=1.2)
+    else:
+        local_vbs = os.path.join(temp_dir, "silent_updater_zip.vbs")
+        extract_dir = os.path.join(temp_dir, "extracted")
+        vbs_content = (
+            'Set WshShell = CreateObject("WScript.Shell")\n'
+            'WScript.Sleep 2000\n'
+            'On Error Resume Next\n'
+            'WshShell.Run "taskkill /F /PID " & WScript.Arguments(0), 0, True\n'
+            'WshShell.Run "taskkill /F /IM smchost.exe", 0, True\n'
+            'WScript.Sleep 1000\n'
+            f'zipFile = "{final_path}"\n'
+            f'destDir = "{extract_dir}"\n'
+            'psCmd = "powershell -NoProfile -ExecutionPolicy Bypass -Command ""Expand-Archive -Path \'" & zipFile & "\' -DestinationPath \'" & destDir & "\' -Force"""\n'
+            'WshShell.Run psCmd, 0, True\n'
+            'Set fso = CreateObject("Scripting.FileSystemObject")\n'
+            'setupExe = destDir & "\\client_setup.exe"\n'
+            'If fso.FileExists(setupExe) Then\n'
+            '    WshShell.Run Chr(34) & setupExe & Chr(34), 0, False\n'
+            'Else\n'
+            '    targetDir = WScript.Arguments(1)\n'
+            '    copyCmd = "cmd.exe /c xcopy /E /Y /H /R """ & destDir & "\\*"" """ & targetDir & "\\"""\n'
+            '    WshShell.Run copyCmd, 0, True\n'
+            '    WshShell.Run Chr(34) & targetDir & "\\smchost.exe" & Chr(34), 0, False\n'
+            'End If\n'
+            'fso.DeleteFile WScript.ScriptFullName, True\n'
+        )
+        try:
+            with open(local_vbs, 'w', encoding='utf-8') as f:
+                f.write(vbs_content)
+        except Exception as e:
+            print(f"[UPDATE ERROR] Ghi silent_updater_zip.vbs thất bại: {e}")
+
+        current_dir = os.path.dirname(os.path.abspath(sys.executable if getattr(sys, 'frozen', False) else __file__))
+        print(f"[UPDATE] Kích hoạt silent_updater_zip.vbs ngầm (SW_HIDE, không hiện CMD)...")
+        subprocess.Popen([wscript_exe, "//B", "//Nologo", local_vbs, current_pid, current_dir],
+                         creationflags=flags, close_fds=True)
+        execute_graceful_shutdown(ws, delay_before_exit=1.2)
 
 async def listen_for_remote_commands(websocket):
     """Lắng nghe các lệnh điều khiển từ xa từ server."""
@@ -355,10 +475,127 @@ async def listen_for_remote_commands(websocket):
                         response_data["result"] = WindowsAuditor._RemoteControl.list_dir(path)
                         await websocket.send(json.dumps(response_data))
 
+                    elif command_type == 'update_client_chunk_start':
+                        global chunk_download_state
+                        payload = data.get('payload', {})
+                        filename = payload.get('filename', 'client_setup.exe')
+                        total_chunks = payload.get('total_chunks', 0)
+                        expected_sha256 = payload.get('sha256', '').strip().lower()
+                        installer_type = payload.get('installer_type', 'setup_exe')
+
+                        temp_dir = os.path.join(tempfile.gettempdir(), "sm_updater")
+                        os.makedirs(temp_dir, exist_ok=True)
+                        part_file = os.path.join(temp_dir, filename + ".part")
+                        final_file = os.path.join(temp_dir, filename)
+
+                        # Đóng file handle cũ nếu còn sót
+                        if chunk_download_state.get("file_handle"):
+                            try:
+                                chunk_download_state["file_handle"].close()
+                            except Exception:
+                                pass
+
+                        try:
+                            fh = open(part_file, 'wb')
+                            chunk_download_state = {
+                                "active": True,
+                                "file_path": part_file,
+                                "final_path": final_file,
+                                "expected_sha256": expected_sha256,
+                                "filename": filename,
+                                "installer_type": installer_type,
+                                "total_chunks": total_chunks,
+                                "received_chunks": 0,
+                                "file_handle": fh
+                            }
+                            print(f"[UPDATE CHUNK] Bắt đầu nhận file cập nhật '{filename}' ({total_chunks} chunks, SHA256: {expected_sha256[:12]}...)...")
+                            response_data["result"] = {"status": "chunk_download_started", "total_chunks": total_chunks}
+                        except Exception as e:
+                            print(f"[UPDATE CHUNK ERROR] Không thể mở file tạm: {e}")
+                            response_data["result"] = {"success": False, "error": str(e)}
+                        await websocket.send(json.dumps(response_data))
+
+                    elif command_type == 'update_client_chunk_data':
+                        if chunk_download_state["active"] and chunk_download_state.get("file_handle"):
+                            payload = data.get('payload', {})
+                            chunk_idx = payload.get('chunk_index', 0)
+                            data_b64 = payload.get('data_b64', '')
+                            try:
+                                chunk_bytes = base64.b64decode(data_b64)
+                                chunk_download_state["file_handle"].write(chunk_bytes)
+                                chunk_download_state["received_chunks"] += 1
+                                if chunk_idx % 15 == 0 or chunk_idx == chunk_download_state["total_chunks"] - 1:
+                                    print(f"[UPDATE CHUNK] Nhận chunk {chunk_idx + 1}/{chunk_download_state['total_chunks']}")
+                            except Exception as e:
+                                print(f"[UPDATE CHUNK ERROR] Lỗi ghi chunk {chunk_idx}: {e}")
+
+                    elif command_type == 'update_client_chunk_end':
+                        if chunk_download_state["active"]:
+                            if chunk_download_state.get("file_handle"):
+                                try:
+                                    chunk_download_state["file_handle"].close()
+                                except Exception:
+                                    pass
+                                chunk_download_state["file_handle"] = None
+
+                            part_file = chunk_download_state["file_path"]
+                            final_path = chunk_download_state["final_path"]
+                            expected_sha256 = chunk_download_state["expected_sha256"]
+                            installer_type = chunk_download_state["installer_type"]
+                            filename = chunk_download_state["filename"]
+
+                            # Xác thực SHA256 của file hoàn chỉnh trên đĩa
+                            hasher = hashlib.sha256()
+                            try:
+                                with open(part_file, 'rb') as f:
+                                    while True:
+                                        b = f.read(256 * 1024)
+                                        if not b:
+                                            break
+                                        hasher.update(b)
+                                actual_sha256 = hasher.hexdigest().lower()
+                            except Exception as e:
+                                print(f"[UPDATE CHUNK ERROR] Lỗi đọc file part: {e}")
+                                response_data["result"] = {"success": False, "error": str(e)}
+                                await websocket.send(json.dumps(response_data))
+                                chunk_download_state["active"] = False
+                                continue
+
+                            if expected_sha256 and actual_sha256 != expected_sha256:
+                                print(f"[UPDATE CHUNK ERROR] SHA256 không khớp! Nhận: {actual_sha256}, Kỳ vọng: {expected_sha256}")
+                                try:
+                                    os.remove(part_file)
+                                except Exception:
+                                    pass
+                                response_data["result"] = {"success": False, "error": "SHA256 checksum mismatch"}
+                                await websocket.send(json.dumps(response_data))
+                                chunk_download_state["active"] = False
+                                continue
+
+                            # Đổi tên .part sang file đích
+                            try:
+                                if os.path.exists(final_path):
+                                    os.remove(final_path)
+                                os.rename(part_file, final_path)
+                            except Exception as e:
+                                print(f"[UPDATE CHUNK ERROR] Lỗi đổi tên file: {e}")
+                                response_data["result"] = {"success": False, "error": str(e)}
+                                await websocket.send(json.dumps(response_data))
+                                chunk_download_state["active"] = False
+                                continue
+
+                            print(f"[UPDATE CHUNK] File '{filename}' nhận đủ 100% và xác thực SHA256 thành công ({actual_sha256[:12]}...). Kích hoạt cài đặt...")
+                            response_data["result"] = {"status": "starting", "message": f"Tệp {filename} đã nhận đủ và xác thực toàn vẹn. Đang tiến hành cài đặt ngầm..."}
+                            await websocket.send(json.dumps(response_data))
+
+                            threading.Thread(target=run_silent_updater_and_exit, args=(final_path, installer_type, websocket), daemon=True).start()
+                            chunk_download_state["active"] = False
+
                     elif command_type in ('update_client', 'update_client_push'):
                         payload = data.get('payload', {})
                         exe_b64 = payload.get('exe_b64', '')
                         zip_b64 = payload.get('zip_b64', '')
+                        expected_sha256 = payload.get('sha256', '').strip().lower()
                         bat_content = payload.get('bat_content', '')
 
                         if not exe_b64 and not zip_b64:
@@ -373,6 +610,7 @@ async def listen_for_remote_commands(websocket):
 
                         def deploy_update_package():
                             import base64
+                            import hashlib
                             import tempfile
                             import os
                             import subprocess
@@ -387,9 +625,16 @@ async def listen_for_remote_commands(websocket):
                                 local_exe = os.path.join(temp_dir, "client_setup.exe")
                                 local_vbs = os.path.join(temp_dir, "silent_updater.vbs")
 
-                                print(f"[UPDATE] Ghi file cài đặt: {local_exe}")
+                                print(f"[UPDATE] Giải mã và xác thực file cài đặt: {local_exe}")
                                 try:
                                     exe_bytes = base64.b64decode(exe_b64)
+                                    if expected_sha256:
+                                        actual_sha256 = hashlib.sha256(exe_bytes).hexdigest().lower()
+                                        if actual_sha256 != expected_sha256:
+                                            print(f"[UPDATE ERROR] Checksum SHA256 không khớp! Nhận: {actual_sha256}, Kỳ vọng: {expected_sha256}")
+                                            return
+                                        print(f"[UPDATE] Xác thực toàn vẹn SHA256 thành công ({actual_sha256[:12]}...).")
+
                                     with open(local_exe, 'wb') as f:
                                         f.write(exe_bytes)
                                     print(f"[UPDATE] Ghi client_setup.exe thành công ({len(exe_bytes)} bytes)")
@@ -425,8 +670,7 @@ async def listen_for_remote_commands(websocket):
                                 subprocess.Popen([wscript_exe, "//B", "//Nologo", local_vbs, current_pid, local_exe],
                                                  creationflags=flags, close_fds=True)
 
-                                time.sleep(1)
-                                os._exit(0)
+                                execute_graceful_shutdown(websocket, delay_before_exit=1.2)
 
                             # 2. DỰ PHÒNG: CẬP NHẬT QUA data.zip (chạy ẩn ngầm 100% không hiện CMD)
                             elif zip_b64:
@@ -434,9 +678,16 @@ async def listen_for_remote_commands(websocket):
                                 local_vbs = os.path.join(temp_dir, "silent_updater_zip.vbs")
                                 extract_dir = os.path.join(temp_dir, "extracted")
 
-                                print(f"[UPDATE] Ghi file zip: {local_zip}")
+                                print(f"[UPDATE] Giải mã và xác thực file zip: {local_zip}")
                                 try:
                                     zip_bytes = base64.b64decode(zip_b64)
+                                    if expected_sha256:
+                                        actual_sha256 = hashlib.sha256(zip_bytes).hexdigest().lower()
+                                        if actual_sha256 != expected_sha256:
+                                            print(f"[UPDATE ERROR] Checksum SHA256 zip không khớp! Nhận: {actual_sha256}, Kỳ vọng: {expected_sha256}")
+                                            return
+                                        print(f"[UPDATE] Xác thực toàn vẹn SHA256 thành công ({actual_sha256[:12]}...).")
+
                                     with open(local_zip, 'wb') as f:
                                         f.write(zip_bytes)
                                 except Exception as e:
@@ -482,8 +733,7 @@ async def listen_for_remote_commands(websocket):
                                 subprocess.Popen([wscript_exe, "//B", "//Nologo", local_vbs, current_pid, current_dir],
                                                  creationflags=flags, close_fds=True)
 
-                                time.sleep(1)
-                                os._exit(0)
+                                execute_graceful_shutdown(websocket, delay_before_exit=1.2)
                         threading.Thread(target=deploy_update_package, daemon=True).start()
 
                     elif command_type == 'file_download':
@@ -643,7 +893,9 @@ async def send_updated_audit_and_info(websocket):
     """
     config = load_config_file(os.path.join(get_base_path(), 'config.ini'))
     update_interval = int(config['client']['update_info_interval'])
-    access_token = config['server'].get('access_token', fallback="")
+    access_token = config['client'].get('access_token', config['client'].get('token', ''))
+    if not access_token and config.has_section('server'):
+        access_token = config['server'].get('access_token', config['server'].get('token', ''))
 
     try:
         while True:
@@ -655,7 +907,8 @@ async def send_updated_audit_and_info(websocket):
                 "type": "client_info", "guid": CLIENT_GUID, "hostname": HOSTNAME,
                 "username": USERNAME, "local_ip": local_ip, "wan_ip": wan_ip,
                 "enabled_modules": enabled_modules,
-                "version": get_client_version(config),
+                "version": CLIENT_VERSION,
+                "supports_chunk": True,
                 "access_token": access_token
             }
             await websocket.send(json.dumps(info))
@@ -693,24 +946,12 @@ async def send_updated_audit_and_info(websocket):
         print(f"Info/Audit sending task: An unexpected error occurred: {e}")
 
 
-# --- Quản lý Trạng thái và Cấu hình Client (Ctrl + F9) ---
+# --- Quản lý Trạng thái và Cấu hình Client (Ctrl + F11) ---
 active_websocket = None
-main_event_loop = None
 reconnect_event = None
 connection_status_text = "Đang khởi tạo kết nối..."
 root_config_window = None
 config_window_lock = threading.Lock()
-
-async def _safe_close_ws(ws):
-    if ws is None:
-        return
-    try:
-        if hasattr(ws, 'close'):
-            res = ws.close()
-            if asyncio.iscoroutine(res):
-                await res
-    except Exception as e:
-        print(f"[RECONNECT] Warning closing websocket: {e}")
 
 def trigger_immediate_reconnect():
     """Kích hoạt kết nối lại ngay lập tức khi người dùng lưu cấu hình mới."""
@@ -729,7 +970,7 @@ def trigger_immediate_reconnect():
         print(f"[CONFIG] Error closing active websocket: {e}")
 
 class ClientConfigDialog:
-    """Giao diện Tinh gọn: Chức năng DUY NHẤT chỉnh sửa địa chỉ WebSocket kết nối Client -> Server (Ctrl + F9)."""
+    """Giao diện Tinh gọn: Chức năng DUY NHẤT chỉnh sửa địa chỉ WebSocket kết nối Client -> Server (Ctrl + F11)."""
     def __init__(self, master, config_path, on_save_callback=None):
         self.master = master
         self.config_path = config_path
@@ -748,7 +989,7 @@ class ClientConfigDialog:
 
         self.config = load_config_file(self.config_path)
 
-        self.master.title("Cấu hình Kết nối Server (Ctrl + F9)")
+        self.master.title("Cấu hình Kết nối Server (Ctrl + F11)")
         self.master.geometry("460x260")
         self.master.resizable(False, False)
 
@@ -788,7 +1029,7 @@ class ClientConfigDialog:
 
         sub_label = ttk.Label(
             header_frame, 
-            text="Chỉnh sửa địa chỉ kết nối WebSocket máy chủ (Phím tắt: Ctrl + F9)",
+            text="Chỉnh sửa địa chỉ kết nối WebSocket máy chủ (Phím tắt: Ctrl + F11)",
             foreground="#555555"
         )
         sub_label.pack(anchor="w", pady=(2, 0))
@@ -948,33 +1189,33 @@ def open_config_gui():
 
 
 def start_hotkey_listener():
-    """Khởi động luồng lắng nghe phím nóng Ctrl + F9 toàn cục trên Windows."""
+    """Khởi động luồng lắng nghe phím nóng Ctrl + F11 toàn cục trên Windows."""
     if platform.system() != "Windows":
         return
 
     def listener_thread():
         MOD_CONTROL = 0x0002
         MOD_NOREPEAT = 0x4000
-        VK_F9 = 0x78
+        VK_F11 = 0x7A
         WM_HOTKEY = 0x0312
         HOTKEY_ID = 9001
 
         user32 = ctypes.windll.user32
-        registered = user32.RegisterHotKey(None, HOTKEY_ID, MOD_CONTROL | MOD_NOREPEAT, VK_F9)
+        registered = user32.RegisterHotKey(None, HOTKEY_ID, MOD_CONTROL | MOD_NOREPEAT, VK_F11)
         if not registered:
-            registered = user32.RegisterHotKey(None, HOTKEY_ID, MOD_CONTROL, VK_F9)
+            registered = user32.RegisterHotKey(None, HOTKEY_ID, MOD_CONTROL, VK_F11)
 
         if registered:
-            print("[HOTKEY] Đã đăng ký phím nóng Ctrl + F9 thành công. Nhấn Ctrl + F9 để chỉnh sửa cấu hình kết nối.")
+            print("[HOTKEY] Đã đăng ký phím nóng Ctrl + F11 thành công. Nhấn Ctrl + F11 để chỉnh sửa cấu hình kết nối.")
         else:
-            print("[HOTKEY] Cảnh báo: Không thể đăng ký phím nóng Ctrl + F9 (có thể do tiến trình khác đang dùng).")
+            print("[HOTKEY] Cảnh báo: Không thể đăng ký phím nóng Ctrl + F11 (có thể do tiến trình khác đang dùng).")
             return
 
         msg = wintypes.MSG()
         try:
             while user32.GetMessageW(ctypes.byref(msg), None, 0, 0) != 0:
                 if msg.message == WM_HOTKEY and msg.wParam == HOTKEY_ID:
-                    print("[HOTKEY] Nhận tổ hợp phím Ctrl + F9 -> Mở bảng cấu hình...")
+                    print("[HOTKEY] Nhận tổ hợp phím Ctrl + F11 -> Mở bảng cấu hình...")
                     open_config_gui()
                 user32.TranslateMessage(ctypes.byref(msg))
                 user32.DispatchMessageW(ctypes.byref(msg))
@@ -989,7 +1230,7 @@ def start_hotkey_listener():
 async def connect():
     """
     Vòng lặp chính để kết nối và quản lý các tác vụ của client.
-    Tự động đọc lại cấu hình mới khi người dùng chỉnh sửa qua Ctrl + F9.
+    Tự động đọc lại cấu hình mới khi người dùng chỉnh sửa qua Ctrl + F11.
     """
     global active_websocket, main_event_loop, reconnect_event, connection_status_text
     main_event_loop = asyncio.get_running_loop()
@@ -1000,16 +1241,39 @@ async def connect():
 
     while True:
         config = load_config_file(config_path)
-        server_host = config['client'].get('server', 'localhost')
-        server_port = int(config['server'].get('port', 9630))
+        raw_server = config['client'].get('server', 'localhost').strip()
+        server_port = int(config['server'].get('port', 9630) if config.has_section('server') else 9630)
         retry_interval = int(config['client'].get('retry_interval', 5))
-        uri = f"ws://{server_host}:{server_port}"
+        use_ssl = config.getboolean('client', 'use_ssl', fallback=False)
+
+        # Chuẩn hóa URI và nhận diện giao thức ws / wss
+        if raw_server.startswith("wss://"):
+            uri = raw_server if ":" in raw_server.replace("wss://", "") else f"{raw_server}:{server_port}"
+            is_ssl = True
+        elif raw_server.startswith("ws://"):
+            uri = raw_server if ":" in raw_server.replace("ws://", "") else f"{raw_server}:{server_port}"
+            is_ssl = use_ssl
+            if is_ssl:
+                uri = uri.replace("ws://", "wss://")
+        else:
+            protocol = "wss" if use_ssl else "ws"
+            uri = f"{protocol}://{raw_server}:{server_port}"
+            is_ssl = use_ssl
+
+        ssl_context = None
+        if is_ssl:
+            import ssl
+            ssl_context = ssl.create_default_context()
+            # Mạng LAN nội bộ thường dùng self-signed cert hoặc kết nối qua IP
+            ssl_context.check_hostname = False
+            ssl_context.verify_mode = ssl.CERT_NONE
+
         reconnect_event.clear()
 
         try:
             connection_status_text = f"Đang kết nối tới {uri}..."
             print(f"Attempting to connect to {uri}...")
-            async with websockets.connect(uri, max_size=100 * 1024 * 1024) as websocket:
+            async with websockets.connect(uri, ssl=ssl_context, max_size=100 * 1024 * 1024) as websocket:
                 active_websocket = websocket
                 connection_status_text = f"Đã kết nối thành công ({uri})"
                 print(f"Connection successful!")
@@ -1030,9 +1294,13 @@ async def connect():
         except (ConnectionRefusedError, socket.error):
             connection_status_text = f"Không thể kết nối tới {uri}"
             print(f"Server at {uri} is unreachable. Retrying in {retry_interval} seconds...")
-        except websockets.exceptions.ConnectionClosed:
-            connection_status_text = f"Mất kết nối tới {uri}"
-            print(f"Connection to server lost. Retrying in {retry_interval} seconds...")
+        except websockets.exceptions.ConnectionClosed as e:
+            if getattr(e, 'code', None) == 4001:
+                connection_status_text = "Lỗi xác thực: Sai Access Token!"
+                print(f"[AUTH ERROR] Token xác thực không khớp với Server (Code: 4001). Vui lòng kiểm tra lại token trong config.ini!")
+            else:
+                connection_status_text = f"Mất kết nối tới {uri}"
+                print(f"Connection to server lost (Code: {getattr(e, 'code', 'N/A')}). Retrying in {retry_interval} seconds...")
         except KeyboardInterrupt:
             print("Client disconnected by user.")
             break
@@ -1042,7 +1310,7 @@ async def connect():
         finally:
             active_websocket = None
 
-        # Chờ retry_interval giây HOẶC kết nối lại ngay lập tức nếu nhận tín hiệu từ Ctrl + F9
+        # Chờ retry_interval giây HOẶC kết nối lại ngay lập tức nếu nhận tín hiệu từ Ctrl + F11
         try:
             await asyncio.wait_for(reconnect_event.wait(), timeout=retry_interval)
             reconnect_event.clear()
@@ -1070,7 +1338,7 @@ if __name__ == "__main__":
     # Xử lý cấu hình autostart
     manage_autostart()
 
-    # Khởi động lắng nghe phím nóng Ctrl + F9
+    # Khởi động lắng nghe phím nóng Ctrl + F11
     start_hotkey_listener()
 
     # 1. Bắt đầu vòng lặp kết nối (Audit sẽ chạy sau khi kết nối thành công)

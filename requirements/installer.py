@@ -6,6 +6,144 @@ import winreg
 import platform
 import time
 import zipfile
+import base64
+import configparser
+import io
+
+CONFIG_AES_KEY = "SM-Secure-Key-2026-v2!@#"
+
+try:
+    from Crypto.Cipher import AES
+    from Crypto.Util.Padding import pad, unpad
+    from Crypto.Protocol.KDF import PBKDF2
+    HAS_CRYPTO = True
+except ImportError:
+    HAS_CRYPTO = False
+
+def xor_crypt(data: str, key: str = "SM-Key-2026") -> str:
+    key_len = len(key)
+    return "".join(chr(ord(c) ^ ord(key[i % key_len])) for i, c in enumerate(data))
+
+def aes_decrypt_config(ciphertext_b64: str, key_phrase: str = CONFIG_AES_KEY) -> str:
+    if not HAS_CRYPTO:
+        raise RuntimeError("PyCryptodome not available")
+    combined = base64.b64decode(ciphertext_b64)
+    if len(combined) < 33:
+        raise ValueError("Invalid AES ciphertext length")
+    salt = combined[:16]
+    iv = combined[16:32]
+    encrypted_bytes = combined[32:]
+    key = PBKDF2(key_phrase, salt, dkLen=32, count=1000)
+    cipher = AES.new(key, AES.MODE_CBC, iv)
+    return unpad(cipher.decrypt(encrypted_bytes), AES.block_size).decode('utf-8')
+
+def aes_encrypt_config(plaintext: str, key_phrase: str = CONFIG_AES_KEY) -> str:
+    if not HAS_CRYPTO:
+        encrypted_xor = xor_crypt(plaintext)
+        return f"ENC:{base64.b64encode(encrypted_xor.encode('utf-8')).decode('utf-8')}"
+    salt = os.urandom(16)
+    key = PBKDF2(key_phrase, salt, dkLen=32, count=1000)
+    cipher = AES.new(key, AES.MODE_CBC)
+    padded = pad(plaintext.encode('utf-8'), AES.block_size)
+    combined = salt + cipher.iv + cipher.encrypt(padded)
+    return f"ENC:AES:{base64.b64encode(combined).decode('utf-8')}"
+
+def load_config_data(config_path: str):
+    """Đọc config.ini hỗ trợ cả file thường và file mã hóa ENC:AES: hoặc ENC:"""
+    config = configparser.ConfigParser()
+    if not os.path.exists(config_path):
+        return config, False
+
+    try:
+        with open(config_path, "r", encoding="utf-8") as f:
+            raw = f.read()
+
+        content_stripped = raw.strip()
+        is_encrypted = content_stripped.startswith("ENC:")
+
+        if content_stripped.startswith("ENC:AES:"):
+            b64_data = content_stripped[8:]
+            decrypted = aes_decrypt_config(b64_data)
+            config.read_string(decrypted)
+        elif is_encrypted:
+            b64_data = content_stripped[4:]
+            encrypted_xor = base64.b64decode(b64_data).decode("utf-8")
+            decrypted = xor_crypt(encrypted_xor)
+            config.read_string(decrypted)
+        else:
+            config.read_string(raw)
+        return config, is_encrypted
+    except Exception:
+        return config, False
+
+
+def save_config_data(config_path: str, config: configparser.ConfigParser, is_encrypted: bool):
+    """Lưu config.ini bảo toàn trạng thái mã hóa (ưu tiên AES-256)"""
+    string_io = io.StringIO()
+    config.write(string_io)
+    plaintext = string_io.getvalue()
+
+    if is_encrypted:
+        final_content = aes_encrypt_config(plaintext)
+    else:
+        final_content = plaintext
+
+    with open(config_path, "w", encoding="utf-8") as f:
+        f.write(final_content)
+
+
+def merge_client_config(src_config_path: str, dest_config_path: str):
+    """
+    Cập nhật config thông minh khi update client:
+    - Nếu dest_config chưa tồn tại: copy src_config sang.
+    - Nếu dest_config đã tồn tại: giữ nguyên tất cả giá trị cấu hình mà client đang dùng
+      (đặc biệt là [client] server IP, token, intervals, và [audit_modules]),
+      chỉ bổ sung các sections/keys mới từ src_config.
+    """
+    if not os.path.exists(src_config_path):
+        return
+    if not os.path.exists(dest_config_path):
+        try:
+            shutil.copy2(src_config_path, dest_config_path)
+        except Exception:
+            pass
+        return
+
+    try:
+        # 1. Sao lưu cấu hình hiện tại trước khi merge
+        bak_path = dest_config_path + ".bak"
+        try:
+            shutil.copy2(dest_config_path, bak_path)
+        except Exception:
+            pass
+
+        # 2. Đọc cả 2 file cấu hình
+        dest_cfg, is_enc = load_config_data(dest_config_path)
+        src_cfg, _ = load_config_data(src_config_path)
+
+        # 3. Bổ sung các section và key mới từ src_cfg mà dest_cfg chưa có
+        for section in src_cfg.sections():
+            if not dest_cfg.has_section(section):
+                dest_cfg.add_section(section)
+                for k, v in src_cfg.items(section):
+                    dest_cfg.set(section, k, v)
+            else:
+                for k, v in src_cfg.items(section):
+                    if not dest_cfg.has_option(section, k):
+                        dest_cfg.set(section, k, v)
+
+        # 4. Loại bỏ các trường version nếu còn sót
+        for s in ["server", "client"]:
+            if dest_cfg.has_section(s):
+                dest_cfg.remove_option(s, "version")
+                dest_cfg.remove_option(s, "client_version")
+
+        # 5. Lưu lại cấu hình đã merge
+        save_config_data(dest_config_path, dest_cfg, is_enc)
+    except Exception:
+        # Nếu merge gặp lỗi, giữ nguyên file dest_config ban đầu để đảm bảo an toàn
+        pass
+
 
 def install():
     target_dir = r"C:\Users\Public\SystemMonitor"
@@ -97,16 +235,9 @@ def install():
             except Exception:
                 time.sleep(0.5)
 
-    # Cập nhật file cấu hình config.ini
+    # Cập nhật file cấu hình config.ini (merge thông minh, bảo tồn thiết lập của client)
     if os.path.exists(src_config):
-        try:
-            if not os.path.exists(dest_config):
-                shutil.copy2(src_config, dest_config)
-            else:
-                # Đã có file cấu hình tại client: Sao lưu và cập nhật
-                shutil.copy2(src_config, dest_config)
-        except Exception:
-            pass
+        merge_client_config(src_config, dest_config)
 
     # Xóa các file source/tệp nén dư thừa sau khi cài đặt để tối ưu dung lượng
     for extra_file in ["data.zip", "client.zip", "smchost.zip", "client_setup.exe", "updater.bat"]:

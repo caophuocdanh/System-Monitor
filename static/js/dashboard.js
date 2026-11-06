@@ -954,8 +954,18 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (updateBtn) {
 
              const guid = updateBtn.dataset.guid;
-
-             triggerUpdateSingleClient(guid);
+             if (updateBtn.disabled) return;
+             updateBtn.disabled = true;
+             const origHtml = updateBtn.innerHTML;
+             updateBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+             triggerUpdateSingleClient(guid).finally(() => {
+                 setTimeout(() => {
+                     if (updateBtn) {
+                         updateBtn.disabled = false;
+                         updateBtn.innerHTML = origHtml;
+                     }
+                 }, 4000);
+             });
 
         }
 

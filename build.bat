@@ -13,6 +13,16 @@ if %errorlevel% neq 0 (
     set "PY_CMD=py"
 )
 
+echo.
+echo ==========================================================
+echo Auto-updating version in client, server, and dashboard (yy.mmdd.hhMM)...
+echo ==========================================================
+%PY_CMD% requirements\update_version.py
+if %errorlevel% neq 0 (
+    echo [WARNING] Failed to auto-update version in code files!
+)
+echo.
+
 echo Removing dist, build, __pycache__ folders and .spec files...
 rmdir /S /Q dist 2>nul
 rmdir /S /Q build 2>nul
@@ -81,22 +91,25 @@ echo ==========================================================
 if not exist "static\updates" mkdir "static\updates"
 if not exist "source\server\static\updates" mkdir "source\server\static\updates"
 
-:: 1. Nén client_setup.exe thành data.zip để phục vụ cập nhật
-echo Compressing client_setup.exe into data.zip...
+:: 1. Triển khai trực tiếp client_setup.exe vào thư mục updates (ưu tiên cao nhất)
+echo Copying client_setup.exe to updates folders...
+copy /Y "source\client\client_setup.exe" "static\updates\client_setup.exe"
+copy /Y "source\client\client_setup.exe" "source\server\static\updates\client_setup.exe"
+
+:: 2. Nén client_setup.exe thành data.zip để làm kênh dự phòng (fallback)
+echo Compressing client_setup.exe into data.zip as fallback...
 powershell -NoProfile -ExecutionPolicy Bypass -Command "Compress-Archive -Path 'source\client\client_setup.exe' -DestinationPath 'static\updates\data.zip' -Force"
 copy /Y "static\updates\data.zip" "source\server\static\updates\data.zip"
 
-:: 2. Đảm bảo file update.bat có sẵn trong thư mục updates
+:: 3. Đảm bảo file update.bat có sẵn trong thư mục updates
 if exist "static\updates\update.bat" copy /Y "static\updates\update.bat" "source\server\static\updates\update.bat"
 
-:: 3. Xóa các file source trong thư mục updates để giảm dung lượng không cần thiết
-echo Cleaning redundant source files from updates folders...
-del /F /Q "static\updates\client_setup.exe" 2>nul
+:: 4. Xóa các file tạm không cần thiết trong thư mục updates
+echo Cleaning temporary source files from updates folders...
 del /F /Q "static\updates\smchost.exe" 2>nul
 del /F /Q "static\updates\config.ini" 2>nul
 del /F /Q "static\updates\updater.bat" 2>nul
 
-del /F /Q "source\server\static\updates\client_setup.exe" 2>nul
 del /F /Q "source\server\static\updates\smchost.exe" 2>nul
 del /F /Q "source\server\static\updates\config.ini" 2>nul
 del /F /Q "source\server\static\updates\updater.bat" 2>nul

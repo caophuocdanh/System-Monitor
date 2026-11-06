@@ -30,6 +30,51 @@ except ImportError:
 
 import socket
 import requests
+import logging
+import logging.handlers
+
+# --- SYSTEM LOGGING SETUP ---
+
+def setup_system_logger(name: str, log_filename: str = None, level: int = logging.INFO) -> logging.Logger:
+    """
+    Thiết lập Logger chuẩn hóa với RotatingFileHandler (tối đa 5MB, lưu 3 bản backup)
+    và StreamHandler xuất ra Console.
+    """
+    logger = logging.getLogger(name)
+    if logger.handlers:
+        return logger
+
+    logger.setLevel(level)
+    formatter = logging.Formatter(
+        fmt="[%(asctime)s] [%(levelname)s] [%(name)s]: %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S"
+    )
+
+    # 1. Console Handler
+    ch = logging.StreamHandler(sys.stdout)
+    ch.setLevel(level)
+    ch.setFormatter(formatter)
+    logger.addHandler(ch)
+
+    # 2. File Handler (Rotating)
+    if log_filename:
+        try:
+            base_dir = os.path.dirname(os.path.abspath(sys.executable if getattr(sys, 'frozen', False) else __file__))
+            logs_dir = os.path.join(base_dir, "logs")
+            os.makedirs(logs_dir, exist_ok=True)
+            log_path = os.path.join(logs_dir, log_filename)
+            
+            fh = logging.handlers.RotatingFileHandler(
+                log_path, maxBytes=5 * 1024 * 1024, backupCount=3, encoding="utf-8"
+            )
+            fh.setLevel(level)
+            fh.setFormatter(formatter)
+            logger.addHandler(fh)
+        except Exception as e:
+            logger.warning(f"Failed to attach RotatingFileHandler to '{log_filename}': {e}")
+
+    logger.propagate = False
+    return logger
 
 # --- Conditional Import for pywin32 ---
 try:
@@ -2030,10 +2075,57 @@ class WindowsAuditor:
         }
 
 
-# --- Config Loader & Saver (Preserved with Backward Compatibility) ---
+# --- Config Loader & Saver (AES-256 Enhanced with Backward Compatibility) ---
+
+CONFIG_AES_KEY = "SM-Secure-Key-2026-v2!@#"
+
+def xor_crypt(data: str, key: str = "SM-Key-2026") -> str:
+    key_len = len(key)
+    return "".join(chr(ord(c) ^ ord(key[i % key_len])) for i, c in enumerate(data))
+
+def xor_encrypt_config(plaintext: str) -> str:
+    encrypted_xor = xor_crypt(plaintext)
+    b64_data = base64.b64encode(encrypted_xor.encode('utf-8')).decode('utf-8')
+    return f"ENC:{b64_data}"
+
+def aes_encrypt_config(plaintext: str, key_phrase: str = CONFIG_AES_KEY) -> str:
+    """Mã hóa AES-256-CBC có Salt 16 bytes và IV ngẫu nhiên theo chuẩn PBKDF2."""
+    if not HAS_CRYPTO:
+        return xor_encrypt_config(plaintext)
+    try:
+        salt = os.urandom(16)
+        key = PBKDF2(key_phrase, salt, dkLen=32, count=1000)
+        cipher = AES.new(key, AES.MODE_CBC)
+        padded = pad(plaintext.encode('utf-8'), AES.block_size)
+        encrypted_bytes = cipher.encrypt(padded)
+        combined = salt + cipher.iv + encrypted_bytes
+        return f"ENC:AES:{base64.b64encode(combined).decode('utf-8')}"
+    except Exception as e:
+        print(f"[CRYPTO] AES encryption failed: {e}, falling back to XOR.")
+        return xor_encrypt_config(plaintext)
+
+def aes_decrypt_config(ciphertext_b64: str, key_phrase: str = CONFIG_AES_KEY) -> str:
+    """Giải mã AES-256-CBC với Salt và IV."""
+    if not HAS_CRYPTO:
+        raise RuntimeError("PyCryptodome is not installed, cannot decrypt AES config.")
+    combined = base64.b64decode(ciphertext_b64)
+    if len(combined) < 33:
+        raise ValueError("Invalid AES ciphertext length.")
+    salt = combined[:16]
+    iv = combined[16:32]
+    encrypted_bytes = combined[32:]
+    key = PBKDF2(key_phrase, salt, dkLen=32, count=1000)
+    cipher = AES.new(key, AES.MODE_CBC, iv)
+    decrypted_bytes = unpad(cipher.decrypt(encrypted_bytes), AES.block_size)
+    return decrypted_bytes.decode('utf-8')
 
 def load_config(config_path):
-    """Nạp file config, hỗ trợ giải mã tự động nếu file được mã hóa (bắt đầu bằng ENC:)."""
+    """
+    Nạp file config, hỗ trợ giải mã tự động:
+    - Bắt đầu bằng ENC:AES: -> giải mã chuẩn AES-256-CBC.
+    - Bắt đầu bằng ENC:     -> giải mã XOR (tương thích ngược hoàn toàn).
+    - Plaintext             -> đọc trực tiếp.
+    """
     import configparser
     config = configparser.ConfigParser()
     if not os.path.exists(config_path):
@@ -2042,13 +2134,13 @@ def load_config(config_path):
     try:
         with open(config_path, "r", encoding="utf-8") as f:
             content = f.read()
-        
-        def xor_crypt(data: str, key: str = "SM-Key-2026") -> str:
-            key_len = len(key)
-            return "".join(chr(ord(c) ^ ord(key[i % key_len])) for i, c in enumerate(data))
 
         content_stripped = content.strip()
-        if content_stripped.startswith("ENC:"):
+        if content_stripped.startswith("ENC:AES:"):
+            b64_data = content_stripped[8:]
+            decrypted_content = aes_decrypt_config(b64_data)
+            config.read_string(decrypted_content)
+        elif content_stripped.startswith("ENC:"):
             b64_data = content_stripped[4:]
             encrypted_xor = base64.b64decode(b64_data).decode('utf-8')
             decrypted_content = xor_crypt(encrypted_xor)
@@ -2064,7 +2156,7 @@ def load_config(config_path):
     return config
 
 def save_config(config_path, config_obj, encrypt=False):
-    """Ghi config ra file, hỗ trợ mã hóa nếu encrypt=True."""
+    """Ghi config ra file, hỗ trợ mã hóa AES-256 (hoặc XOR fallback) nếu encrypt=True."""
     import io
     string_io = io.StringIO()
     config_obj.write(string_io)
@@ -2072,13 +2164,10 @@ def save_config(config_path, config_obj, encrypt=False):
     
     try:
         if encrypt:
-            def xor_crypt(data: str, key: str = "SM-Key-2026") -> str:
-                key_len = len(key)
-                return "".join(chr(ord(c) ^ ord(key[i % key_len])) for i, c in enumerate(data))
-            
-            encrypted_xor = xor_crypt(plaintext_content)
-            b64_data = base64.b64encode(encrypted_xor.encode('utf-8')).decode('utf-8')
-            final_content = f"ENC:{b64_data}"
+            if HAS_CRYPTO:
+                final_content = aes_encrypt_config(plaintext_content)
+            else:
+                final_content = xor_encrypt_config(plaintext_content)
         else:
             final_content = plaintext_content
             

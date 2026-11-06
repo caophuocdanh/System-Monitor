@@ -6,13 +6,13 @@ from tkinter import ttk, messagebox, filedialog
 from library import load_config, save_config
 
 # --- Các hằng số và DISPLAY_NAMES ---
-BOOLEAN_KEYS = {"autostart", "gui"}
+BOOLEAN_KEYS = {"autostart", "gui", "use_ssl"}
 
 DISPLAY_NAMES = {
-    "version": "Phiên bản ứng dụng (Version)",
-    "client_version": "Phiên bản Client yêu cầu (Target Version)",
     "host": "Địa chỉ IP mà server WebSocket sẽ lắng nghe (0.0.0.0 = mọi địa chỉ)", "port": "Cổng WebSocket chính mà server sử dụng", "health_check_port": "Cổng kiểm tra tình trạng server (health-check)",
-    "gui": "Hiển thị cửa sổ Console (Server)",
+    "gui": "Hiển thị cửa sổ Console (Server)", "use_ssl": "Kích hoạt mã hóa SSL/TLS (WSS) bảo mật WebSocket",
+    "ssl_cert": "Đường dẫn file chứng chỉ SSL (.pem)", "ssl_key": "Đường dẫn file khóa riêng tư SSL (.key)",
+    "access_token": "Mã Token xác thực kết nối bí mật (Client, Server, Dashboard)",
     "server": "Địa chỉ WebSocket server mà client kết nối", "retry_interval": "Thời gian giữa các lần thử lại nếu mất kết nối (giây)", "refesh_interval": "Tần suất gửi dữ liệu hiệu năng (giây)",
     "update_info_interval": "Chu kỳ gửi lại thông tin đầy đủ (giây)", "max_event_log": "Số lượng log hệ thống lấy tối đa", "history_limit": "Giới hạn số lịch sử trình duyệt mỗi profile",
     "autostart": "Khởi động cùng Windows",
@@ -96,24 +96,11 @@ class ConfigEditor(ttk.Frame):
                     pass
             self.config = load_config(self.config_path)
             
-            # Đồng bộ và chuẩn hóa version giữa [server] và [client]
-            server_ver = ""
-            client_ver = ""
-            if self.config.has_section("server"):
-                server_ver = self.config["server"].get("version") or self.config["server"].get("client_version") or ""
-            if self.config.has_section("client"):
-                client_ver = self.config["client"].get("version") or self.config["client"].get("client_version") or ""
-
-            sync_version = server_ver or client_ver or "2026.3110.1407"
-
-            if self.config.has_section("server"):
-                self.config["server"]["version"] = sync_version
-                self.config["server"]["client_version"] = sync_version
-            if self.config.has_section("client"):
-                self.config["client"]["version"] = sync_version
-
-            # Biến dùng chung để đồng bộ real-time giữa các tab trong GUI
-            self.version_var = tk.StringVar(value=sync_version)
+            # Đảm bảo không lưu version trong config
+            for sec in ["server", "client"]:
+                if self.config.has_section(sec):
+                    self.config.remove_option(sec, "version")
+                    self.config.remove_option(sec, "client_version")
 
             self.path_var.set(self.config_path)
             self.master.title(f"System Monitor Properties - {os.path.basename(self.config_path)}")
@@ -157,8 +144,8 @@ class ConfigEditor(ttk.Frame):
 
         row_idx = 0
         for key, value in self.config[section].items():
-            # Tránh hiển thị trùng lặp client_version nếu tab server đã có field version
-            if section == "server" and key == "client_version" and "version" in self.config[section]:
+            # Bỏ qua trường version nếu có trong config cũ
+            if key in ("version", "client_version"):
                 continue
 
             label_text = DISPLAY_NAMES.get(key, key)
@@ -168,10 +155,6 @@ class ConfigEditor(ttk.Frame):
             if is_bool:
                 var = tk.BooleanVar(value=self.config.getboolean(section, key))
                 widget = ttk.Checkbutton(parent, variable=var)
-            elif key in ("version", "client_version"):
-                # Dùng chung self.version_var để mọi thay đổi tại Server hoặc Client đều đồng bộ tức thì
-                var = self.version_var
-                widget = ttk.Entry(parent, textvariable=var, width=25)
             else:
                 var = tk.StringVar(value=value)
                 widget = ttk.Entry(parent, textvariable=var, width=25)
@@ -209,14 +192,11 @@ class ConfigEditor(ttk.Frame):
             
             self.config[section][key] = str(value)
 
-        # Luôn lưu đồng bộ tuyệt đối version giữa [server] và [client]
-        if hasattr(self, 'version_var'):
-            current_ver_str = self.version_var.get().strip()
-            if self.config.has_section("server"):
-                self.config["server"]["version"] = current_ver_str
-                self.config["server"]["client_version"] = current_ver_str
-            if self.config.has_section("client"):
-                self.config["client"]["version"] = current_ver_str
+        # Đảm bảo không lưu version trong config
+        for sec in ["server", "client"]:
+            if self.config.has_section(sec):
+                self.config.remove_option(sec, "version")
+                self.config.remove_option(sec, "client_version")
 
         try:
             success = save_config(self.config_path, self.config, encrypt=getattr(self, 'is_encrypted', False))

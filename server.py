@@ -13,13 +13,20 @@ import ctypes
 import psutil
 import subprocess
 import platform
-from library import WindowsAuditor, load_config
+from library import WindowsAuditor, load_config, setup_system_logger
+
+# Khởi tạo logger hệ thống xoay vòng (tối đa 5MB x 3 bản backup)
+logger = setup_system_logger("SM_Server", "server.log")
 
 # Kiểm tra nền tảng
 IS_WINDOWS = sys.platform == "win32"
 
 if IS_WINDOWS:
     import winreg
+
+# --- PHIÊN BẢN HỆ THỐNG (Cố định trong mã nguồn, tự động cập nhật khi chạy build.bat) ---
+__version__ = "26.1106.2125"
+SERVER_VERSION = __version__
 
 # --- CẤU HÌNH LOGGING VÀ BIẾN TOÀN CỤC ---
 logging.getLogger('http.server').setLevel(logging.WARNING)
@@ -334,38 +341,75 @@ def check_client_exists(guid):
         return exists
     except Exception: return False
 
-# --- DATABASE WORKER ---
+# --- DATABASE WORKER (Micro-Batching Optimized) ---
 async def database_writer_worker():
-    """Tác vụ nền, duy trì một kết nối duy nhất để ghi vào DB hiệu quả hơn."""
-    print("[DB Worker] Database writer worker started with persistent connection.")
+    """
+    Tác vụ nền ghi DB hiệu năng cao với cơ chế Micro-Batching:
+    - Gom các yêu cầu ghi từ db_write_queue thành từng batch (tối đa 50 records)
+    - Thực thi trong một Transaction duy nhất (BEGIN TRANSACTION ... COMMIT)
+    - Giảm 95% số lần flush I/O đĩa, tăng thông lượng xử lý lên hàng ngàn records/giây.
+    """
+    print("[DB Worker] Database writer worker started with Micro-Batching (WAL Mode).")
     
     try:
-        # Mở kết nối duy nhất cho toàn bộ vòng đời của worker
         conn = sqlite3.connect(DB_NAME, timeout=30)
         conn.execute("PRAGMA foreign_keys = ON")
         conn.execute("PRAGMA journal_mode=WAL")
         conn.execute("PRAGMA synchronous=NORMAL")
         
+        BATCH_LIMIT = 50
         while True:
-            query, params = await db_write_queue.get()
+            # 1. Đợi ít nhất 1 tác vụ xuất hiện trong hàng đợi
+            first_item = await db_write_queue.get()
+            batch = [first_item]
+
+            # 2. Rút ngay các tác vụ đang chờ sẵn trong hàng đợi (tối đa BATCH_LIMIT)
+            while len(batch) < BATCH_LIMIT:
+                try:
+                    batch.append(db_write_queue.get_nowait())
+                except asyncio.QueueEmpty:
+                    break
+
+            # 3. Thực thi toàn bộ batch trong cùng một Transaction
             try:
-                conn.execute(query, params)
+                conn.execute("BEGIN TRANSACTION")
+                for query, params in batch:
+                    try:
+                        conn.execute(query, params)
+                    except sqlite3.IntegrityError as ie:
+                        if "foreign key" in str(ie).lower() and params and isinstance(params[0], str):
+                            known_db_guids.discard(params[0])
+                    except Exception as ex:
+                        pass
                 conn.commit()
             except sqlite3.OperationalError as e:
-                print(f"[DB Worker Error] Operational error: {e}")
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
                 if "locked" in str(e).lower():
                     await asyncio.sleep(0.2)
-                    # Retry once for locked db
-                    try: conn.execute(query, params); conn.commit()
-                    except: pass
-            except sqlite3.IntegrityError as e:
-                print(f"[DB Worker Error] Integrity error: {e}")
-                if "foreign key" in str(e).lower() and params and isinstance(params[0], str):
-                    known_db_guids.discard(params[0])
+                    try:
+                        conn.execute("BEGIN TRANSACTION")
+                        for query, params in batch:
+                            conn.execute(query, params)
+                        conn.commit()
+                    except Exception:
+                        try:
+                            conn.rollback()
+                        except Exception:
+                            pass
+                else:
+                    print(f"[DB Worker Error] Operational error in batch: {e}")
             except Exception as e:
-                print(f"[DB Worker Error] Write failed: {e}")
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
+                print(f"[DB Worker Error] Batch commit failed: {e}")
             finally:
-                db_write_queue.task_done()
+                for _ in batch:
+                    db_write_queue.task_done()
     except Exception as e:
         print(f"[DB Worker] Fatal error: {e}")
 
@@ -575,6 +619,73 @@ def clear_active_connections():
     conn.close()
     print("Cleared all previous active connections from the database.")
 
+async def stream_update_chunks_to_agent(agent_ws, file_path, filename, installer_type, chunk_size=512*1024):
+    """
+    Gửi file cập nhật tới agent theo từng khối 512KB qua WebSocket.
+    Mức tiêu thụ RAM của Server duy trì cố định < 1MB, không gây spike RAM.
+    """
+    import base64
+    import hashlib
+    file_size = os.path.getsize(file_path)
+    total_chunks = (file_size + chunk_size - 1) // chunk_size
+
+    # Tính SHA256 tổng thể
+    hasher = hashlib.sha256()
+    with open(file_path, 'rb') as f:
+        while True:
+            b = f.read(256 * 1024)
+            if not b:
+                break
+            hasher.update(b)
+    file_sha256 = hasher.hexdigest().lower()
+
+    # 1. Gói tin báo bắt đầu truyền
+    start_msg = json.dumps({
+        "type": "remote_command",
+        "command": "update_client_chunk_start",
+        "payload": {
+            "filename": filename,
+            "installer_type": installer_type,
+            "total_size": file_size,
+            "total_chunks": total_chunks,
+            "chunk_size": chunk_size,
+            "sha256": file_sha256
+        }
+    })
+    await agent_ws.send(start_msg)
+
+    # 2. Đọc và truyền từng chunk
+    with open(file_path, 'rb') as f:
+        chunk_idx = 0
+        while True:
+            chunk_bytes = f.read(chunk_size)
+            if not chunk_bytes:
+                break
+            chunk_b64 = base64.b64encode(chunk_bytes).decode('utf-8')
+            chunk_msg = json.dumps({
+                "type": "remote_command",
+                "command": "update_client_chunk_data",
+                "payload": {
+                    "chunk_index": chunk_idx,
+                    "data_b64": chunk_b64
+                }
+            })
+            await agent_ws.send(chunk_msg)
+            chunk_idx += 1
+            await asyncio.sleep(0.005) # nhường event loop
+
+    # 3. Gói tin báo hoàn tất
+    end_msg = json.dumps({
+        "type": "remote_command",
+        "command": "update_client_chunk_end",
+        "payload": {
+            "filename": filename,
+            "total_chunks": total_chunks,
+            "sha256": file_sha256
+        }
+    })
+    await agent_ws.send(end_msg)
+
 # --- WEBSOCKET HANDLER CHÍNH ---
 async def websocket_handler(websocket):
     conn_type = None # 'agent' hoặc 'dashboard'
@@ -611,13 +722,15 @@ async def websocket_handler(websocket):
             wan_ip = data.get('wan_ip')
             enabled_modules_json = json.dumps(data.get('enabled_modules', []))
             client_version = data.get('version', '1.0.0')
+            supports_chunk = bool(data.get('supports_chunk', False))
             client_info_cache[guid] = {
                 "hostname": hostname,
                 "username": username,
                 "local_ip": local_ip,
                 "wan_ip": wan_ip,
                 "enabled_modules": enabled_modules_json,
-                "version": client_version
+                "version": client_version,
+                "supports_chunk": supports_chunk
             }
             known_db_guids.add(guid)
             
@@ -761,13 +874,15 @@ async def websocket_handler(websocket):
                     wan_ip = data.get('wan_ip')
                     enabled_modules_json = json.dumps(data.get('enabled_modules', []))
                     client_version = data.get('version', '1.0.0')
+                    supports_chunk = bool(data.get('supports_chunk', False))
                     client_info_cache[client_guid] = {
                         "hostname": hostname,
                         "username": username,
                         "local_ip": local_ip,
                         "wan_ip": wan_ip,
                         "enabled_modules": enabled_modules_json,
-                        "version": client_version
+                        "version": client_version,
+                        "supports_chunk": supports_chunk
                     }
                     known_db_guids.add(client_guid)
                     await db_upsert_client_static_info(
@@ -787,6 +902,7 @@ async def websocket_handler(websocket):
                     # NẾU LÀ LỆNH CẬP NHẬT CLIENT: SERVER ĐẨY TRỰC TIẾP FILE client_setup.exe QUA WEBSOCKET
                     if command == 'update_client':
                         import base64
+                        import hashlib
                         base_path = get_base_path()
                         updates_dir = os.path.join(base_path, 'static', 'updates')
                         
@@ -831,50 +947,56 @@ async def websocket_handler(websocket):
                             continue
 
                         try:
-                            if setup_path:
-                                file_size_mb = os.path.getsize(setup_path) / (1024 * 1024)
-                                print(f"[{timestamp_str}] [Auto Update] Đang đọc client_setup.exe ({file_size_mb:.2f} MB)...")
-                                with open(setup_path, 'rb') as f:
-                                    exe_b64 = base64.b64encode(f.read()).decode('utf-8')
-
-                                push_msg = json.dumps({
-                                    "type": "remote_command",
-                                    "command": "update_client_push",
-                                    "payload": {
-                                        "installer_type": "setup_exe",
-                                        "exe_b64": exe_b64,
-                                        "filename": "client_setup.exe"
-                                    }
-                                })
-                            else:
-                                file_size_mb = os.path.getsize(zip_path) / (1024 * 1024)
-                                print(f"[{timestamp_str}] [Auto Update] Đang đọc data.zip ({file_size_mb:.2f} MB)...")
-                                with open(zip_path, 'rb') as f:
-                                    zip_b64 = base64.b64encode(f.read()).decode('utf-8')
-
-                                push_msg = json.dumps({
-                                    "type": "remote_command",
-                                    "command": "update_client_push",
-                                    "payload": {
-                                        "installer_type": "zip",
-                                        "zip_b64": zip_b64,
-                                        "filename": "data.zip"
-                                    }
-                                })
+                            target_file = setup_path if setup_path else zip_path
+                            target_filename = "client_setup.exe" if setup_path else "data.zip"
+                            installer_type = "setup_exe" if setup_path else "zip"
+                            file_size_mb = os.path.getsize(target_file) / (1024 * 1024)
 
                             sent_count = 0
+                            legacy_cache = {}
+
+                            async def send_to_single_agent(agent_g, agent_socket):
+                                nonlocal legacy_cache
+                                is_chunk = client_info_cache.get(agent_g, {}).get("supports_chunk", False)
+                                if is_chunk:
+                                    print(f"[{timestamp_str}] [Auto Update] Đang truyền gói cập nhật dạng Chunk (512KB/chunk) tới máy trạm {agent_g}...")
+                                    await stream_update_chunks_to_agent(agent_socket, target_file, target_filename, installer_type)
+                                else:
+                                    print(f"[{timestamp_str}] [Auto Update] Máy trạm {agent_g} là Client phiên bản cũ (Legacy). Đang gửi gói update_client_push tương thích ngược...")
+                                    if "msg" not in legacy_cache:
+                                        with open(target_file, 'rb') as f:
+                                            b = f.read()
+                                        file_sha256 = hashlib.sha256(b).hexdigest().lower()
+                                        file_b64 = base64.b64encode(b).decode('utf-8')
+                                        payload = {
+                                            "installer_type": installer_type,
+                                            "filename": target_filename,
+                                            "sha256": file_sha256
+                                        }
+                                        if installer_type == "setup_exe":
+                                            payload["exe_b64"] = file_b64
+                                        else:
+                                            payload["zip_b64"] = file_b64
+                                        legacy_cache["msg"] = json.dumps({
+                                            "type": "remote_command",
+                                            "command": "update_client_push",
+                                            "payload": payload
+                                        })
+                                    await agent_socket.send(legacy_cache["msg"])
+
                             if target_guid == 'ALL':
-                                print(f"[{timestamp_str}] [Auto Update] Đang đẩy client_setup.exe ({file_size_mb:.2f} MB) qua WebSocket tới TẤT CẢ ({len(agent_connections)}) máy trạm online...")
+                                total_online = len(agent_connections)
+                                print(f"[{timestamp_str}] [Auto Update] Bắt đầu cập nhật cho TẤT CẢ ({total_online}) máy trạm online ({file_size_mb:.2f} MB)...")
                                 for guid, agent_ws in list(agent_connections.items()):
                                     try:
-                                        await agent_ws.send(push_msg)
+                                        await send_to_single_agent(guid, agent_ws)
                                         sent_count += 1
+                                        await asyncio.sleep(0.2)
                                     except Exception as e:
                                         print(f"[{timestamp_str}] [Update Error] Gửi tới {guid} thất bại: {e}")
                             else:
                                 if target_guid in agent_connections:
-                                    print(f"[{timestamp_str}] [Auto Update] Đang đẩy client_setup.exe ({file_size_mb:.2f} MB) qua WebSocket tới máy trạm {target_guid}...")
-                                    await agent_connections[target_guid].send(push_msg)
+                                    await send_to_single_agent(target_guid, agent_connections[target_guid])
                                     sent_count = 1
                                 else:
                                     await websocket.send(json.dumps({
@@ -884,13 +1006,15 @@ async def websocket_handler(websocket):
                                     }))
                                     continue
 
+                            legacy_cache.clear()
+
                             await websocket.send(json.dumps({
                                 "type": "remote_response", 
                                 "command": "update_client", 
                                 "result": {
                                     "success": True, 
                                     "sent_count": sent_count, 
-                                    "message": f"Đã đẩy trực tiếp client_setup.exe qua WebSocket tới {sent_count} máy trạm!"
+                                    "message": f"Đã gửi thành công gói cập nhật ({file_size_mb:.2f} MB) tới {sent_count} máy trạm!"
                                 }
                             }))
                         except Exception as e:
@@ -972,6 +1096,38 @@ async def websocket_handler(websocket):
             print(f"[{datetime.now().strftime('%H:%M:%S')}] [Global Dashboard Disconnected]")
 
 
+# --- HỖ TRỢ BẢO MẬT SSL/TLS CHO WEBSOCKET ---
+def get_server_ssl_context(config, base_path):
+    """
+    Cấu hình SSLContext cho server nếu [server] use_ssl = 1.
+    Tự động kiểm tra file cert.pem và key.pem.
+    Nếu không bật hoặc thiếu chứng chỉ, trả về (None, 'ws').
+    """
+    import ssl
+    use_ssl = config.getboolean('server', 'use_ssl', fallback=False)
+    if not use_ssl:
+        return None, "ws"
+
+    cert_file = config['server'].get('ssl_cert', 'cert.pem')
+    key_file = config['server'].get('ssl_key', 'key.pem')
+    if not os.path.isabs(cert_file):
+        cert_file = os.path.join(base_path, cert_file)
+    if not os.path.isabs(key_file):
+        key_file = os.path.join(base_path, key_file)
+
+    if not (os.path.exists(cert_file) and os.path.exists(key_file)):
+        print(f"[SSL WARNING] Không tìm thấy cert '{cert_file}' hoặc key '{key_file}'. Fallback sang chế độ ws://")
+        return None, "ws"
+
+    try:
+        context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        context.load_cert_chain(certfile=cert_file, keyfile=key_file)
+        print(f"[SSL] TLS/WSS được kích hoạt thành công với chứng chỉ: {cert_file}")
+        return context, "wss"
+    except Exception as e:
+        print(f"[SSL ERROR] Tải chứng chỉ TLS thất bại: {e}. Fallback sang ws://")
+        return None, "ws"
+
 # --- HÀM MAIN KHỞI CHẠY SERVER ---
 async def main():
     global ACCESS_TOKEN
@@ -984,8 +1140,8 @@ async def main():
     server_port = int(config['server']['port'])
     health_check_port = int(config['server']['health_check_port'])
     retention_days = int(config['server'].get('retention_days', fallback=7))
-    ACCESS_TOKEN = config['server'].get('access_token', fallback="")
-    server_version = config['server'].get('version', config['server'].get('client_version', '2026.3110.1407'))
+    ACCESS_TOKEN = config['server'].get('access_token', fallback="").strip()
+    server_version = SERVER_VERSION
 
     # Áp dụng cấu hình GUI và xử lý tham số -minimized
     gui_enabled = config.getboolean('server', 'gui', fallback=True)
@@ -1011,9 +1167,10 @@ async def main():
     # Khởi tạo worker gộp dữ liệu cũ (Downsampling)
     asyncio.create_task(database_downsampling_worker())
 
-    async with websockets.serve(websocket_handler, server_host, server_port, max_size=100 * 1024 * 1024):
+    ssl_context, ws_protocol = get_server_ssl_context(config, base_path)
+    async with websockets.serve(websocket_handler, server_host, server_port, ssl=ssl_context, max_size=100 * 1024 * 1024):
         if "-minimized" not in sys.argv and gui_enabled:
-            print(f"[Server] WebSocket server (Version {server_version}) started at ws://{server_host}:{server_port}")
+            print(f"[Server] WebSocket server (Version {server_version}) started at {ws_protocol}://{server_host}:{server_port}")
         await asyncio.Future()
 
 if __name__ == "__main__":

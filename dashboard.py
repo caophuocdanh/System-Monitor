@@ -23,6 +23,10 @@ IS_WINDOWS = sys.platform == "win32"
 if IS_WINDOWS:
     import winreg
 
+# --- PHIÊN BẢN HỆ THỐNG (Cố định trong mã nguồn, tự động cập nhật khi chạy build.bat) ---
+__version__ = "26.1106.2125"
+DASHBOARD_VERSION = __version__
+
 # --- HÀM HELPER HỆ THỐNG ---
 
 def get_local_lan_ip():
@@ -39,6 +43,45 @@ def get_local_lan_ip():
             return socket.gethostbyname(socket.gethostname())
         except Exception:
             return "127.0.0.1"
+
+def parse_version_tuple(ver_str: str):
+    """
+    Chuẩn hóa chuỗi version thành tuple số để so sánh thứ tự.
+    Hỗ trợ:
+      - Định dạng chuẩn: '26.1104.2321' -> (26, 1104, 2321)
+      - Định dạng cũ: '2026.3110.1407' -> đưa về mốc cũ hơn bản mới
+      - Định dạng semver: '1.0.0' -> (1, 0, 0)
+    """
+    if not ver_str:
+        return (0,)
+    clean_str = str(ver_str).strip().lstrip('vV')
+    parts = []
+    for p in clean_str.split('.'):
+        digits = ''.join(c for c in p if c.isdigit())
+        if digits:
+            parts.append(int(digits))
+        else:
+            parts.append(0)
+    if not parts:
+        return (0,)
+    if parts[0] >= 2000 and len(parts) >= 3:
+        return (parts[0] % 100 - 1, *parts[1:])
+    return tuple(parts)
+
+def is_version_older(current_ver: str, target_ver: str) -> bool:
+    """Kiểm tra xem current_ver có cũ hơn target_ver hay không."""
+    if not current_ver or current_ver in ('1.0.0', 'N/A', 'unknown'):
+        return True
+    if not target_ver:
+        return False
+    if str(current_ver).strip() == str(target_ver).strip():
+        return False
+    try:
+        cur_tup = parse_version_tuple(current_ver)
+        tgt_tup = parse_version_tuple(target_ver)
+        return cur_tup < tgt_tup
+    except Exception:
+        return str(current_ver).strip() != str(target_ver).strip()
 
 def get_base_path():
     """Trả về thư mục chứa file .exe hoặc .py đang chạy"""
@@ -292,12 +335,14 @@ def client_detail(guid):
     config = load_config('config.ini')
     ws_host = config['server'].get('host', '127.0.0.1')
     ws_port = config['server'].get('port', '9630')
+    use_ssl = config.getboolean('server', 'use_ssl', fallback=False)
     if ws_host in ('0.0.0.0', '127.0.0.1', 'localhost'):
         if request and request.host:
             ws_host = request.host.split(':')[0]
         elif ws_host == '0.0.0.0':
             ws_host = '127.0.0.1'
-    ws_url = f"ws://{ws_host}:{ws_port}"
+    ws_protocol = "wss" if use_ssl else "ws"
+    ws_url = f"{ws_protocol}://{ws_host}:{ws_port}"
     access_token = config['server'].get('access_token', '')
 
     # Truyền dữ liệu client và các giá trị interval vào template
@@ -425,17 +470,12 @@ def get_dashboard_data():
     except (FileNotFoundError, TypeError):
         last_db_update_time = "N/A"
 
-    # Lấy phiên bản mục tiêu từ config server
-    server_version = (
-        config['server'].get('version') or
-        config['server'].get('client_version') or
-        config['client'].get('version') or
-        "2026.3110.1407"
-    )
+    # Phiên bản hệ thống được cố định trong mã nguồn
+    server_version = __version__
     target_version = server_version
     for c in all_clients:
         c['version'] = c.get('version') or '1.0.0'
-        c['needs_update'] = (c['version'] != target_version)
+        c['needs_update'] = is_version_older(c['version'], target_version)
 
     # 4. Trả về dữ liệu dưới dạng JSON
     return jsonify({
@@ -513,8 +553,17 @@ def delete_client():
             cfg = load_config(os.path.join(get_base_path(), 'config.ini'))
             ws_port = cfg['server'].get('port', '9630')
             token = cfg['server'].get('access_token', '')
+            use_ssl = cfg.getboolean('server', 'use_ssl', fallback=False)
+            ws_proto = "wss" if use_ssl else "ws"
+            ssl_ctx = None
+            if use_ssl:
+                import ssl
+                ssl_ctx = ssl.create_default_context()
+                ssl_ctx.check_hostname = False
+                ssl_ctx.verify_mode = ssl.CERT_NONE
+
             from websockets.sync.client import connect
-            with connect(f"ws://127.0.0.1:{ws_port}", open_timeout=2, close_timeout=2) as ws:
+            with connect(f"{ws_proto}://127.0.0.1:{ws_port}", ssl=ssl_ctx, open_timeout=2, close_timeout=2) as ws:
                 ws.send(json.dumps({"type": "dashboard_global_login", "access_token": token}))
                 ws.send(json.dumps({
                     "type": "remote_command",
@@ -771,19 +820,16 @@ def inject_global_vars():
     config = load_config('config.ini')
     ws_host = config['server'].get('host', '127.0.0.1')
     ws_port = config['server'].get('port', '9630')
+    use_ssl = config.getboolean('server', 'use_ssl', fallback=False)
     if ws_host in ('0.0.0.0', '127.0.0.1', 'localhost'):
         if request and request.host:
             ws_host = request.host.split(':')[0]
         elif ws_host == '0.0.0.0':
             ws_host = '127.0.0.1'
-    ws_url = f"ws://{ws_host}:{ws_port}"
+    ws_protocol = "wss" if use_ssl else "ws"
+    ws_url = f"{ws_protocol}://{ws_host}:{ws_port}"
     access_token = config['server'].get('access_token', '')
-    server_version = (
-        config['server'].get('version') or
-        config['server'].get('client_version') or
-        config['client'].get('version') or
-        "2026.3110.1407"
-    )
+    server_version = __version__
     return dict(global_ws_url=ws_url, global_access_token=access_token, server_version=server_version)
 
 @app.route('/logs')
@@ -863,12 +909,21 @@ def trigger_client_update():
     config = load_config(config_path)
     ws_port = config['server'].get('port', '9630')
     access_token = config['server'].get('access_token', '')
-    ws_url = f"ws://127.0.0.1:{ws_port}"
+    use_ssl = config.getboolean('server', 'use_ssl', fallback=False)
+    ws_proto = "wss" if use_ssl else "ws"
+    ws_url = f"{ws_proto}://127.0.0.1:{ws_port}"
 
     try:
         from websockets.sync.client import connect
+        ssl_ctx = None
+        if use_ssl:
+            import ssl
+            ssl_ctx = ssl.create_default_context()
+            ssl_ctx.check_hostname = False
+            ssl_ctx.verify_mode = ssl.CERT_NONE
+
         # Mở kết nối WebSocket nội bộ tới server.py
-        with connect(ws_url, open_timeout=10, close_timeout=10, max_size=100 * 1024 * 1024) as ws:
+        with connect(ws_url, ssl=ssl_ctx, open_timeout=10, close_timeout=10, max_size=100 * 1024 * 1024) as ws:
             # 1. Đăng nhập với quyền dashboard_global
             ws.send(json.dumps({
                 "type": "dashboard_global_login",
@@ -881,7 +936,8 @@ def trigger_client_update():
                 "command": "update_client"
             }))
             # 3. Chờ phản hồi từ Server (timeout 30s)
-            response = ws.recv(timeout=30)
+            recv_timeout = 60 if guid == "ALL" else 30
+            response = ws.recv(timeout=recv_timeout)
             res_data = json.loads(response)
             
             if res_data.get('error'):
